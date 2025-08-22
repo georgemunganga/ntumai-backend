@@ -1,0 +1,653 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  DRIVER
+  VENDOR
+  ADMIN
+}
+
+enum AddressType {
+  HOME
+  WORK
+  OTHER
+}
+
+enum BannerType {
+  PROMOTIONAL
+  CATEGORY
+  PRODUCT
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum OTPType {
+  registration
+  login
+  password_reset
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String?   @unique
+  phone           String?   @unique
+  countryCode     String?
+  password        String
+  name            String
+  profileImage    String?
+  role            UserRole  @default(CUSTOMER)
+  isEmailVerified Boolean   @default(false)
+  isPhoneVerified Boolean   @default(false)
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relationships
+  addresses         Address[]         @relation("UserAddresses")
+  cart              Cart?
+  favorites         Favorite[]
+  deviceSessions    DeviceSession[]
+  refreshTokens     RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  orders            Order[]
+  tasks             Task[]
+  assignedTasks     Task[]            @relation("AssignedDriver")
+  deliveryAssignments DeliveryAssignment[] @relation("DeliveryDriver")
+  sentChats         Chat[]            @relation("SenderChats")
+  receivedChats     Chat[]            @relation("ReceiverChats")
+  notifications     Notification[]
+  loyaltyPoints     LoyaltyPoint?
+  payments          Payment[]
+  reviews           Review[]
+  driverReviews     Review[]          @relation("DriverReviews")
+  ownedStores       Store[]           @relation("StoreVendor")
+}
+
+model Address {
+  id         String      @id @default(uuid())
+  userId     String
+  user       User        @relation("UserAddresses", fields: [userId], references: [id], onDelete: Cascade)
+  type       AddressType @default(HOME)
+  label      String?     // Custom label like "Home", "Office"
+  address    String
+  city       String
+  state      String
+  country    String
+  postalCode String?
+  latitude   Float
+  longitude  Float
+  isDefault  Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  // Relationships
+  orders     Order[]     @relation("DeliveryAddress")
+
+  @@index([userId])
+  @@index([latitude, longitude])
+}
+
+model Category {
+  id            String     @id @default(uuid())
+  name          String     @unique
+  description   String?
+  imageUrl      String?
+  parentId      String?    // Self-referencing for subcategories
+  parent        Category?  @relation("Subcategories", fields: [parentId], references: [id])
+  subcategories Category[] @relation("Subcategories")
+  products      Product[]
+  isActive      Boolean    @default(true)
+  sortOrder     Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([parentId])
+  @@index([isActive])
+  @@index([createdAt])
+  @@index([sortOrder])
+}
+
+model Brand {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  logoUrl     String?
+  websiteUrl  String?
+  products    Product[]
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive])
+}
+
+model Store {
+  id            String    @id @default(uuid())
+  vendorId      String
+  vendor        User      @relation("StoreVendor", fields: [vendorId], references: [id])
+  name          String
+  description   String?
+  imageUrl      String?
+  address       String
+  city          String
+  state         String
+  country       String
+  latitude      Float?
+  longitude     Float?
+  contactInfo   String?
+  rating        Float?    // Average rating
+  reviewCount   Int       @default(0)
+  deliveryFee   Float
+  minOrderValue Float
+  type          String    // e.g., "store", "restaurant"
+  isActive      Boolean   @default(true)
+  isVerified    Boolean   @default(false)
+  openingHours  Json?     // Store opening hours as JSON
+  products      Product[]
+  orders        Order[]
+  reviews       Review[]  @relation("StoreReviews")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([vendorId])
+  @@index([isActive])
+  @@index([latitude, longitude])
+  @@index([type])
+  @@index([rating])
+  @@index([createdAt])
+}
+
+model Product {
+  id               String          @id @default(uuid())
+  name             String
+  description      String?
+  price            Float
+  discountedPrice  Float?
+  discountPercentage Float?
+  categoryId       String
+  category         Category        @relation(fields: [categoryId], references: [id])
+  brandId          String
+  brand            Brand           @relation(fields: [brandId], references: [id])
+  storeId          String
+  store            Store           @relation(fields: [storeId], references: [id])
+  sku              String?         @unique
+  stock            Int
+  minStock         Int             @default(0)
+  imageUrls        String[]
+  tags             String[]
+  weight           Float?
+  dimensions       Json?           // {length, width, height}
+  isActive         Boolean         @default(true)
+  isFeatured       Boolean         @default(false)
+  averageRating    Float?
+  reviewCount      Int             @default(0)
+  variants         ProductVariant[]
+  orderItems       OrderItem[]
+  cartItems        CartItem[]
+  favorites        Favorite[]
+  reviews          Review[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([storeId])
+  @@index([isActive])
+  @@index([isFeatured])
+  @@index([price])
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id             String   @id @default(uuid())
+  cartId         String
+  cart           Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id])
+  quantity       Int
+  variantOptions Json?    // Store variant selections as JSON
+  addedAt        DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([cartId, productId])
+  @@index([cartId])
+}
+
+model ProductVariant {
+  id            String  @id @default(uuid())
+  productId     String
+  product       Product @relation(fields: [productId], references: [id])
+  name          String // e.g., "Color", "Size"
+  options       String[] // e.g., ["Red", "Blue"], ["Small", "Medium"]
+  sku           String? @unique
+  additionalPrice Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+}
+
+model Banner {
+  id         String     @id @default(uuid())
+  title      String
+  subtitle   String?
+  imageUrl   String
+  actionText String?
+  actionUrl  String?
+  type       BannerType @default(PROMOTIONAL)
+  isActive   Boolean    @default(true)
+  sortOrder  Int        @default(0)
+  startDate  DateTime?
+  endDate    DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([isActive])
+  @@index([sortOrder])
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  preparing
+  ready_for_pickup
+  out_for_delivery
+  delivered
+  cancelled
+  refunded
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+model Order {
+  id                 String              @id @default(uuid())
+  trackingId         String              @unique @default(cuid())
+  userId             String
+  user               User                @relation(fields: [userId], references: [id])
+  storeId            String
+  store              Store               @relation(fields: [storeId], references: [id])
+  deliveryAddressId  String?
+  deliveryAddress    Address?            @relation("DeliveryAddress", fields: [deliveryAddressId], references: [id])
+  discountCodeId     String?
+  discountCode       DiscountCode?       @relation(fields: [discountCodeId], references: [id])
+  status             OrderStatus         @default(pending)
+  subtotalAmount     Float
+  discountAmount     Float               @default(0)
+  deliveryFee        Float
+  totalAmount        Float
+  paymentStatus      PaymentStatus       @default(PENDING)
+  specialInstructions String?
+  estimatedDelivery  DateTime?
+  scheduledDeliveryTime DateTime?
+  orderItems         OrderItem[]
+  payment            Payment[]
+  deliveryAssignment DeliveryAssignment?
+  chats              Chat[]
+  reviews            Review[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([storeId])
+  @@index([status])
+  @@index([trackingId])
+}
+
+model DiscountCode {
+  id             String      @id @default(uuid())
+  code           String      @unique
+  description    String?
+  type           DiscountType @default(PERCENTAGE)
+  value          Float       // Percentage or fixed amount
+  minOrderValue  Float?      // Minimum order value to apply
+  maxDiscount    Float?      // Maximum discount amount (for percentage)
+  usageLimit     Int?        // Total usage limit
+  usageCount     Int         @default(0)
+  userLimit      Int?        // Per user usage limit
+  isActive       Boolean     @default(true)
+  startDate      DateTime?
+  endDate        DateTime?
+  applicableStores String[]  // Store IDs where applicable
+  orders         Order[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+  @@index([startDate, endDate])
+}
+
+model OrderItem {
+  id                String  @id @default(uuid())
+  orderId           String
+  order             Order   @relation(fields: [orderId], references: [id])
+  productId         String
+  product           Product @relation(fields: [productId], references: [id])
+  quantity          Int
+  price             Float
+  customizationDetails Json? // Store customization details as JSON
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  MOBILE_MONEY
+  CASH_ON_DELIVERY
+  OTHER
+}
+
+model OTPVerification {
+  id          String   @id @default(uuid())
+  requestId   String   @unique
+  phoneNumber String
+  countryCode String
+  otp         String
+  type        OTPType  @default(login)
+  isVerified  Boolean  @default(false)
+  attempts    Int      @default(0)
+  maxAttempts Int      @default(3)
+  expiresAt   DateTime
+  verifiedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([requestId])
+  @@index([phoneNumber])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+}
+
+model DeviceSession {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId     String
+  deviceType   String    // "mobile", "web", "tablet"
+  deviceName   String?
+  ipAddress    String?
+  userAgent    String?
+  refreshToken String    @unique
+  isActive     Boolean   @default(true)
+  lastUsedAt   DateTime  @default(now())
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@index([refreshToken])
+  @@index([isActive])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  orderId       String?
+  order         Order?        @relation(fields: [orderId], references: [id])
+  taskId        String?
+  task          Task?         @relation(fields: [taskId], references: [id])
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  amount        Float
+  currency      String
+  status        PaymentStatus
+  transactionId String?       @unique
+  paymentMethod PaymentMethod
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@index([paymentMethod])
+  @@index([createdAt])
+}
+
+enum DeliveryStatus {
+  PENDING
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+}
+
+model DeliveryAssignment {
+  id              String        @id @default(uuid())
+  orderId         String?       @unique
+  order           Order?        @relation(fields: [orderId], references: [id])
+  taskId          String?       @unique
+  task            Task?         @relation(fields: [taskId], references: [id])
+  driverId        String
+  driver          User          @relation("DeliveryDriver", fields: [driverId], references: [id]) // Assuming driver is a User with DRIVER role
+  status          DeliveryStatus @default(PENDING)
+  pickupLocation  Json // Store as JSON {address, latitude, longitude}
+  deliveryLocation Json // Store as JSON {address, latitude, longitude}
+  routeDetails    Json? // Store route details as JSON
+  estimatedArrivalTime DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+enum TaskStatus {
+  PENDING_ASSIGNMENT
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskType {
+  ERRAND
+  DELIVERY
+}
+
+model Task {
+  id                String              @id @default(uuid())
+  userId            String
+  user              User                @relation(fields: [userId], references: [id])
+  taskType          TaskType
+  description       String
+  pickupLocation    Json // Store as JSON {address, latitude, longitude}
+  deliveryLocation  Json // Store as JSON {address, latitude, longitude}
+  status            TaskStatus          @default(PENDING_ASSIGNMENT)
+  assignedDriverId  String?
+  assignedDriver    User?               @relation("AssignedDriver", fields: [assignedDriverId], references: [id])
+  payments          Payment[]
+  deliveryAssignment DeliveryAssignment?
+  chats             Chat[]
+  reviews           Review[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+}
+
+enum NotificationType {
+  ORDER_STATUS_UPDATE
+  TASK_STATUS_UPDATE
+  CHAT_MESSAGE
+  PROMOTION
+  OTHER
+}
+
+model Notification {
+  id        String          @id @default(uuid())
+  userId    String
+  user      User            @relation(fields: [userId], references: [id])
+  type      NotificationType
+  message   String
+  readStatus Boolean         @default(false)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+}
+
+model Chat {
+  id          String    @id @default(uuid())
+  orderId     String?
+  order       Order?    @relation(fields: [orderId], references: [id])
+  taskId      String?
+  task        Task?     @relation(fields: [taskId], references: [id])
+  senderId    String
+  sender      User      @relation("SenderChats", fields: [senderId], references: [id])
+  receiverId  String
+  receiver    User      @relation("ReceiverChats", fields: [receiverId], references: [id])
+  message     String
+  timestamp   DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model LoyaltyPoint {
+  id            String    @id @default(uuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id])
+  pointsBalance Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum RewardType {
+  DISCOUNT_VOUCHER
+  FREE_DELIVERY
+  OTHER
+}
+
+model Reward {
+  id             String     @id @default(uuid())
+  name           String
+  description    String?
+  pointsRequired Int
+  type           RewardType
+  value          Float? // e.g., discount amount
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+enum PromotionType {
+  PERCENTAGE_DISCOUNT
+  FIXED_DISCOUNT
+  FREE_DELIVERY
+}
+
+model Promotion {
+  id              String        @id @default(uuid())
+  title           String
+  description     String?
+  promotionType   PromotionType
+  value           Float
+  startDate       DateTime
+  endDate         DateTime
+  applicableTo    String[] // e.g., ["all", "category:food", "product:xyz"]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+enum ReviewEntityType {
+  PRODUCT
+  DRIVER
+  STORE
+  TASK
+  ORDER
+}
+
+model Review {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  entityId    String // ID of the entity being reviewed (product, driver, store, task, order)
+  entityType  ReviewEntityType
+  rating      Int
+  comment     String?
+  productId   String?
+  product     Product?         @relation(fields: [productId], references: [id])
+  orderId     String?
+  order       Order?           @relation(fields: [orderId], references: [id])
+  taskId      String?
+  task        Task?            @relation(fields: [taskId], references: [id])
+  driverId    String?
+  driver      User?            @relation("DriverReviews", fields: [driverId], references: [id])
+  storeId     String?
+  store       Store?           @relation("StoreReviews", fields: [storeId], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([entityId, entityType])
+}
+
+// Note: For simplicity, `deliveryAddressId` in Order model and `pickupLocation`/`deliveryLocation` in DeliveryAssignment/Task models
+// are represented as `Json` type. In a real-world scenario, you might want a dedicated `Address` model.
+// Similarly, `customizationDetails` in OrderItem is `Json`.
+
+// Future considerations for a more detailed schema:
+// - Dedicated Address model with relations to User, Order, Store
+// - More granular tracking of driver locations (e.g., a `DriverLocationHistory` model)
+// - Soft deletes for entities instead of hard deletes
+// - Audit logs for critical operations
+
+

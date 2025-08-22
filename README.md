@@ -1,98 +1,279 @@
+# NTUMAI Backend API
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+## 🚀 Project Overview
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+NTUMAI is a comprehensive multi-service platform built with NestJS, featuring marketplace functionality, delivery services, task management, and real-time communication. The platform supports multiple user roles including customers, vendors, drivers, and administrators.
 
-## Description
+## 📋 Table of Contents
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- [Architecture](#architecture)
+- [Current Modules](#current-modules)
+- [Planned Modules](#planned-modules)
+- [Database Schema](#database-schema)
+- [Setup & Installation](#setup--installation)
+- [Development](#development)
+- [API Documentation](#api-documentation)
+- [Testing](#testing)
+- [Deployment](#deployment)
 
-## Project setup
+## 🏗️ Architecture
+
+### Technology Stack
+- **Framework**: NestJS (Node.js)
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: JWT with role-based access control
+- **Real-time**: WebSocket Gateways
+- **Language**: TypeScript
+
+### Module Structure
+Each module follows NestJS best practices with:
+- **DTOs** (Data Transfer Objects)
+- **Entities** (Database models)
+- **Services** (Business logic)
+- **Controllers** (API endpoints)
+- **Guards** (Authentication & authorization)
+
+## 📦 Current Modules
+
+### Core Modules
+- **🔐 Auth Module** - JWT authentication, role management
+- **👥 Users Module** - User profiles, role management
+- **🏪 Marketplace Module** - Product catalog, store management
+- **🛒 Orders Module** - Order processing, payment integration
+- **🚚 Delivery Module** - Delivery assignments, tracking
+- **📱 Notifications Module** - Push notifications, alerts
+- **💬 Chat Module** - Real-time messaging (WebSocket)
+- **🎯 Loyalty Module** - Points, rewards, promotions
+- **⭐ Reviews Module** - Product/service ratings
+- **🔍 Search Module** - Advanced search functionality
+- **📅 Scheduling Module** - Task scheduling, appointments
+- **💳 Payments Module** - Payment processing, transactions
+- **🏃 Errands Module** - Task management, assignments
+- **🚗 Drivers Module** - Driver management, tracking
+- **⚙️ Admin Module** - Administrative functions
+
+## 🔄 Planned Modules (In Development)
+
+### Phase 1: Critical MVP
+- **🎯 Onboarding Module** - Step-by-step user onboarding
+- **📋 KYC Module** - Document verification, compliance
+- **📦 Inventory Management** - Stock tracking, alerts
+
+### Phase 2: Enhanced Features
+- **🗺️ Geolocation & Mapping** - Route optimization, tracking
+- **📊 Reports & Audit Logs** - Analytics, compliance reporting
+
+> **Note**: Coupon & Discount functionality is already implemented via the DiscountCode model in the current schema.
+
+## 🗄️ Database Schema
+
+### Current Models (25+)
+- User management (User, Address, DeviceSession)
+- E-commerce (Product, Store, Order, Cart, Payment)
+- Communication (Chat, Notification)
+- Delivery (DeliveryAssignment, Task)
+- Loyalty (LoyaltyPoint, Reward, Promotion)
+- Reviews and ratings
+
+### Planned Schema Enhancements
+- **15 new models** for upcoming modules
+- **9 new enums** for enhanced functionality
+- Performance optimizations and indexes
+
+For detailed schema analysis, see:
+- [Module Analysis](./module_analysis.md)
+- [Schema Gap Analysis](./schema_gap_analysis.md)
+- [Implementation Roadmap](./implementation_roadmap.md)
+
+## 🛠️ Setup & Installation
+
+### Prerequisites
+- Node.js (v18+)
+- PostgreSQL (v13+)
+- npm or yarn
+
+### Installation
 
 ```bash
-$ npm install
+# Clone the repository
+git clone <repository-url>
+cd ntumai/backend
+
+# Install dependencies
+npm install
+
+# Setup environment variables
+cp .env.example .env
+# Edit .env with your database credentials and configuration
+
+# Setup database
+npx prisma generate
+npx prisma db push
+
+# Seed database (optional)
+npx prisma db seed
 ```
 
-## Compile and run the project
+### Environment Configuration
+
+Create a `.env` file with the following variables:
+
+```env
+# Database
+DATABASE_URL="postgresql://username:password@localhost:5432/ntumai"
+
+# JWT
+JWT_SECRET="your-jwt-secret"
+JWT_EXPIRES_IN="7d"
+
+# Server
+PORT=3000
+NODE_ENV="development"
+
+# External Services
+# Add your API keys and service configurations
+```
+
+## 🚀 Development
+
+### Running the Application
 
 ```bash
-# development
-$ npm run start
+# Development mode with hot reload
+npm run start:dev
 
-# watch mode
-$ npm run start:dev
+# Production mode
+npm run start:prod
 
-# production mode
-$ npm run start:prod
+# Debug mode
+npm run start:debug
 ```
 
-## Run tests
+### Database Operations
 
 ```bash
-# unit tests
-$ npm run test
+# Generate Prisma client
+npx prisma generate
 
-# e2e tests
-$ npm run test:e2e
+# Push schema changes to database
+npx prisma db push
 
-# test coverage
-$ npm run test:cov
+# View database in Prisma Studio
+npx prisma studio
+
+# Reset database (development only)
+npx prisma db reset
 ```
 
-## Deployment
+## 📚 API Documentation
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### API Endpoints Structure
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+```
+/api/v1/
+├── auth/          # Authentication endpoints
+├── users/         # User management
+├── products/      # Product catalog
+├── orders/        # Order processing
+├── delivery/      # Delivery management
+├── chat/          # Real-time messaging
+├── notifications/ # Push notifications
+├── admin/         # Administrative functions
+└── ...
+```
+
+### Authentication
+
+All protected endpoints require JWT token in the Authorization header:
+
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+### User Roles
+- **ADMIN** - Full system access
+- **VENDOR** - Store and product management
+- **DRIVER** - Delivery and task management
+- **CUSTOMER** - Shopping and ordering
+
+## 🧪 Testing
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Unit tests
+npm run test
+
+# Watch mode
+npm run test:watch
+
+# E2E tests
+npm run test:e2e
+
+# Test coverage
+npm run test:cov
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## 🚀 Deployment
 
-## Resources
+### Production Build
 
-Check out a few resources that may come in handy when working with NestJS:
+```bash
+# Build the application
+npm run build
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+# Start production server
+npm run start:prod
+```
 
-## Support
+### Docker Deployment
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+# Build Docker image
+docker build -t ntumai-backend .
 
-## Stay in touch
+# Run container
+docker run -p 3000:3000 ntumai-backend
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Environment-Specific Configurations
 
-## License
+- **Development**: Hot reload, detailed logging
+- **Staging**: Production-like environment for testing
+- **Production**: Optimized performance, error tracking
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## 📖 Documentation
+
+### Project Documentation
+- [Module Analysis](./module_analysis.md) - Detailed module breakdown
+- [Schema Gap Analysis](./schema_gap_analysis.md) - Database enhancement plans
+- [Implementation Roadmap](./implementation_roadmap.md) - Development strategy
+
+### API Documentation
+- Swagger/OpenAPI documentation available at `/api/docs` (when running)
+- Postman collection available in `/docs` folder
+
+## 🤝 Contributing
+
+1. Follow the existing module structure
+2. Use TypeScript strict mode
+3. Write comprehensive tests
+4. Follow NestJS best practices
+5. Update documentation for new features
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 🆘 Support
+
+For support and questions:
+- Create an issue in the repository
+- Contact the development team
+- Check the documentation files for detailed information
+
+---
+
+**Built with ❤️ using NestJS**
