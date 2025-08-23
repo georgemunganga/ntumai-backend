@@ -2,4 +2,4 @@
 export * from './repositories';
 export * from './database';
 export * from './services';
-export { AuthInfrastructureModule } from './infrastructure.module';
+export { AuthInfrastructureModule, JWT_SERVICE_TOKEN, NOTIFICATION_SERVICE_TOKEN } from './infrastructure.module';

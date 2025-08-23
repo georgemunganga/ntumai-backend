@@ -24,7 +24,7 @@ export class RolesGuard implements CanActivate {
     }
     
     // Handle both UserRole value object and string comparison
-    const userRole = user.role instanceof UserRole ? user.role.value : user.role;
+    const userRole = user.currentRole instanceof UserRole ? user.currentRole.value : user.currentRole;
     
     return requiredRoles.some((role) => {
       const roleValue = role instanceof UserRole ? role.value : role;

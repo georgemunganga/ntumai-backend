@@ -12,7 +12,7 @@ import {
   ResetPasswordResult,
 } from '../use-cases';
 import { UserRepository } from '../../domain/repositories';
-import { PasswordService } from '../../domain/services';
+import { UserManagementDomainService } from '../../domain/services';
 import { Password, Email } from '../../domain/value-objects';
 import { PasswordChangedEvent } from '../../domain/events';
 
@@ -26,7 +26,7 @@ export class PasswordManagementService
 {
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly passwordService: PasswordService,
+    private readonly userManagementService: UserManagementDomainService,
     @Inject('NOTIFICATION_SERVICE')
     private readonly notificationService: NotificationService,
     private readonly eventEmitter: EventEmitter2,

@@ -99,7 +99,7 @@ export class AuthenticationDomainService {
 
   validateRoleChange(currentUser: User, targetUser: User, newRole: UserRole): void {
     // Only admins can change roles
-    if (!currentUser.role.isAdmin()) {
+    if (!currentUser.currentRole.isAdmin()) {
       throw new UnauthorizedException('Only administrators can change user roles');
     }
 
@@ -185,6 +185,6 @@ export class AuthenticationDomainService {
   private isSuperAdmin(user: User): boolean {
     // Business logic to determine if user is super admin
     // This could be based on a special flag, specific email, etc.
-    return user.role.isAdmin() && user.email.value === 'superadmin@company.com';
+    return user.currentRole.isAdmin() && user.email.value === 'superadmin@company.com';
   }
 }

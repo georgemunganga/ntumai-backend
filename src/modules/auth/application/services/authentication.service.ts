@@ -2,23 +2,23 @@ import { Injectable, Inject, UnauthorizedException, BadRequestException } from '
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
   RegisterUserUseCase,
-  RegisterUserCommand,
+  LegacyRegisterUserCommand as RegisterUserCommand,
   RegisterUserResult,
   LoginUserUseCase,
-  LoginUserCommand,
+  LegacyLoginUserCommand as LoginUserCommand,
   LoginUserResult,
   RefreshTokenUseCase,
-  RefreshTokenCommand,
+  LegacyRefreshTokenCommand as RefreshTokenCommand,
   RefreshTokenResult,
   LogoutUserUseCase,
-  LogoutUserCommand,
+  LegacyLogoutUserCommand as LogoutUserCommand,
   LogoutUserResult,
   GetUserProfileUseCase,
-  GetUserProfileCommand,
+  LegacyGetUserProfileCommand as GetUserProfileCommand,
   GetUserProfileResult,
 } from '../use-cases';
 import { UserRepository } from '../../domain/repositories';
-import { AuthenticationDomainService } from '../../domain/services';
+import { UserManagementDomainService } from '../../domain/services';
 import { User } from '../../domain/entities';
 import { Email, Password, UserRole, Phone } from '../../domain/value-objects';
 import { UserRegisteredEvent, UserLoggedInEvent } from '../../domain/events';
@@ -37,7 +37,7 @@ export interface JwtService {
 export class AuthenticationService {
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly authDomainService: AuthenticationDomainService,
+    private readonly userManagementService: UserManagementDomainService,
     @Inject('JWT_SERVICE')
     private readonly jwtService: JwtService,
     private readonly eventEmitter: EventEmitter2,
@@ -96,7 +96,7 @@ export class AuthenticationService {
         email: savedUser.email.value,
         firstName: savedUser.firstName,
         lastName: savedUser.lastName,
-        role: savedUser.role.value,
+        role: savedUser.currentRole.value,
         occurredAt: new Date(),
       });
       this.eventEmitter.emit('user.registered', event);
@@ -121,7 +121,7 @@ export class AuthenticationService {
       }
 
       // Authenticate user
-      const authenticatedUser = await this.authDomainService.authenticateUser(
+      const authenticatedUser = await this.userManagementService.authenticateUser(
         user,
         command.password,
       );
@@ -166,7 +166,7 @@ export class AuthenticationService {
       }
 
       // Validate token refresh eligibility
-      this.authDomainService.validateTokenRefreshEligibility(user, command.refreshToken);
+      this.userManagementService.validateTokenRefreshEligibility(user, command.refreshToken);
 
       // Generate new tokens
       const tokens = await this.generateTokens(user);
@@ -225,7 +225,7 @@ export class AuthenticationService {
           id: user.id,
           email: user.email.value,
           name: `${user.firstName} ${user.lastName}`.trim(),
-          role: user.role.value,
+          role: user.currentRole.value,
           phone: user.phone?.value,
           isEmailVerified: user.isEmailVerified,
           isPhoneVerified: user.isPhoneVerified,
@@ -243,7 +243,7 @@ export class AuthenticationService {
     const payload = {
       sub: user.id,
       email: user.email.value,
-      role: user.role.value,
+      role: user.currentRole.value,
     };
 
     const accessToken = this.jwtService.sign(payload, {

@@ -1,15 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsOptional } from 'class-validator';
-import { BaseContactDto } from './base';
 
-export class RegisterOtpDto extends BaseContactDto {
-  @ApiProperty({
-    description: 'Country code (required for registration)',
-    example: 'US',
-  })
-  @IsString()
-  declare countryCode: string; // Override to make required
-
+/**
+ * Base DTO for device tracking and analytics
+ */
+export abstract class BaseDeviceDto {
   @ApiProperty({
     description: 'Device ID for analytics',
     example: 'device-123',
@@ -27,4 +22,22 @@ export class RegisterOtpDto extends BaseContactDto {
   @IsOptional()
   @IsString()
   deviceType?: string;
+
+  @ApiProperty({
+    description: 'Device platform',
+    example: 'ios',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  platform?: string;
+
+  @ApiProperty({
+    description: 'App version',
+    example: '1.0.0',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  appVersion?: string;
 }

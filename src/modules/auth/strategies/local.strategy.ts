@@ -34,7 +34,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
         email: authenticatedUser.email.value,
         firstName: authenticatedUser.getFirstName(),
         lastName: authenticatedUser.getLastName(),
-        role: authenticatedUser.role.value,
+        role: authenticatedUser.currentRole.value,
       };
     } catch (error) {
       throw new UnauthorizedException('Invalid credentials');

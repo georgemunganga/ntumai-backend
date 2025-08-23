@@ -38,7 +38,7 @@ import {
   LogoutUserUseCase,
   GetUserProfileUseCase,
 } from './application/use-cases';
-import { AuthenticationService, PasswordManagementService } from './application/services';
+import { AuthenticationService, PasswordManagementService, OtpManagementService } from './application/services';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -46,6 +46,7 @@ export class AuthController {
   constructor(
     private readonly authenticationService: AuthenticationService,
     private readonly passwordManagementService: PasswordManagementService,
+    private readonly otpManagementService: OtpManagementService,
   ) {}
 
   @Post('register')
@@ -216,12 +217,15 @@ export class AuthController {
   })
   @ApiBody({ type: ForgotPasswordDto })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
-    const result = await this.passwordManagementService.forgotPassword({
+    const result = await this.otpManagementService.generatePasswordResetOtp({
       email: forgotPasswordDto.email,
+      phoneNumber: forgotPasswordDto.phoneNumber,
+      countryCode: forgotPasswordDto.countryCode,
     });
     return {
-      success: true,
-      data: result,
+      success: result.success,
+      message: result.message,
+      requestId: result.requestId,
     };
   }
 
@@ -253,8 +257,7 @@ export class AuthController {
   })
   @ApiBody({ type: ResetPasswordDto })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-    // TODO: Implement OTP-based password reset logic
-    const result = await this.passwordManagementService.resetPassword({
+    const result = await this.otpManagementService.completePasswordReset({
       otp: resetPasswordDto.otp,
       newPassword: resetPasswordDto.newPassword,
       requestId: resetPasswordDto.requestId,
@@ -263,8 +266,8 @@ export class AuthController {
       countryCode: resetPasswordDto.countryCode,
     });
     return {
-      success: true,
-      data: result,
+      success: result.success,
+      message: result.message,
     };
   }
 
@@ -367,11 +370,18 @@ export class AuthController {
     },
   })
   async registerWithOtp(@Body() registerOtpDto: RegisterOtpDto) {
-    // TODO: Implement OTP registration logic
+    const result = await this.otpManagementService.generateRegistrationOtp({
+      phoneNumber: registerOtpDto.phoneNumber,
+      email: registerOtpDto.email,
+      countryCode: registerOtpDto.countryCode,
+      deviceId: registerOtpDto.deviceId,
+      deviceType: registerOtpDto.deviceType,
+    });
+
     return {
-      success: true,
-      message: 'OTP sent successfully',
-      requestId: 'temp-request-id',
+      success: result.success,
+      message: result.message,
+      requestId: result.requestId,
     };
   }
 
@@ -391,11 +401,18 @@ export class AuthController {
     },
   })
   async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
-    // TODO: Implement OTP verification logic
+    const result = await this.otpManagementService.verifyOtp({
+      otp: verifyOtpDto.otp,
+      requestId: verifyOtpDto.requestId,
+      phoneNumber: verifyOtpDto.phoneNumber,
+      email: verifyOtpDto.email,
+      countryCode: verifyOtpDto.countryCode,
+    });
+
     return {
-      success: true,
-      isNewUser: true,
-      token: 'temp-token',
+      success: result.success,
+      message: result.message,
+      isValid: result.isValid,
     };
   }
 
@@ -425,17 +442,29 @@ export class AuthController {
     },
   })
   async completeRegistration(@Body() completeRegistrationDto: CompleteRegistrationDto) {
-    // TODO: Implement complete registration logic
+    const result = await this.otpManagementService.completeRegistration({
+      firstName: completeRegistrationDto.firstName,
+      lastName: completeRegistrationDto.lastName,
+      password: completeRegistrationDto.password,
+      role: completeRegistrationDto.role,
+      otp: completeRegistrationDto.otp,
+      requestId: completeRegistrationDto.requestId,
+      phoneNumber: completeRegistrationDto.phoneNumber,
+      email: completeRegistrationDto.email,
+      countryCode: completeRegistrationDto.countryCode,
+    });
+
     return {
       success: true,
-      token: 'temp-jwt-token',
+      token: result.accessToken,
+      refreshToken: result.refreshToken,
       user: {
-        id: 'temp-user-id',
-        name: 'John Doe',
-        phoneNumber: '+1234567890',
-        email: 'user@example.com',
-        userType: 'customer',
-        createdAt: new Date().toISOString(),
+        id: result.user.id,
+        name: `${result.user.firstName} ${result.user.lastName}`,
+        phoneNumber: result.user.phone,
+        email: result.user.email,
+        userType: result.user.currentRole.toString().toLowerCase(),
+        createdAt: result.user.createdAt.toISOString(),
       },
     };
   }
@@ -466,17 +495,42 @@ export class AuthController {
     },
   })
   async loginWithOtp(@Body() loginOtpDto: LoginOtpDto) {
-    // TODO: Implement OTP login logic
+    // If no OTP provided, generate and send OTP
+    if (!loginOtpDto.otp) {
+      const result = await this.otpManagementService.generateLoginOtp({
+        phoneNumber: loginOtpDto.phoneNumber,
+        email: loginOtpDto.email,
+        countryCode: loginOtpDto.countryCode,
+        deviceId: loginOtpDto.deviceId,
+        deviceType: loginOtpDto.deviceType,
+      });
+
+      return {
+        success: result.success,
+        message: result.message,
+        requestId: result.requestId,
+      };
+    }
+
+    // If OTP provided, complete login
+    const result = await this.otpManagementService.completeLogin({
+      otp: loginOtpDto.otp,
+      phoneNumber: loginOtpDto.phoneNumber,
+      email: loginOtpDto.email,
+      countryCode: loginOtpDto.countryCode,
+    });
+
     return {
       success: true,
-      tokenid: 'temp-jwt-token',
+      tokenid: result.accessToken,
+      refreshToken: result.refreshToken,
       user: {
-        id: 'temp-user-id',
-        name: 'John Doe',
-        phoneNumber: '+1234567890',
-        email: 'user@example.com',
-        userType: 'customer',
-        createdAt: new Date().toISOString(),
+        id: result.user.id,
+        name: `${result.user.firstName} ${result.user.lastName}`,
+        phoneNumber: result.user.phone,
+        email: result.user.email,
+        userType: result.user.currentRole.toString().toLowerCase(),
+        createdAt: result.user.createdAt.toISOString(),
       },
     };
   }

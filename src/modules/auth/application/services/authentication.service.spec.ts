@@ -97,7 +97,7 @@ describe('AuthenticationService', () => {
           id: mockUser.id,
           email: mockUser.email.value,
           name: mockUser.name,
-          role: mockUser.role.value,
+          role: mockUser.currentRole.value,
         },
         tokens: mockTokens,
       });
@@ -159,7 +159,7 @@ describe('AuthenticationService', () => {
           email: mockUser.email.value,
           firstName: 'Test',
           lastName: 'User',
-          role: mockUser.role.value,
+          role: mockUser.currentRole.value,
         },
         tokens: mockTokens,
       });
@@ -270,7 +270,7 @@ describe('AuthenticationService', () => {
           id: mockUser.id,
           email: mockUser.email.value,
           name: 'Test User',
-          role: mockUser.role.value,
+          role: mockUser.currentRole.value,
           phone: '+1234567890',
           isEmailVerified: true,
           isPhoneVerified: false,

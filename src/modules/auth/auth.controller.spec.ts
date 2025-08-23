@@ -1,14 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
-import { AuthenticationService, PasswordManagementService } from './application/services';
+import { AuthenticationService, PasswordManagementService, OtpManagementService } from './application/services';
 import { JwtAuthGuard } from './guards';
-import { RegisterDto, LoginDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto } from './dto';
+import { RegisterDto, LoginDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto, RegisterOtpDto, VerifyOtpDto, CompleteRegistrationDto, LoginOtpDto } from './dto';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 
 describe('AuthController', () => {
   let controller: AuthController;
   let authService: jest.Mocked<AuthenticationService>;
   let passwordService: jest.Mocked<PasswordManagementService>;
+  let otpService: jest.Mocked<OtpManagementService>;
 
   const mockUser = {
     id: '123e4567-e89b-12d3-a456-426614174000',
@@ -30,11 +31,22 @@ describe('AuthController', () => {
       logoutUser: jest.fn(),
       logoutAll: jest.fn(),
       getProfile: jest.fn(),
+      registerOtp: jest.fn(),
+      verifyOtp: jest.fn(),
+      completeRegistration: jest.fn(),
+      loginOtp: jest.fn(),
     };
 
     const mockPasswordService = {
       forgotPassword: jest.fn(),
       resetPassword: jest.fn(),
+    };
+
+    const mockOtpService = {
+      generateOtp: jest.fn(),
+      verifyOtp: jest.fn(),
+      sendOtp: jest.fn(),
+      generateLoginOtp: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -48,6 +60,10 @@ describe('AuthController', () => {
           provide: PasswordManagementService,
           useValue: mockPasswordService,
         },
+        {
+          provide: OtpManagementService,
+          useValue: mockOtpService,
+        },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -57,6 +73,7 @@ describe('AuthController', () => {
     controller = module.get<AuthController>(AuthController);
     authService = module.get(AuthenticationService);
     passwordService = module.get(PasswordManagementService);
+    otpService = module.get(OtpManagementService);
   });
 
   it('should be defined', () => {
@@ -285,6 +302,214 @@ describe('AuthController', () => {
 
       expect(authService.getProfile).toHaveBeenCalledWith({ userId: mockUser.id });
       expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('registerWithOtp', () => {
+    it('should initiate OTP registration successfully', async () => {
+      const registerOtpDto: RegisterOtpDto = {
+        phoneNumber: '+1234567890',
+        email: 'test@example.com',
+        countryCode: 'US',
+        deviceId: 'device-123',
+        deviceType: 'mobile',
+      };
+
+      const expectedResult = {
+        success: true,
+        requestId: 'req-123',
+        message: 'OTP sent successfully',
+      };
+
+      authService.registerOtp.mockResolvedValue(expectedResult);
+
+      const result = await controller.registerWithOtp(registerOtpDto);
+
+      expect(authService.registerOtp).toHaveBeenCalledWith(registerOtpDto);
+      expect(result).toEqual(expectedResult);
+    });
+
+    it('should throw BadRequestException when user already exists', async () => {
+      const registerOtpDto: RegisterOtpDto = {
+        phoneNumber: '+1234567890',
+        email: 'existing@example.com',
+        countryCode: 'US',
+      };
+
+      authService.registerOtp.mockRejectedValue(new BadRequestException('User already exists'));
+
+      await expect(controller.registerWithOtp(registerOtpDto)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('verifyOtp', () => {
+    it('should verify OTP successfully', async () => {
+      const verifyOtpDto: VerifyOtpDto = {
+        phoneNumber: '+1234567890',
+        email: 'test@example.com',
+        otp: '123456',
+        requestId: 'req-123',
+      };
+
+      const expectedResult = {
+        success: true,
+        verified: true,
+        message: 'OTP verified successfully',
+      };
+
+      authService.verifyOtp.mockResolvedValue(expectedResult);
+
+      const result = await controller.verifyOtp(verifyOtpDto);
+
+      expect(authService.verifyOtp).toHaveBeenCalledWith(verifyOtpDto);
+      expect(result).toEqual(expectedResult);
+    });
+
+    it('should throw BadRequestException for invalid OTP', async () => {
+      const verifyOtpDto: VerifyOtpDto = {
+        phoneNumber: '+1234567890',
+        otp: '000000',
+        requestId: 'req-123',
+      };
+
+      authService.verifyOtp.mockRejectedValue(new BadRequestException('Invalid OTP'));
+
+      await expect(controller.verifyOtp(verifyOtpDto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException for expired OTP', async () => {
+      const verifyOtpDto: VerifyOtpDto = {
+        phoneNumber: '+1234567890',
+        otp: '123456',
+        requestId: 'req-123',
+      };
+
+      authService.verifyOtp.mockRejectedValue(new BadRequestException('OTP expired'));
+
+      await expect(controller.verifyOtp(verifyOtpDto)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('completeRegistration', () => {
+    it('should complete registration successfully', async () => {
+      const completeRegistrationDto: CompleteRegistrationDto = {
+        phoneNumber: '+1234567890',
+        email: 'test@example.com',
+        otp: '123456',
+        requestId: 'req-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        password: 'Password123!',
+        role: 'CUSTOMER',
+      };
+
+      const expectedResult = {
+        user: mockUser,
+        tokens: mockTokens,
+      };
+
+      authService.completeRegistration.mockResolvedValue(expectedResult);
+
+      const result = await controller.completeRegistration(completeRegistrationDto);
+
+      expect(authService.completeRegistration).toHaveBeenCalledWith(completeRegistrationDto);
+      expect(result).toEqual({
+        success: true,
+        data: {
+          user: expectedResult.user,
+          accessToken: expectedResult.tokens.accessToken,
+          refreshToken: expectedResult.tokens.refreshToken,
+        },
+      });
+    });
+
+    it('should throw BadRequestException for invalid OTP during registration', async () => {
+      const completeRegistrationDto: CompleteRegistrationDto = {
+        phoneNumber: '+1234567890',
+        otp: '000000',
+        requestId: 'req-123',
+        firstName: 'John',
+        lastName: 'Doe',
+        password: 'Password123!',
+      };
+
+      authService.completeRegistration.mockRejectedValue(new BadRequestException('Invalid OTP'));
+
+      await expect(controller.completeRegistration(completeRegistrationDto)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('loginWithOtp', () => {
+    it('should initiate OTP login successfully when no OTP provided', async () => {
+      const loginOtpDto: LoginOtpDto = {
+        phoneNumber: '+1234567890',
+        email: 'test@example.com',
+        deviceId: 'device-123',
+        deviceType: 'mobile',
+      };
+
+      const expectedResult = {
+        success: true,
+        requestId: 'req-123',
+        message: 'OTP sent successfully',
+      };
+
+      authService.loginOtp.mockResolvedValue(expectedResult);
+
+      const result = await controller.loginWithOtp(loginOtpDto);
+
+      expect(authService.loginOtp).toHaveBeenCalledWith(loginOtpDto);
+      expect(result).toEqual(expectedResult);
+    });
+
+    it('should complete login successfully when OTP provided', async () => {
+      const loginOtpDto: LoginOtpDto = {
+        phoneNumber: '+1234567890',
+        email: 'test@example.com',
+        otp: '123456',
+        deviceId: 'device-123',
+        deviceType: 'mobile',
+      };
+
+      const expectedResult = {
+        user: mockUser,
+        tokens: mockTokens,
+      };
+
+      authService.loginOtp.mockResolvedValue(expectedResult);
+
+      const result = await controller.loginWithOtp(loginOtpDto);
+
+      expect(authService.loginOtp).toHaveBeenCalledWith(loginOtpDto);
+      expect(result).toEqual({
+        success: true,
+        data: {
+          user: expectedResult.user,
+          accessToken: expectedResult.tokens.accessToken,
+          refreshToken: expectedResult.tokens.refreshToken,
+        },
+      });
+    });
+
+    it('should throw UnauthorizedException for invalid OTP during login', async () => {
+      const loginOtpDto: LoginOtpDto = {
+        phoneNumber: '+1234567890',
+        otp: '000000',
+      };
+
+      authService.loginOtp.mockRejectedValue(new UnauthorizedException('Invalid OTP'));
+
+      await expect(controller.loginWithOtp(loginOtpDto)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw UnauthorizedException for non-existent user', async () => {
+      const loginOtpDto: LoginOtpDto = {
+        phoneNumber: '+9999999999',
+      };
+
+      authService.loginOtp.mockRejectedValue(new UnauthorizedException('User not found'));
+
+      await expect(controller.loginWithOtp(loginOtpDto)).rejects.toThrow(UnauthorizedException);
     });
   });
 });

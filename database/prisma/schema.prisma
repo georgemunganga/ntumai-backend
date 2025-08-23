@@ -51,7 +51,7 @@ model User {
   password        String
   name            String
   profileImage    String?
-  role            UserRole  @default(CUSTOMER)
+  currentRole     UserRole  @default(CUSTOMER) // Current active role
   isEmailVerified Boolean   @default(false)
   isPhoneVerified Boolean   @default(false)
   lastLoginAt     DateTime?
@@ -59,6 +59,7 @@ model User {
   updatedAt       DateTime  @updatedAt
 
   // Relationships
+  userRoles         UserRole_Assignment[] @relation("UserRoleAssignments")
   addresses         Address[]         @relation("UserAddresses")
   cart              Cart?
   favorites         Favorite[]
@@ -77,6 +78,23 @@ model User {
   reviews           Review[]
   driverReviews     Review[]          @relation("DriverReviews")
   ownedStores       Store[]           @relation("StoreVendor")
+}
+
+model UserRole_Assignment {
+  id        String   @id @default(uuid())
+  userId    String
+  role      UserRole
+  isActive  Boolean  @default(true)
+  grantedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user      User     @relation("UserRoleAssignments", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@index([userId])
+  @@index([role])
 }
 
 model Address {

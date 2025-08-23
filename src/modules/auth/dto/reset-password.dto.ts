@@ -1,41 +1,8 @@
-import { IsString, IsOptional, IsEmail, IsPhoneNumber, MinLength } from 'class-validator';
+import { IsString, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { BaseOtpDto } from './base';
 
-export class ResetPasswordDto {
-  @ApiProperty({
-    description: 'Phone number',
-    example: '+1234567890',
-    required: false,
-  })
-  @IsOptional()
-  @IsPhoneNumber()
-  phoneNumber?: string;
-
-  @ApiProperty({
-    description: 'Email address',
-    example: 'user@example.com',
-    required: false,
-  })
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @ApiProperty({
-    description: 'Country code',
-    example: 'US',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  countryCode?: string;
-
-  @ApiProperty({
-    description: 'OTP code',
-    example: '123456',
-  })
-  @IsString()
-  otp: string;
-
+export class ResetPasswordDto extends BaseOtpDto {
   @ApiProperty({
     description: 'New password',
     example: 'NewPassword123!',
@@ -45,9 +12,9 @@ export class ResetPasswordDto {
   newPassword: string;
 
   @ApiProperty({
-    description: 'Request ID from forgot password',
+    description: 'Request ID from forgot password (required for reset)',
     example: 'req-123',
   })
   @IsString()
-  requestId: string;
+  declare requestId: string; // Override to make required
 }

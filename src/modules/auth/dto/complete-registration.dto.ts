@@ -1,13 +1,21 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEmail, IsPhoneNumber, MinLength } from 'class-validator';
+import { IsString, IsOptional, MinLength } from 'class-validator';
+import { BaseOtpDto } from './base';
 
-export class CompleteRegistrationDto {
+export class CompleteRegistrationDto extends BaseOtpDto {
   @ApiProperty({
-    description: 'Token ID from OTP verification',
-    example: 'token-123',
+    description: 'First name',
+    example: 'John',
   })
   @IsString()
-  tokenID: string;
+  firstName: string;
+
+  @ApiProperty({
+    description: 'Last name',
+    example: 'Doe',
+  })
+  @IsString()
+  lastName: string;
 
   @ApiProperty({
     description: 'User password',
@@ -18,28 +26,12 @@ export class CompleteRegistrationDto {
   password: string;
 
   @ApiProperty({
-    description: 'Phone number',
-    example: '+1234567890',
+    description: 'User role',
+    example: 'CUSTOMER',
+    enum: ['CUSTOMER', 'DRIVER', 'VENDOR'],
     required: false,
   })
   @IsOptional()
-  @IsPhoneNumber()
-  phone?: string;
-
-  @ApiProperty({
-    description: 'Email address',
-    example: 'user@example.com',
-    required: false,
-  })
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @ApiProperty({
-    description: 'User type',
-    example: 'customer',
-    enum: ['customer', 'rider', 'seller'],
-  })
   @IsString()
-  userType: string;
+  role?: string;
 }

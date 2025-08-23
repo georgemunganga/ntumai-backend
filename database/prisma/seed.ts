@@ -31,16 +31,24 @@ async function main() {
         phone: adminPhone,
         password: hashedPassword,
         name: 'System Administrator',
-        role: UserRole.ADMIN,
+        currentRole: UserRole.ADMIN,
         isEmailVerified: true,
         isPhoneVerified: true,
+      },
+    });
+
+    // Grant admin role
+    await prisma.userRole_Assignment.create({
+      data: {
+        userId: adminUser.id,
+        role: UserRole.ADMIN,
       },
     });
 
     console.log('✅ Admin user created:', {
       id: adminUser.id,
       email: adminUser.email,
-      role: adminUser.role,
+      role: adminUser.currentRole,
     });
   } else {
     console.log('ℹ️  Admin user already exists');
@@ -69,16 +77,24 @@ async function main() {
         phone: customerPhone,
         password: hashedCustomerPassword,
         name: 'John Doe',
-        role: UserRole.CUSTOMER,
+        currentRole: UserRole.CUSTOMER,
         isEmailVerified: true,
         isPhoneVerified: true,
+      },
+    });
+
+    // Grant customer role
+    await prisma.userRole_Assignment.create({
+      data: {
+        userId: customerUser.id,
+        role: UserRole.CUSTOMER,
       },
     });
 
     console.log('✅ Customer user created:', {
       id: customerUser.id,
       email: customerUser.email,
-      role: customerUser.role,
+      role: customerUser.currentRole,
     });
   } else {
     console.log('ℹ️  Customer user already exists');
@@ -107,16 +123,24 @@ async function main() {
         phone: driverPhone,
         password: hashedDriverPassword,
         name: 'Jane Smith',
-        role: UserRole.DRIVER,
+        currentRole: UserRole.DRIVER,
         isEmailVerified: true,
         isPhoneVerified: true,
+      },
+    });
+
+    // Grant driver role
+    await prisma.userRole_Assignment.create({
+      data: {
+        userId: driverUser.id,
+        role: UserRole.DRIVER,
       },
     });
 
     console.log('✅ Driver user created:', {
       id: driverUser.id,
       email: driverUser.email,
-      role: driverUser.role,
+      role: driverUser.currentRole,
     });
   } else {
     console.log('ℹ️  Driver user already exists');
@@ -145,16 +169,24 @@ async function main() {
         phone: vendorPhone,
         password: hashedVendorPassword,
         name: 'Bob Johnson',
-        role: UserRole.VENDOR,
+        currentRole: UserRole.VENDOR,
         isEmailVerified: true,
         isPhoneVerified: true,
+      },
+    });
+
+    // Grant vendor role
+    await prisma.userRole_Assignment.create({
+      data: {
+        userId: vendorUser.id,
+        role: UserRole.VENDOR,
       },
     });
 
     console.log('✅ Vendor user created:', {
       id: vendorUser.id,
       email: vendorUser.email,
-      role: vendorUser.role,
+      role: vendorUser.currentRole,
     });
   } else {
     console.log('ℹ️  Vendor user already exists');

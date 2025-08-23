@@ -93,7 +93,7 @@ export class User {
       email: user.email.value,
       firstName: user.firstName,
       lastName: user.lastName,
-      role: user.role.value,
+      role: user.currentRole.value,
       occurredAt: new Date(),
     }));
 

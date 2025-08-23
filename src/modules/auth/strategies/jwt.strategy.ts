@@ -29,7 +29,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         email: user.email.value,
         firstName: user.getFirstName(),
         lastName: user.getLastName(),
-        role: user.role.value,
+        role: user.currentRole.value,
       };
     } catch (error) {
       throw new UnauthorizedException('Invalid token');
