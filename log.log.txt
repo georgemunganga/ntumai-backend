@@ -1,0 +1,350 @@
+2025-08-25T17:18:57.195429502Z 18 } from '@nestjs/swagger';
+2025-08-25T17:18:57.195431662Z           ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195434042Z src/modules/auth/auth.module.ts:2:32 - error TS2307: Cannot find module '@nestjs/passport' or its corresponding type declarations.
+2025-08-25T17:18:57.195436122Z 
+2025-08-25T17:18:57.195438422Z 2 import { PassportModule } from '@nestjs/passport';
+2025-08-25T17:18:57.195440692Z                                  ~~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195442993Z src/modules/auth/auth.module.ts:3:30 - error TS2307: Cannot find module '@nestjs/config' or its corresponding type declarations.
+2025-08-25T17:18:57.195445313Z 
+2025-08-25T17:18:57.195448102Z 3 import { ConfigModule } from '@nestjs/config';
+2025-08-25T17:18:57.195450983Z                                ~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195453373Z src/modules/auth/auth.module.ts:4:27 - error TS2307: Cannot find module '@nestjs/jwt' or its corresponding type declarations.
+2025-08-25T17:18:57.195455603Z 
+2025-08-25T17:18:57.195457883Z 4 import { JwtModule } from '@nestjs/jwt';
+2025-08-25T17:18:57.195460263Z                             ~~~~~~~~~~~~~
+2025-08-25T17:18:57.195462633Z src/modules/auth/domain/value-objects/password.value-object.ts:2:25 - error TS2307: Cannot find module 'bcrypt' or its corresponding type declarations.
+2025-08-25T17:18:57.195464863Z 
+2025-08-25T17:18:57.195467613Z 2 import * as bcrypt from 'bcrypt';
+2025-08-25T17:18:57.195470133Z                           ~~~~~~~~
+2025-08-25T17:18:57.195473023Z src/modules/auth/dto/add-address.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195475383Z 
+2025-08-25T17:18:57.195477763Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195480263Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195482834Z src/modules/auth/dto/add-address.dto.ts:2:59 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195489314Z 
+2025-08-25T17:18:57.195497794Z 
+2025-08-25T17:18:57.195502614Z 2 import { IsString, IsNumber, IsBoolean, IsOptional } from 'class-validator';
+2025-08-25T17:18:57.195505204Z                                                             ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195510594Z src/modules/auth/dto/base/base-contact.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195512914Z 
+2025-08-25T17:18:57.195515794Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195518024Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195520375Z src/modules/auth/dto/base/base-contact.dto.ts:2:62 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195522375Z 
+2025-08-25T17:18:57.195532945Z 2 import { IsString, IsOptional, IsEmail, IsPhoneNumber } from 'class-validator';
+2025-08-25T17:18:57.195538625Z                                                                ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195541065Z src/modules/auth/dto/base/base-device.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195543135Z 
+2025-08-25T17:18:57.195545385Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195547665Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195550025Z src/modules/auth/dto/base/base-device.dto.ts:2:38 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195552025Z 
+2025-08-25T17:18:57.195556215Z 2 import { IsString, IsOptional } from 'class-validator';
+2025-08-25T17:18:57.195558805Z                                        ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195561056Z src/modules/auth/dto/base/base-otp.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195563105Z 
+2025-08-25T17:18:57.195565326Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195567546Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195569796Z src/modules/auth/dto/base/base-otp.dto.ts:2:38 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195571826Z 
+2025-08-25T17:18:57.195573996Z 2 import { IsString, IsOptional } from 'class-validator';
+2025-08-25T17:18:57.195576146Z                                        ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195578406Z src/modules/auth/dto/change-password.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195580426Z 
+2025-08-25T17:18:57.195582616Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195584856Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195587116Z src/modules/auth/dto/change-password.dto.ts:2:37 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195589196Z 
+2025-08-25T17:18:57.195591336Z 2 import { IsString, MinLength } from 'class-validator';
+2025-08-25T17:18:57.195593526Z                                       ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195595977Z src/modules/auth/dto/complete-registration.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195598006Z 
+2025-08-25T17:18:57.195600146Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195602337Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195604677Z src/modules/auth/dto/complete-registration.dto.ts:2:49 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195606757Z 
+2025-08-25T17:18:57.195608877Z 2 import { IsString, IsOptional, MinLength } from 'class-validator';
+2025-08-25T17:18:57.195611137Z                                                   ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195617087Z src/modules/auth/dto/forgot-password.dto.ts:1:62 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195619167Z 
+2025-08-25T17:18:57.195621397Z 1 import { IsEmail, IsOptional, IsString, IsPhoneNumber } from 'class-validator';
+2025-08-25T17:18:57.195623827Z                                                                ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195626127Z src/modules/auth/dto/forgot-password.dto.ts:2:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195628157Z 
+2025-08-25T17:18:57.195630307Z 2 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195632547Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195634827Z src/modules/auth/dto/login-otp.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195636878Z 
+2025-08-25T17:18:57.195638987Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195641168Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195643788Z src/modules/auth/dto/login-otp.dto.ts:2:38 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195645778Z 
+2025-08-25T17:18:57.195647928Z 2 import { IsString, IsOptional } from 'class-validator';
+2025-08-25T17:18:57.195650348Z                                        ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195655648Z src/modules/auth/dto/login.dto.ts:1:58 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195657828Z 
+2025-08-25T17:18:57.195660088Z 1 import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
+2025-08-25T17:18:57.195662468Z                                                            ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195664738Z src/modules/auth/dto/login.dto.ts:2:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195666718Z 
+2025-08-25T17:18:57.195668918Z 2 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195671168Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195673359Z src/modules/auth/dto/logout.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195675488Z 
+2025-08-25T17:18:57.195677708Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195679989Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195682189Z src/modules/auth/dto/logout.dto.ts:2:38 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195684249Z 
+2025-08-25T17:18:57.195686429Z 2 import { IsString, IsOptional } from 'class-validator';
+2025-08-25T17:18:57.195688729Z                                        ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195691069Z src/modules/auth/dto/refresh-token.dto.ts:1:38 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195697409Z 
+2025-08-25T17:18:57.195699949Z 1 import { IsNotEmpty, IsString } from 'class-validator';
+2025-08-25T17:18:57.195702369Z                                        ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195704849Z src/modules/auth/dto/refresh-token.dto.ts:2:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195706949Z 
+2025-08-25T17:18:57.195709239Z 2 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.19571172Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.19574147Z src/modules/auth/dto/register-otp.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.19574443Z 
+2025-08-25T17:18:57.1957468Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195749161Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.19575161Z src/modules/auth/dto/register-otp.dto.ts:2:38 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.19575369Z 
+2025-08-25T17:18:57.195755951Z 2 import { IsString, IsOptional } from 'class-validator';
+2025-08-25T17:18:57.195758241Z                                        ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195760591Z src/modules/auth/dto/register.dto.ts:1:85 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195762721Z 
+2025-08-25T17:18:57.195765071Z 1 import { IsEmail, IsNotEmpty, IsString, MinLength, IsPhoneNumber, IsOptional } from 'class-validator';
+2025-08-25T17:18:57.195769731Z                                                                                       ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195772071Z src/modules/auth/dto/register.dto.ts:2:50 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195774151Z 
+2025-08-25T17:18:57.195776301Z 2 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+2025-08-25T17:18:57.195778621Z                                                    ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195780911Z src/modules/auth/dto/reset-password.dto.ts:1:37 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195782991Z 
+2025-08-25T17:18:57.195785311Z 1 import { IsString, MinLength } from 'class-validator';
+2025-08-25T17:18:57.195787671Z                                       ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195789951Z src/modules/auth/dto/reset-password.dto.ts:2:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195792342Z 
+2025-08-25T17:18:57.195794562Z 2 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195796862Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195807852Z src/modules/auth/dto/switch-role.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195810482Z 
+2025-08-25T17:18:57.195812662Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195820402Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195822772Z src/modules/auth/dto/switch-role.dto.ts:2:44 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195824792Z 
+2025-08-25T17:18:57.195826912Z 2 import { IsString, IsIn, IsOptional } from 'class-validator';
+2025-08-25T17:18:57.195829103Z                                              ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195831233Z src/modules/auth/dto/update-profile.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.195833233Z 
+2025-08-25T17:18:57.195835303Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.195837583Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195839723Z src/modules/auth/dto/update-profile.dto.ts:2:47 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.195841723Z 
+2025-08-25T17:18:57.195843823Z 2 import { IsString, IsOptional, IsEmail } from 'class-validator';
+2025-08-25T17:18:57.195846203Z                                                 ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195848343Z src/modules/auth/guards/jwt-auth.guard.ts:6:27 - error TS2307: Cannot find module '@nestjs/passport' or its corresponding type declarations.
+2025-08-25T17:18:57.195850373Z 
+2025-08-25T17:18:57.195852423Z 6 import { AuthGuard } from '@nestjs/passport';
+2025-08-25T17:18:57.195854543Z                             ~~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195858683Z src/modules/auth/infrastructure/database/prisma.service.ts:2:30 - error TS2307: Cannot find module '@prisma/client' or its corresponding type declarations.
+2025-08-25T17:18:57.195860713Z 
+2025-08-25T17:18:57.195862953Z 2 import { PrismaClient } from '@prisma/client';
+2025-08-25T17:18:57.195865313Z                                ~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195869344Z src/modules/auth/infrastructure/database/prisma.service.ts:7:16 - error TS2339: Property '$connect' does not exist on type 'AuthPrismaService'.
+2025-08-25T17:18:57.195871974Z 
+2025-08-25T17:18:57.195875084Z 7     await this.$connect();
+2025-08-25T17:18:57.195877244Z                  ~~~~~~~~
+2025-08-25T17:18:57.195879554Z src/modules/auth/infrastructure/database/prisma.service.ts:11:16 - error TS2339: Property '$disconnect' does not exist on type 'AuthPrismaService'.
+2025-08-25T17:18:57.195881494Z 
+2025-08-25T17:18:57.195883464Z 11     await this.$disconnect();
+2025-08-25T17:18:57.195885584Z                   ~~~~~~~~~~~
+2025-08-25T17:18:57.195887674Z src/modules/auth/infrastructure/database/prisma.service.ts:16:17 - error TS2339: Property 'user' does not exist on type 'AuthPrismaService'.
+2025-08-25T17:18:57.195889584Z 
+2025-08-25T17:18:57.195891674Z 16     return this.user.findUnique({
+2025-08-25T17:18:57.195893724Z                    ~~~~
+2025-08-25T17:18:57.195895794Z src/modules/auth/infrastructure/database/prisma.service.ts:22:17 - error TS2339: Property 'user' does not exist on type 'AuthPrismaService'.
+2025-08-25T17:18:57.195897704Z 
+2025-08-25T17:18:57.195903674Z 22     return this.user.findUnique({
+2025-08-25T17:18:57.195905845Z                    ~~~~
+2025-08-25T17:18:57.195907845Z src/modules/auth/infrastructure/database/prisma.service.ts:28:17 - error TS2339: Property 'user' does not exist on type 'AuthPrismaService'.
+2025-08-25T17:18:57.195909765Z 
+2025-08-25T17:18:57.195911735Z 28     return this.user.create({
+2025-08-25T17:18:57.195913895Z                    ~~~~
+2025-08-25T17:18:57.195916015Z src/modules/auth/infrastructure/database/prisma.service.ts:34:17 - error TS2339: Property 'user' does not exist on type 'AuthPrismaService'.
+2025-08-25T17:18:57.195918015Z 
+2025-08-25T17:18:57.195919955Z 34     return this.user.update({
+2025-08-25T17:18:57.195921925Z                    ~~~~
+2025-08-25T17:18:57.195924065Z src/modules/auth/infrastructure/database/prisma.service.ts:41:17 - error TS2339: Property 'user' does not exist on type 'AuthPrismaService'.
+2025-08-25T17:18:57.195925975Z 
+2025-08-25T17:18:57.195927885Z 41     return this.user.delete({
+2025-08-25T17:18:57.195930065Z                    ~~~~
+2025-08-25T17:18:57.195932275Z src/modules/auth/infrastructure/infrastructure.module.ts:2:27 - error TS2307: Cannot find module '@nestjs/jwt' or its corresponding type declarations.
+2025-08-25T17:18:57.195934155Z 
+2025-08-25T17:18:57.195936205Z 2 import { JwtModule } from '@nestjs/jwt';
+2025-08-25T17:18:57.195945446Z                             ~~~~~~~~~~~~~
+2025-08-25T17:18:57.195948176Z src/modules/auth/infrastructure/infrastructure.module.ts:3:45 - error TS2307: Cannot find module '@nestjs/config' or its corresponding type declarations.
+2025-08-25T17:18:57.195950186Z 
+2025-08-25T17:18:57.195952496Z 3 import { ConfigModule, ConfigService } from '@nestjs/config';
+2025-08-25T17:18:57.195955096Z                                               ~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195957526Z src/modules/auth/infrastructure/infrastructure.module.ts:4:36 - error TS2307: Cannot find module '@nestjs/event-emitter' or its corresponding type declarations.
+2025-08-25T17:18:57.195959596Z 
+2025-08-25T17:18:57.195961906Z 4 import { EventEmitterModule } from '@nestjs/event-emitter';
+2025-08-25T17:18:57.195964116Z                                      ~~~~~~~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195967386Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:12:24 - error TS2307: Cannot find module '@prisma/client' or its corresponding type declarations.
+2025-08-25T17:18:57.195969516Z 
+2025-08-25T17:18:57.195971826Z 12 import { Prisma } from '@prisma/client';
+2025-08-25T17:18:57.195974476Z                           ~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.195978027Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:36:43 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.195980156Z 
+2025-08-25T17:18:57.195982347Z 36       const savedUser = await this.prisma.user.upsert({
+2025-08-25T17:18:57.195984607Z                                              ~~~~
+2025-08-25T17:18:57.195986917Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:102:40 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.195992687Z 
+2025-08-25T17:18:57.195995157Z 102     const userData = await this.prisma.user.findFirst(query);
+2025-08-25T17:18:57.195997497Z                                            ~~~~
+2025-08-25T17:18:57.195999877Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:127:40 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196001957Z 
+2025-08-25T17:18:57.196004277Z 127     const userData = await this.prisma.user.findFirst(query);
+2025-08-25T17:18:57.196006607Z                                            ~~~~
+2025-08-25T17:18:57.196008987Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:153:40 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196011107Z 
+2025-08-25T17:18:57.196013277Z 153     const userData = await this.prisma.user.findFirst(query);
+2025-08-25T17:18:57.196015788Z                                            ~~~~
+2025-08-25T17:18:57.196018948Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:184:19 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196021137Z 
+2025-08-25T17:18:57.196023328Z 184       this.prisma.user.findMany(findManyQuery),
+2025-08-25T17:18:57.196025528Z                       ~~~~
+2025-08-25T17:18:57.196027838Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:185:19 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196029898Z 
+2025-08-25T17:18:57.196032168Z 185       this.prisma.user.count(countQuery),
+2025-08-25T17:18:57.196034508Z                       ~~~~
+2025-08-25T17:18:57.196036928Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:214:37 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196038948Z 
+2025-08-25T17:18:57.196041098Z 214     const count = await this.prisma.user.count({
+2025-08-25T17:18:57.196043448Z                                         ~~~~
+2025-08-25T17:18:57.196046478Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:228:23 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196048568Z 
+2025-08-25T17:18:57.196050848Z 228     await this.prisma.user.delete({
+2025-08-25T17:18:57.196053109Z                           ~~~~
+2025-08-25T17:18:57.196055438Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:240:24 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196057609Z 
+2025-08-25T17:18:57.196059809Z 240     return this.prisma.user.count(query);
+2025-08-25T17:18:57.196062129Z                            ~~~~
+2025-08-25T17:18:57.196070329Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:250:40 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196072849Z 
+2025-08-25T17:18:57.196075069Z 250     const userData = await this.prisma.user.findFirst(query);
+2025-08-25T17:18:57.196081219Z                                            ~~~~
+2025-08-25T17:18:57.196083619Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:270:40 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196085789Z 
+2025-08-25T17:18:57.196088009Z 270     const userData = await this.prisma.user.findFirst(query);
+2025-08-25T17:18:57.196090329Z                                            ~~~~
+2025-08-25T17:18:57.19609269Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:285:23 - error TS2339: Property 'passwordResetToken' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.19609483Z 
+2025-08-25T17:18:57.19609707Z 285     await this.prisma.passwordResetToken.deleteMany({
+2025-08-25T17:18:57.1960995Z                           ~~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.19610175Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:290:23 - error TS2339: Property 'passwordResetToken' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.19610383Z 
+2025-08-25T17:18:57.19610602Z 290     await this.prisma.passwordResetToken.create({
+2025-08-25T17:18:57.1961083Z                           ~~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.19611065Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:300:23 - error TS2339: Property 'passwordResetToken' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.19611276Z 
+2025-08-25T17:18:57.196115Z 300     await this.prisma.passwordResetToken.deleteMany({
+2025-08-25T17:18:57.19611733Z                           ~~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.19611978Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:312:37 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.19612193Z 
+2025-08-25T17:18:57.19612416Z 312     const users = await this.prisma.user.findMany(query);
+2025-08-25T17:18:57.19612637Z                                         ~~~~
+2025-08-25T17:18:57.19612871Z src/modules/auth/infrastructure/repositories/optimized-prisma-user.repository.ts:330:37 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196130851Z 
+2025-08-25T17:18:57.196133051Z 330     const users = await this.prisma.user.findMany(query);
+2025-08-25T17:18:57.196135351Z                                         ~~~~
+2025-08-25T17:18:57.196137581Z src/modules/auth/infrastructure/repositories/user-query-builder.ts:1:24 - error TS2307: Cannot find module '@prisma/client' or its corresponding type declarations.
+2025-08-25T17:18:57.196139691Z 
+2025-08-25T17:18:57.196141881Z 1 import { Prisma } from '@prisma/client';
+2025-08-25T17:18:57.196144151Z                          ~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196147641Z src/modules/auth/infrastructure/services/jwt.adapter.ts:2:46 - error TS2307: Cannot find module '@nestjs/jwt' or its corresponding type declarations.
+2025-08-25T17:18:57.196149771Z 
+2025-08-25T17:18:57.196151981Z 2 import { JwtService as NestJwtService } from '@nestjs/jwt';
+2025-08-25T17:18:57.196154261Z                                                ~~~~~~~~~~~~~
+2025-08-25T17:18:57.196160081Z src/modules/auth/strategies/jwt.strategy.ts:2:34 - error TS2307: Cannot find module '@nestjs/passport' or its corresponding type declarations.
+2025-08-25T17:18:57.196162171Z 
+2025-08-25T17:18:57.196164321Z 2 import { PassportStrategy } from '@nestjs/passport';
+2025-08-25T17:18:57.196166701Z                                    ~~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196169012Z src/modules/auth/strategies/jwt.strategy.ts:3:38 - error TS2307: Cannot find module 'passport-jwt' or its corresponding type declarations.
+2025-08-25T17:18:57.196171121Z 
+2025-08-25T17:18:57.196173332Z 3 import { ExtractJwt, Strategy } from 'passport-jwt';
+2025-08-25T17:18:57.196175802Z                                        ~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196178142Z src/modules/auth/strategies/jwt.strategy.ts:4:31 - error TS2307: Cannot find module '@nestjs/config' or its corresponding type declarations.
+2025-08-25T17:18:57.196180182Z 
+2025-08-25T17:18:57.196182332Z 4 import { ConfigService } from '@nestjs/config';
+2025-08-25T17:18:57.196184632Z                                 ~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196193142Z src/modules/auth/strategies/local.strategy.ts:2:34 - error TS2307: Cannot find module '@nestjs/passport' or its corresponding type declarations.
+2025-08-25T17:18:57.196195502Z 
+2025-08-25T17:18:57.196197712Z 2 import { PassportStrategy } from '@nestjs/passport';
+2025-08-25T17:18:57.196199942Z                                    ~~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196202192Z src/modules/auth/strategies/local.strategy.ts:3:26 - error TS2307: Cannot find module 'passport-local' or its corresponding type declarations.
+2025-08-25T17:18:57.196204282Z 
+2025-08-25T17:18:57.196206593Z 3 import { Strategy } from 'passport-local';
+2025-08-25T17:18:57.196208953Z                            ~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196211262Z src/modules/common/prisma/prisma.service.ts:2:30 - error TS2307: Cannot find module '@prisma/client' or its corresponding type declarations.
+2025-08-25T17:18:57.196213343Z 
+2025-08-25T17:18:57.196215603Z 2 import { PrismaClient } from '@prisma/client';
+2025-08-25T17:18:57.196217843Z                                ~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196220173Z src/modules/common/prisma/prisma.service.ts:7:16 - error TS2339: Property '$connect' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196222293Z 
+2025-08-25T17:18:57.196224593Z 7     await this.$connect();
+2025-08-25T17:18:57.196226813Z                  ~~~~~~~~
+2025-08-25T17:18:57.196229163Z src/modules/common/prisma/prisma.service.ts:11:16 - error TS2339: Property '$disconnect' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196231273Z 
+2025-08-25T17:18:57.196233493Z 11     await this.$disconnect();
+2025-08-25T17:18:57.196235753Z                   ~~~~~~~~~~~
+2025-08-25T17:18:57.196238003Z src/modules/users/dto/switch-role.dto.ts:1:29 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.196240103Z 
+2025-08-25T17:18:57.196242323Z 1 import { ApiProperty } from '@nestjs/swagger';
+2025-08-25T17:18:57.196244543Z                               ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196250374Z src/modules/users/dto/switch-role.dto.ts:2:46 - error TS2307: Cannot find module 'class-validator' or its corresponding type declarations.
+2025-08-25T17:18:57.196252594Z 
+2025-08-25T17:18:57.196254734Z 2 import { IsEnum, IsString, IsOptional } from 'class-validator';
+2025-08-25T17:18:57.196257174Z                                                ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196259474Z src/modules/users/dto/switch-role.dto.ts:3:26 - error TS2307: Cannot find module '@prisma/client' or its corresponding type declarations.
+2025-08-25T17:18:57.196261494Z 
+2025-08-25T17:18:57.196263664Z 3 import { UserRole } from '@prisma/client';
+2025-08-25T17:18:57.196265894Z                            ~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196268194Z src/modules/users/users.controller.ts:20:8 - error TS2307: Cannot find module '@nestjs/swagger' or its corresponding type declarations.
+2025-08-25T17:18:57.196270284Z 
+2025-08-25T17:18:57.196272434Z 20 } from '@nestjs/swagger';
+2025-08-25T17:18:57.196274714Z           ~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196277034Z src/modules/users/users.service.ts:6:26 - error TS2307: Cannot find module '@prisma/client' or its corresponding type declarations.
+2025-08-25T17:18:57.196279114Z 
+2025-08-25T17:18:57.196281384Z 6 import { UserRole } from '@prisma/client';
+2025-08-25T17:18:57.196283715Z                            ~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196286464Z src/modules/users/users.service.ts:19:36 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196288555Z 
+2025-08-25T17:18:57.196290885Z 19     const user = await this.prisma.user.findUnique({
+2025-08-25T17:18:57.196293195Z                                       ~~~~
+2025-08-25T17:18:57.196295515Z src/modules/users/users.service.ts:78:43 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196297615Z 
+2025-08-25T17:18:57.196299885Z 78     const updatedUser = await this.prisma.user.update({
+2025-08-25T17:18:57.196302215Z                                              ~~~~
+2025-08-25T17:18:57.196304555Z src/modules/users/users.service.ts:122:36 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196306675Z 
+2025-08-25T17:18:57.196308845Z 122     const user = await this.prisma.user.findUnique({
+2025-08-25T17:18:57.196311105Z                                        ~~~~
+2025-08-25T17:18:57.196313755Z src/modules/users/users.service.ts:182:25 - error TS2339: Property 'userRole_Assignment' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196315835Z 
+2025-08-25T17:18:57.196318025Z 182       await this.prisma.userRole_Assignment.update({
+2025-08-25T17:18:57.196330536Z                             ~~~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196333286Z src/modules/users/users.service.ts:188:25 - error TS2339: Property 'userRole_Assignment' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196335516Z 
+2025-08-25T17:18:57.196337766Z 188       await this.prisma.userRole_Assignment.create({
+2025-08-25T17:18:57.196340166Z                             ~~~~~~~~~~~~~~~~~~~
+2025-08-25T17:18:57.196346266Z src/modules/users/users.service.ts:205:36 - error TS2339: Property 'user' does not exist on type 'PrismaService'.
+2025-08-25T17:18:57.196348586Z 
+2025-08-25T17:18:57.196350796Z 205     const user = await this.prisma.user.findUnique({
+2025-08-25T17:18:57.196359926Z                                        ~~~~
+2025-08-25T17:18:57.196362306Z 
+2025-08-25T17:18:57.255960086Z ==> Build failed 😞
+2025-08-25T17:18:57.256010797Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
