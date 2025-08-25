@@ -67,6 +67,9 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
     JWT_SERVICE_TOKEN,
     NOTIFICATION_SERVICE_TOKEN,
     
+    // JWT Module
+    JwtModule,
+    
     // Database
     PrismaService,
   ],

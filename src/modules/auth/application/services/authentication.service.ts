@@ -121,10 +121,23 @@ export class AuthenticationService extends AuthenticationUseCase {
 
   async loginUser(command: LoginUserCommand): Promise<AuthenticationResult> {
     try {
-      // Find user by email (include unverified users for login)
-      const user = await this.userRepository.findByEmail(Email.create(command.email), { includeUnverified: true });
+      // Validate that either email or phone is provided
+      if (!command.email && !(command.phone && command.countryCode)) {
+        throw new BadRequestException('Either email or phone number with country code is required');
+      }
+
+      // Find user by email or phone (include unverified users for login)
+      let user;
+      if (command.email) {
+        user = await this.userRepository.findByEmail(Email.create(command.email), { includeUnverified: true });
+      } else if (command.phone && command.countryCode) {
+        // Combine country code and phone number
+        const fullPhoneNumber = `${command.countryCode}${command.phone}`;
+        user = await this.userRepository.findByPhone(fullPhoneNumber);
+      }
+      
       if (!user) {
-        throw new UnauthorizedException('Invalid email or password');
+        throw new UnauthorizedException('Invalid credentials');
       }
 
       // Authenticate user

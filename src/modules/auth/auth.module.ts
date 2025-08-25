@@ -15,7 +15,6 @@ import { UserManagementDomainService } from './domain/services/user-management-d
   imports: [
     ConfigModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    JwtModule.register({}), // Empty config since it's configured in infrastructure
     AuthInfrastructureModule,
   ],
   controllers: [AuthController],

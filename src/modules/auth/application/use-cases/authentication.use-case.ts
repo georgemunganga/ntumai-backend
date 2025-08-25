@@ -19,8 +19,10 @@ export interface RegisterUserCommand extends BaseAuthCommand {
   role?: string;
 }
 
-export interface LoginUserCommand extends BaseAuthCommand {
-  email: string;
+export interface LoginUserCommand {
+  email?: string;
+  phone?: string;
+  countryCode?: string;
   password: string;
 }
 

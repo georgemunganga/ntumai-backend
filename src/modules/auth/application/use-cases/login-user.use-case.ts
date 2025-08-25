@@ -1,7 +1,9 @@
 import { User } from '../../domain/entities/user.entity';
 
 export interface LoginUserCommand {
-  email: string;
+  email?: string;
+  phone?: string;
+  countryCode?: string;
   password: string;
   ipAddress?: string;
   userAgent?: string;

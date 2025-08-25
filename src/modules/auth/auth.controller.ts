@@ -143,6 +143,8 @@ export class AuthController {
   async login(@Body() loginDto: LoginDto) {
     const result = await this.authenticationService.loginUser({
       email: loginDto.email,
+      phone: loginDto.phone,
+      countryCode: loginDto.countryCode,
       password: loginDto.password,
     });
     return {

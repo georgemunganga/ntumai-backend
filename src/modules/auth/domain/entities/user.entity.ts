@@ -308,7 +308,7 @@ export class User {
       firstName: firstName,
       lastName: lastName,
       phone: data.phone ? Phone.create(data.phone) : undefined,
-      role: UserRole.create(data.role),
+      role: UserRole.create(data.currentRole),
       isEmailVerified: data.isEmailVerified,
       isPhoneVerified: data.isPhoneVerified,
       isActive: data.isActive,
