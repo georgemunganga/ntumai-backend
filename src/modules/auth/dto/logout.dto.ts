@@ -1,11 +1,29 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString } from 'class-validator';
+import { IsString, IsOptional } from 'class-validator';
 
 export class LogoutDto {
   @ApiProperty({
-    description: 'Device ID',
-    example: 'device-123',
+    description: 'User ID',
+    example: 'user-123',
   })
   @IsString()
-  deviceId: string;
+  userId: string;
+
+  @ApiProperty({
+    description: 'Refresh token (optional)',
+    example: 'refresh-token-123',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  refreshToken?: string;
+
+  @ApiProperty({
+    description: 'Device ID (optional)',
+    example: 'device-123',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
 }

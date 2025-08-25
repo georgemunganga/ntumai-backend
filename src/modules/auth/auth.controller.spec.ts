@@ -47,6 +47,8 @@ describe('AuthController', () => {
       verifyOtp: jest.fn(),
       sendOtp: jest.fn(),
       generateLoginOtp: jest.fn(),
+      generatePasswordResetOtp: jest.fn(),
+      completePasswordReset: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -86,7 +88,8 @@ describe('AuthController', () => {
         email: 'test@example.com',
         phone: '+1234567890',
         password: 'Password123!',
-        name: 'Test User',
+        firstName: 'Test',
+        lastName: 'User',
         role: 'CUSTOMER',
       };
 
@@ -99,10 +102,17 @@ describe('AuthController', () => {
 
       const result = await controller.register(registerDto);
 
-      expect(authService.registerUser).toHaveBeenCalledWith(registerDto);
+      expect(authService.registerUser).toHaveBeenCalledWith({
+        email: registerDto.email,
+        password: registerDto.password,
+        firstName: registerDto.firstName,
+        lastName: registerDto.lastName,
+        phone: registerDto.phone,
+        role: registerDto.role,
+      });
       expect(result).toEqual({
         success: true,
-        data: expectedResult.user,
+        data: expectedResult,
       });
     });
 
@@ -138,7 +148,10 @@ describe('AuthController', () => {
       const result = await controller.login(loginDto);
 
       expect(authService.loginUser).toHaveBeenCalledWith(loginDto);
-      expect(result).toEqual(expectedResult);
+      expect(result).toEqual({
+        success: true,
+        data: expectedResult,
+      });
     });
 
     it('should throw UnauthorizedException for invalid credentials', async () => {
@@ -169,7 +182,10 @@ describe('AuthController', () => {
       const result = await controller.refreshToken(refreshDto);
 
       expect(authService.refreshToken).toHaveBeenCalledWith(refreshDto);
-      expect(result).toEqual(expectedResult);
+      expect(result).toEqual({
+        success: true,
+        data: expectedResult,
+      });
     });
 
     it('should throw UnauthorizedException for invalid refresh token', async () => {
@@ -190,44 +206,68 @@ describe('AuthController', () => {
       };
 
       const expectedResult = {
-        message: 'Password reset email sent',
+        success: true,
+        message: 'Password reset OTP sent',
+        requestId: 'req-123',
       };
 
-      passwordService.forgotPassword.mockResolvedValue(expectedResult);
+      otpService.generatePasswordResetOtp.mockResolvedValue(expectedResult);
 
       const result = await controller.forgotPassword(forgotPasswordDto);
 
-      expect(passwordService.forgotPassword).toHaveBeenCalledWith(forgotPasswordDto);
-      expect(result).toEqual(expectedResult);
-    });
-  });
+      expect(otpService.generatePasswordResetOtp).toHaveBeenCalledWith({
+        email: forgotPasswordDto.email,
+        phoneNumber: forgotPasswordDto.phoneNumber,
+        countryCode: forgotPasswordDto.countryCode,
+      });
+      expect(result).toEqual({
+        success: expectedResult.success,
+        message: expectedResult.message,
+        requestId: expectedResult.requestId,
+      });
+     });
+   });
 
   describe('resetPassword', () => {
     it('should reset password successfully', async () => {
       const resetPasswordDto: ResetPasswordDto = {
-        token: 'valid-reset-token',
+        otp: 'valid-reset-otp',
         newPassword: 'NewPassword123!',
+        requestId: 'req-123',
+        email: 'test@example.com',
       };
 
       const expectedResult = {
+        success: true,
         message: 'Password reset successfully',
       };
 
-      passwordService.resetPassword.mockResolvedValue(expectedResult);
+      otpService.completePasswordReset.mockResolvedValue(expectedResult);
 
       const result = await controller.resetPassword(resetPasswordDto);
 
-      expect(passwordService.resetPassword).toHaveBeenCalledWith(resetPasswordDto);
-      expect(result).toEqual(expectedResult);
+      expect(otpService.completePasswordReset).toHaveBeenCalledWith({
+        otp: resetPasswordDto.otp,
+        newPassword: resetPasswordDto.newPassword,
+        requestId: resetPasswordDto.requestId,
+        phoneNumber: resetPasswordDto.phoneNumber,
+        email: resetPasswordDto.email,
+        countryCode: resetPasswordDto.countryCode,
+      });
+      expect(result).toEqual({
+        success: true,
+        message: 'Password reset successfully',
+      });
     });
 
     it('should throw BadRequestException for invalid reset token', async () => {
       const resetPasswordDto: ResetPasswordDto = {
-        token: 'invalid-reset-token',
+        otp: 'invalid-reset-otp',
         newPassword: 'NewPassword123!',
+        requestId: 'req-123',
       };
 
-      passwordService.resetPassword.mockRejectedValue(new BadRequestException('Invalid or expired reset token'));
+      otpService.completePasswordReset.mockRejectedValue(new BadRequestException('Invalid or expired reset token'));
 
       await expect(controller.resetPassword(resetPasswordDto)).rejects.toThrow(BadRequestException);
     });
@@ -235,10 +275,11 @@ describe('AuthController', () => {
 
   describe('logout', () => {
     it('should logout user successfully', async () => {
-      const mockRequest = {
-        user: mockUser,
+      const logoutDto = {
+        userId: mockUser.id,
+        refreshToken: 'valid-refresh-token',
+        deviceId: 'device-123',
       };
-      const refreshToken = 'valid-refresh-token';
 
       const expectedResult = {
         success: true,
@@ -247,15 +288,16 @@ describe('AuthController', () => {
 
       authService.logoutUser.mockResolvedValue(expectedResult);
 
-      const result = await controller.logout(mockRequest, refreshToken);
+      const result = await controller.logout(logoutDto);
 
       expect(authService.logoutUser).toHaveBeenCalledWith({
-        userId: mockUser.id,
-        refreshToken: refreshToken,
+        userId: logoutDto.userId,
+        refreshToken: logoutDto.refreshToken,
+        deviceId: logoutDto.deviceId,
       });
       expect(result).toEqual({
-        success: true,
-        data: expectedResult,
+        success: expectedResult.success,
+        message: expectedResult.message,
       });
     });
   });

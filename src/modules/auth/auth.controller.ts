@@ -29,15 +29,7 @@ import {
 } from './dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthResponse, TokenResponse } from './interfaces';
-import {
-  RegisterUserUseCase,
-  LoginUserUseCase,
-  RefreshTokenUseCase,
-  ForgotPasswordUseCase,
-  ResetPasswordUseCase,
-  LogoutUserUseCase,
-  GetUserProfileUseCase,
-} from './application/use-cases';
+// Removed unused individual use case imports - using consolidated application services
 import { AuthenticationService, PasswordManagementService, OtpManagementService } from './application/services';
 
 @ApiTags('Authentication')
@@ -501,10 +493,14 @@ export class AuthController {
     },
   })
   async logout(@Body() logoutDto: LogoutDto) {
-    // TODO: Implement logout logic
+    const result = await this.authenticationService.logoutUser({
+      userId: logoutDto.userId,
+      refreshToken: logoutDto.refreshToken,
+      deviceId: logoutDto.deviceId,
+    });
     return {
-      success: true,
-      message: 'Logged out successfully',
+      success: result.success,
+      message: result.message,
     };
   }
 }
