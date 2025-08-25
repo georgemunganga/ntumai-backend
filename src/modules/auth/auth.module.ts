@@ -8,8 +8,7 @@ import { JwtAuthGuard, RolesGuard } from './guards';
 import { AuthInfrastructureModule, JWT_SERVICE_TOKEN, NOTIFICATION_SERVICE_TOKEN } from './infrastructure';
 import { JwtAdapter, NotificationAdapter } from './infrastructure/services';
 import { AuthenticationService, PasswordManagementService, RepositoryMonitoringService, OtpManagementService } from './application/services';
-import { AuthenticationDomainService } from './domain/services/authentication-domain.service';
-import { PasswordService } from './domain/services/password.service';
+// Removed deprecated imports - using consolidated UserManagementDomainService
 import { UserManagementDomainService } from './domain/services/user-management-domain.service';
 
 @Module({
@@ -26,8 +25,6 @@ import { UserManagementDomainService } from './domain/services/user-management-d
     RepositoryMonitoringService,
     OtpManagementService,
     UserManagementDomainService,
-    AuthenticationDomainService, // Legacy - deprecated
-    PasswordService, // Legacy - deprecated
     JwtStrategy,
     LocalStrategy,
     JwtAuthGuard,

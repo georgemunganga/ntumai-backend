@@ -1,14 +1,14 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-local';
-import { AuthenticationDomainService } from '../domain/services';
+import { UserManagementDomainService } from '../domain/services';
 import { UserRepository } from '../domain/repositories';
 import { Email, Password } from '../domain/value-objects';
 
 @Injectable()
 export class LocalStrategy extends PassportStrategy(Strategy) {
   constructor(
-    private readonly authDomainService: AuthenticationDomainService,
+    private readonly userManagementService: UserManagementDomainService,
     private readonly userRepository: UserRepository,
   ) {
     super({
@@ -27,7 +27,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      const authenticatedUser = await this.authDomainService.authenticateUser(user, password);
+      const authenticatedUser = await this.userManagementService.authenticateUser(user, password);
 
       return {
         id: authenticatedUser.id,
