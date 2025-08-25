@@ -7,6 +7,7 @@ import {
   UseGuards,
   Request,
   Get,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -267,7 +268,7 @@ export class AuthController {
 
   @Post('logout-all')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout user from all devices' })
   @ApiResponse({
@@ -303,7 +304,7 @@ export class AuthController {
 
   @Get('profile')
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
+  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({
     status: 200,
@@ -328,20 +329,17 @@ export class AuthController {
     },
   })
   async getProfile(@Request() req) {
-    const result = await this.authenticationService.getProfile({
+    const result = await this.authenticationService.getUserProfile({
       userId: req.user.id,
     });
     
     if (!result.success) {
-      return {
-        success: false,
-        error: result.error,
-      };
+      throw new UnauthorizedException(result.error || 'Failed to get user profile');
     }
     
     return {
       success: true,
-      user: result.user,
+      data: result.user,
     };
   }
 
@@ -392,7 +390,7 @@ export class AuthController {
     return {
       success: result.success || true,
       message: result.message || 'OTP verified successfully',
-      verified: result.verified !== undefined ? result.verified : true,
+      verified: result.isValid !== undefined ? result.isValid : true,
     };
   }
 
@@ -428,8 +426,8 @@ export class AuthController {
       success: true,
       data: {
         user: result.user,
-        accessToken: result.tokens.accessToken,
-        refreshToken: result.tokens.refreshToken,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
       },
     };
   }
@@ -460,20 +458,27 @@ export class AuthController {
     },
   })
   async loginWithOtp(@Body() loginOtpDto: LoginOtpDto) {
-    const result = await this.authenticationService.loginOtp(loginOtpDto);
-    
-    // If no OTP provided, return OTP generation result
+    // If no OTP provided, generate and send OTP
     if (!loginOtpDto.otp) {
+      const result = await this.authenticationService.loginOtp(loginOtpDto);
       return result;
     }
 
-    // If OTP provided, return login result
+    // If OTP provided, complete login
+    const result = await this.authenticationService.completeLogin({
+      otp: loginOtpDto.otp!,
+      phoneNumber: loginOtpDto.phoneNumber,
+      email: loginOtpDto.email,
+      countryCode: loginOtpDto.countryCode,
+      deviceId: loginOtpDto.deviceId,
+      deviceType: loginOtpDto.deviceType,
+    });
     return {
       success: true,
       data: {
         user: result.user,
-        accessToken: result.tokens.accessToken,
-        refreshToken: result.tokens.refreshToken,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
       },
     };
   }
@@ -496,7 +501,6 @@ export class AuthController {
     const result = await this.authenticationService.logoutUser({
       userId: logoutDto.userId,
       refreshToken: logoutDto.refreshToken,
-      deviceId: logoutDto.deviceId,
     });
     return {
       success: result.success,

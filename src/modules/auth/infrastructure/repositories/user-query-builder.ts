@@ -25,7 +25,7 @@ export class UserQueryBuilder {
    */
   withFilters(filters: UserFilters): UserQueryBuilder {
     if (filters.role) {
-      this.whereClause.role = filters.role as any;
+      this.whereClause.currentRole = filters.role as any;
     }
 
     if (filters.isEmailVerified !== undefined) {

@@ -1,4 +1,5 @@
 import { User } from '../../domain/entities/user.entity';
+import { GetUserProfileResult } from './get-user-profile.use-case';
 
 // Base authentication command
 export interface BaseAuthCommand {
@@ -74,5 +75,5 @@ export abstract class AuthenticationUseCase {
   abstract logoutUser(command: LogoutUserCommand): Promise<LogoutResult>;
   
   // User Profile
-  abstract getUserProfile(command: GetUserProfileCommand): Promise<UserProfileResult>;
+  abstract getUserProfile(command: GetUserProfileCommand): Promise<GetUserProfileResult>;
 }

@@ -2,6 +2,12 @@
 export { AuthenticationUseCase } from './authentication.use-case';
 export { OtpManagementUseCase } from './otp-management.use-case';
 
+// Export authentication result types
+export type {
+  AuthenticationResult,
+  TokenRefreshResult,
+} from './authentication.use-case';
+
 // Legacy Individual Use Cases (Maintained for backward compatibility)
 export { ChangePasswordUseCase } from './change-password.use-case';
 export { ForgotPasswordUseCase } from './forgot-password.use-case';
@@ -31,16 +37,19 @@ export type {
 // Legacy Command and Result Types
 export type {
   RegisterUserCommand as LegacyRegisterUserCommand,
+  RegisterUserCommand,
   RegisterUserResult,
 } from './register-user.use-case';
 
 export type {
   LoginUserCommand as LegacyLoginUserCommand,
+  LoginUserCommand,
   LoginUserResult,
 } from './login-user.use-case';
 
 export type {
   RefreshTokenCommand as LegacyRefreshTokenCommand,
+  RefreshTokenCommand,
   RefreshTokenResult,
 } from './refresh-token.use-case';
 
@@ -61,10 +70,14 @@ export type {
 
 export type {
   LogoutUserCommand as LegacyLogoutUserCommand,
+  LogoutUserCommand,
+  LogoutUserResult as LogoutResult,
   LogoutUserResult,
 } from './logout-user.use-case';
 
 export type {
   GetUserProfileCommand as LegacyGetUserProfileCommand,
+  GetUserProfileCommand,
+  GetUserProfileResult as UserProfileResult,
   GetUserProfileResult,
 } from './get-user-profile.use-case';

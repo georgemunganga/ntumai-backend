@@ -1,27 +1,31 @@
 import { Injectable, Inject, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import {
-  RegisterUserUseCase,
-  LegacyRegisterUserCommand as RegisterUserCommand,
-  RegisterUserResult,
-  LoginUserUseCase,
-  LegacyLoginUserCommand as LoginUserCommand,
-  LoginUserResult,
-  RefreshTokenUseCase,
-  LegacyRefreshTokenCommand as RefreshTokenCommand,
-  RefreshTokenResult,
-  LogoutUserUseCase,
-  LegacyLogoutUserCommand as LogoutUserCommand,
-  LogoutUserResult,
-  GetUserProfileUseCase,
-  LegacyGetUserProfileCommand as GetUserProfileCommand,
+  AuthenticationUseCase,
+  RegisterUserCommand,
+  LoginUserCommand,
+  RefreshTokenCommand,
+  LogoutUserCommand,
+  GetUserProfileCommand,
+  AuthenticationResult,
+  TokenRefreshResult,
+  LogoutResult,
   GetUserProfileResult,
+  GenerateRegistrationOtpCommand,
+  GenerateLoginOtpCommand,
+  VerifyOtpCommand,
+  CompleteRegistrationCommand,
+  OtpGenerationResult,
+  OtpVerificationResult,
+  RegistrationResult,
+  LoginResult,
 } from '../use-cases';
 import { UserRepository } from '../../domain/repositories';
 import { UserManagementDomainService } from '../../domain/services';
 import { User } from '../../domain/entities';
 import { Email, Password, UserRole, Phone } from '../../domain/value-objects';
 import { UserRegisteredEvent, UserLoggedInEvent } from '../../domain/events';
+import { OtpManagementService } from './otp-management.service';
 
 export interface TokenPair {
   accessToken: string;
@@ -34,16 +38,19 @@ export interface JwtService {
 }
 
 @Injectable()
-export class AuthenticationService {
+export class AuthenticationService extends AuthenticationUseCase {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly userManagementService: UserManagementDomainService,
     @Inject('JWT_SERVICE')
     private readonly jwtService: JwtService,
     private readonly eventEmitter: EventEmitter2,
-  ) {}
+    private readonly otpManagementService: OtpManagementService,
+  ) {
+    super();
+  }
 
-  async registerUser(command: RegisterUserCommand): Promise<RegisterUserResult> {
+  async registerUser(command: RegisterUserCommand): Promise<AuthenticationResult> {
     try {
       // Check if user already exists
       const existingUserByEmail = await this.userRepository.findByEmail(
@@ -112,7 +119,7 @@ export class AuthenticationService {
     }
   }
 
-  async loginUser(command: LoginUserCommand): Promise<LoginUserResult> {
+  async loginUser(command: LoginUserCommand): Promise<AuthenticationResult> {
     try {
       // Find user by email (include unverified users for login)
       const user = await this.userRepository.findByEmail(Email.create(command.email), { includeUnverified: true });
@@ -155,7 +162,7 @@ export class AuthenticationService {
     }
   }
 
-  async refreshToken(command: RefreshTokenCommand): Promise<RefreshTokenResult> {
+  async refreshToken(command: RefreshTokenCommand): Promise<TokenRefreshResult> {
     try {
       // Find user by refresh token
       const user = await this.userRepository.findByRefreshToken(
@@ -178,13 +185,14 @@ export class AuthenticationService {
       return {
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
       };
     } catch (error) {
       throw new UnauthorizedException('Token refresh failed');
     }
   }
 
-  async logoutUser(command: LogoutUserCommand): Promise<LogoutUserResult> {
+  async logoutUser(command: LogoutUserCommand): Promise<LogoutResult> {
     try {
       // Find user by ID
       const user = await this.userRepository.findById(command.userId);
@@ -208,7 +216,7 @@ export class AuthenticationService {
     }
   }
 
-  async getProfile(command: GetUserProfileCommand): Promise<GetUserProfileResult> {
+  async getUserProfile(command: GetUserProfileCommand): Promise<GetUserProfileResult> {
     try {
       const user = await this.userRepository.findById(command.userId);
       
@@ -224,8 +232,8 @@ export class AuthenticationService {
         user: {
           id: user.id,
           email: user.email.value,
-          name: `${user.firstName} ${user.lastName}`.trim(),
-          role: user.currentRole.value,
+          name: user.fullName,
+          role: user.getRole().value,
           phone: user.phone?.value,
           isEmailVerified: user.isEmailVerified,
           isPhoneVerified: user.isPhoneVerified,
@@ -258,5 +266,26 @@ export class AuthenticationService {
     );
 
     return { accessToken, refreshToken };
+  }
+
+  // OTP-related methods (delegated to OtpManagementService)
+  async registerOtp(command: GenerateRegistrationOtpCommand): Promise<OtpGenerationResult> {
+    return this.otpManagementService.generateRegistrationOtp(command);
+  }
+
+  async verifyOtp(command: VerifyOtpCommand): Promise<OtpVerificationResult> {
+    return this.otpManagementService.verifyOtp(command);
+  }
+
+  async completeRegistration(command: CompleteRegistrationCommand): Promise<RegistrationResult> {
+    return this.otpManagementService.completeRegistration(command);
+  }
+
+  async loginOtp(command: GenerateLoginOtpCommand): Promise<OtpGenerationResult> {
+    return this.otpManagementService.generateLoginOtp(command);
+  }
+
+  async completeLogin(command: VerifyOtpCommand): Promise<LoginResult> {
+    return this.otpManagementService.completeLogin(command);
   }
 }

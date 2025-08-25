@@ -40,7 +40,7 @@ export class OptimizedPrismaUserRepository extends UserRepository {
           password: userData.password,
           name: `${userData.firstName} ${userData.lastName}`.trim(),
           phone: userData.phone,
-          role: userData.role,
+          currentRole: userData.role,
           isEmailVerified: userData.isEmailVerified,
           isPhoneVerified: userData.isPhoneVerified,
           lastLoginAt: userData.lastLoginAt,
@@ -52,7 +52,7 @@ export class OptimizedPrismaUserRepository extends UserRepository {
           password: userData.password,
           name: `${userData.firstName} ${userData.lastName}`.trim(),
           phone: userData.phone,
-          role: userData.role,
+          currentRole: userData.role,
           isEmailVerified: userData.isEmailVerified,
           isPhoneVerified: userData.isPhoneVerified,
           lastLoginAt: userData.lastLoginAt,
@@ -278,6 +278,28 @@ export class OptimizedPrismaUserRepository extends UserRepository {
     }
     
     return null;
+  }
+
+  async createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    // Delete any existing password reset tokens for this user
+    await this.prisma.passwordResetToken.deleteMany({
+      where: { userId }
+    });
+
+    // Create new password reset token
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId,
+        token,
+        expiresAt,
+      },
+    });
+  }
+
+  async deletePasswordResetToken(token: string): Promise<void> {
+    await this.prisma.passwordResetToken.deleteMany({
+      where: { token }
+    });
   }
 
   async findUsersWithExpiredTokens(): Promise<User[]> {

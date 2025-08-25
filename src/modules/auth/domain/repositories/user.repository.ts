@@ -40,6 +40,8 @@ export abstract class UserRepository {
   abstract count(filters?: UserFilters): Promise<number>;
   abstract findByRefreshToken(token: string): Promise<User | null>;
   abstract findByResetToken(token: string): Promise<User | null>;
+  abstract createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<void>;
+  abstract deletePasswordResetToken(token: string): Promise<void>;
   abstract findUsersWithExpiredTokens(): Promise<User[]>;
   abstract findInactiveUsers(daysSinceLastLogin: number): Promise<User[]>;
 }

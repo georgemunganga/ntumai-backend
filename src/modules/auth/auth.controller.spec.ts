@@ -30,7 +30,7 @@ describe('AuthController', () => {
       refreshToken: jest.fn(),
       logoutUser: jest.fn(),
       logoutAll: jest.fn(),
-      getProfile: jest.fn(),
+      getUserProfile: jest.fn(),
       registerOtp: jest.fn(),
       verifyOtp: jest.fn(),
       completeRegistration: jest.fn(),
@@ -338,11 +338,11 @@ describe('AuthController', () => {
         user: mockUser,
       };
 
-      authService.getProfile.mockResolvedValue(expectedResult);
+      authService.getUserProfile.mockResolvedValue(expectedResult);
 
       const result = await controller.getProfile(mockRequest);
 
-      expect(authService.getProfile).toHaveBeenCalledWith({ userId: mockUser.id });
+      expect(authService.getUserProfile).toHaveBeenCalledWith({ userId: mockUser.id });
       expect(result).toEqual(expectedResult);
     });
   });

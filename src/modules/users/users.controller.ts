@@ -24,14 +24,14 @@ import {
   UpdateProfileDto,
   ChangePasswordDto,
   AddAddressDto,
-  SwitchRoleDto,
 } from '../auth/dto';
+import { SwitchRoleDto } from './dto';
 import { UsersService } from './users.service';
 
 @ApiTags('Users')
 @Controller('users')
 @UseGuards(JwtAuthGuard)
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
   @Get('profile')

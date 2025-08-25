@@ -1,7 +1,8 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { OtpManagementService } from '../auth/application/services';
-import { SwitchRoleDto } from './dto/switch-role.dto';
+import { VerifyOtpCommand } from '../auth/application/use-cases';
+import { SwitchRoleDto } from './dto';
 import { UserRole } from '@prisma/client';
 
 @Injectable()
@@ -62,8 +63,13 @@ export class UsersService {
       }
 
       // Verify OTP
-      const isOtpValid = await this.otpManagementService.verifyOtp(identifier, otpCode);
-      if (!isOtpValid) {
+      const otpResult = await this.otpManagementService.verifyOtp({
+        otp: otpCode,
+        phoneNumber: phoneNumber,
+        email: email,
+        requestId: '' // This should be stored from the initial OTP request
+      } as VerifyOtpCommand);
+      if (!otpResult.success) {
         throw new BadRequestException('Invalid or expired OTP');
       }
     }
@@ -91,7 +97,7 @@ export class UsersService {
         case UserRole.ADMIN:
           return 'admin';
         default:
-          return ur.role.toLowerCase();
+          return (ur.role as string).toLowerCase();
       }
     });
 
@@ -159,8 +165,13 @@ export class UsersService {
       }
 
       // Verify OTP
-      const isOtpValid = await this.otpManagementService.verifyOtp(identifier, otpCode);
-      if (!isOtpValid) {
+      const otpResult = await this.otpManagementService.verifyOtp({
+        otp: otpCode,
+        phoneNumber: phoneNumber,
+        email: email,
+        requestId: '' // This should be stored from the initial OTP request
+      } as VerifyOtpCommand);
+      if (!otpResult.success) {
         throw new BadRequestException('Invalid or expired OTP');
       }
     }
@@ -215,7 +226,7 @@ export class UsersService {
         case UserRole.ADMIN:
           return 'admin';
         default:
-          return ur.role.toLowerCase();
+          return (ur.role as string).toLowerCase();
       }
     });
 

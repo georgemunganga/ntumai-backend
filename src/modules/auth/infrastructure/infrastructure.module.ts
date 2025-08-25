@@ -8,7 +8,7 @@ import { AuthDatabaseModule } from './database';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 // Repositories
-import { PrismaUserRepository, UserCacheService, OptimizedPrismaUserRepository } from './repositories';
+import { UserCacheService, OptimizedPrismaUserRepository } from './repositories';
 import { UserRepository } from '../domain/repositories';
 
 // Service Adapters
@@ -45,9 +45,6 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
       provide: UserRepository,
       useClass: OptimizedPrismaUserRepository, // Using optimized version with caching
     },
-    
-    // Legacy repository (for fallback if needed)
-    PrismaUserRepository,
     
     // Service Adapters
     {

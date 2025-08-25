@@ -66,6 +66,7 @@ export class User {
   get fullName(): string { return `${this._firstName} ${this._lastName}`; }
   get phone(): Phone | undefined { return this._phone; }
   get role(): UserRole { return this._role; }
+  get currentRole(): UserRole { return this._role; }
   
   // Additional getter methods for compatibility
   getFirstName(): string { return this._firstName; }

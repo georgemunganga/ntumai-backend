@@ -27,9 +27,8 @@ export class PasswordManagementService
   constructor(
     private readonly userRepository: UserRepository,
     private readonly userManagementService: UserManagementDomainService,
-    @Inject('NOTIFICATION_SERVICE')
-    private readonly notificationService: NotificationService,
     private readonly eventEmitter: EventEmitter2,
+    @Inject('NOTIFICATION_SERVICE') private readonly notificationService: NotificationService,
   ) {}
 
   async changePassword(
@@ -90,16 +89,42 @@ export class PasswordManagementService
     command: ForgotPasswordCommand,
   ): Promise<ForgotPasswordResult> {
     try {
-      // TODO: Implement OTP-based forgot password
-       // 1. Generate OTP
-       // 2. Send OTP via SMS or email
-       // 3. Return requestId for verification
-       
-       // For now, return a placeholder response
-       return {
-         success: true,
-         message: 'OTP-based forgot password functionality needs to be implemented',
-       };
+      // Validate that email is provided
+      if (!command.email) {
+        return {
+          success: true,
+          message: 'Password reset email sent',
+        };
+      }
+
+      // Find user by email
+      const user = await this.userRepository.findByEmail(Email.create(command.email));
+      
+      // Always return success for security (don't reveal if email exists)
+      if (!user) {
+        return {
+          success: true,
+          message: 'Password reset email sent',
+        };
+      }
+      
+      // Generate reset token
+      const resetToken = this.userManagementService.generateResetToken(user.id);
+      
+      // Create password reset token in database
+      await this.userRepository.createPasswordResetToken(
+        user.id,
+        resetToken.token,
+        resetToken.expiresAt
+      );
+      
+      // Send reset email
+      await this.notificationService.sendPasswordResetEmail(user.email.value, resetToken.token);
+      
+      return {
+        success: true,
+        message: 'Password reset email sent',
+      };
     } catch (error) {
       return {
         success: false,
@@ -112,20 +137,38 @@ export class PasswordManagementService
     command: ResetPasswordCommand,
   ): Promise<ResetPasswordResult> {
     try {
-      // TODO: Implement OTP-based password reset
-      // 1. Verify OTP with requestId
-      // 2. Find user by email or phone
-      // 3. Update password
+      // Find user by reset token (using otp as token)
+      const user = await this.userRepository.findByResetToken(command.otp);
       
-      // For now, return a placeholder response
-       return {
-         success: true,
-         message: 'Password reset functionality needs to be implemented with OTP verification',
-       };
+      if (!user) {
+        return {
+          success: false,
+          message: 'Invalid or expired reset token',
+        };
+      }
+      
+      // Reset password
+      const newPassword = await Password.create(command.newPassword);
+      await user.changePassword(newPassword);
+      
+      // Save user and clear refresh tokens
+      await this.userRepository.save(user);
+      user.clearAllRefreshTokens();
+      
+      // Delete the used password reset token
+      await this.userRepository.deletePasswordResetToken(command.otp);
+      
+      // Send notification
+      await this.notificationService.sendPasswordChangedNotification(user.email.value);
+      
+      return {
+        success: true,
+        message: 'Password reset successfully',
+      };
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Password reset failed',
+        message: 'Failed to reset password',
       };
     }
   }

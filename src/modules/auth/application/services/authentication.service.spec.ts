@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthenticationService } from './authentication.service';
 import { UserRepository } from '../../domain/repositories';
 import { UserManagementDomainService } from '../../domain/services/user-management-domain.service';
+import { OtpManagementService } from './otp-management.service';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { User } from '../../domain/entities/user.entity';
@@ -61,6 +62,13 @@ describe('AuthenticationService', () => {
       emit: jest.fn(),
     };
 
+    const mockOtpManagementService = {
+      registerOtp: jest.fn(),
+      verifyOtp: jest.fn(),
+      completeRegistration: jest.fn(),
+      loginOtp: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthenticationService,
@@ -80,6 +88,10 @@ describe('AuthenticationService', () => {
           provide: EventEmitter2,
           useValue: mockEventEmitter,
         },
+        {
+          provide: OtpManagementService,
+          useValue: mockOtpManagementService,
+        },
       ],
     }).compile();
 
@@ -87,6 +99,13 @@ describe('AuthenticationService', () => {
     userRepository = module.get(UserRepository);
     userManagementService = module.get(UserManagementDomainService);
     jwtService = module.get('JWT_SERVICE');
+    
+    // Mock console.error to suppress output during tests
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('should be defined', () => {
@@ -207,6 +226,7 @@ describe('AuthenticationService', () => {
     it('should throw UnauthorizedException for invalid password', async () => {
       mockUser.validatePassword.mockResolvedValue(false);
       userRepository.findByEmail.mockResolvedValue(mockUser);
+      userManagementService.authenticateUser.mockRejectedValue(new Error('Invalid password'));
 
       await expect(service.loginUser(loginCommand)).rejects.toThrow(
         new UnauthorizedException('Login failed')
@@ -280,7 +300,7 @@ describe('AuthenticationService', () => {
     });
   });
 
-  describe('getProfile', () => {
+  describe('getUserProfile', () => {
     const getProfileCommand = {
       userId: '123e4567-e89b-12d3-a456-426614174000',
     };
@@ -293,7 +313,7 @@ describe('AuthenticationService', () => {
       mockUser.isEmailVerified = true;
       mockUser.isPhoneVerified = false;
 
-      const result = await service.getProfile(getProfileCommand);
+      const result = await service.getUserProfile(getProfileCommand);
 
       expect(userRepository.findById).toHaveBeenCalledWith(getProfileCommand.userId);
       expect(result).toEqual({
@@ -313,7 +333,7 @@ describe('AuthenticationService', () => {
     it('should return error when user not found', async () => {
       userRepository.findById.mockResolvedValue(null);
 
-      const result = await service.getProfile(getProfileCommand);
+      const result = await service.getUserProfile(getProfileCommand);
 
       expect(result).toEqual({
         success: false,
