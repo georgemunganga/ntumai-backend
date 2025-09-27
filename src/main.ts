@@ -64,6 +64,7 @@ async function bootstrap() {
     .addTag('Authentication', 'User authentication and authorization endpoints')
     .addTag('Users', 'User management and profile endpoints')
     .addTag('Admin', 'Administrative functions and management')
+    .addTag('Marketplace', 'Marketplace discovery and browsing endpoints')
     .addServer(process.env.API_BASE_URL || 'http://localhost:3000', 'Development server')
     .build();
   
