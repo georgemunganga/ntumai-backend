@@ -11,10 +11,6 @@ export class MfaService implements IMfaService {
   private readonly logger = new Logger(MfaService.name);
   private readonly appName: string;
   private readonly issuer: string;
-  private readonly fallbackStore = new Map<
-    string,
-    { totpSecret: string; backupCodes: string[]; isEnabled: boolean }
-  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -22,10 +18,6 @@ export class MfaService implements IMfaService {
   ) {
     this.appName = this.configService.get<string>('APP_NAME', 'NtumaI');
     this.issuer = this.configService.get<string>('MFA_ISSUER', 'NtumaI Security');
-  }
-
-  private get userMfaRepository(): any | null {
-    return (this.prisma as any).userMfa ?? null;
   }
 
   async setupTotp(userId: string): Promise<MfaSetupResult> {
@@ -38,34 +30,24 @@ export class MfaService implements IMfaService {
       });
 
       // Generate backup codes
-      const backupCodes = this.createBackupCodes();
-      const hashedCodes = backupCodes.map(code => this.hashBackupCode(code));
+      const backupCodes = this.generateBackupCodes();
 
-      // Store MFA setup
-      const repository = this.userMfaRepository;
-      if (repository) {
-        await repository.upsert({
-          where: { userId },
-          update: {
-            totpSecret: secret.base32,
-            backupCodes: hashedCodes,
-            isEnabled: false, // Will be enabled after first successful verification
-            updatedAt: new Date(),
-          },
-          create: {
-            userId,
-            totpSecret: secret.base32,
-            backupCodes: hashedCodes,
-            isEnabled: false,
-          },
-        });
-      } else {
-        this.fallbackStore.set(userId, {
+      // Store MFA setup in database
+      await this.prisma.userMfa.upsert({
+        where: { userId },
+        update: {
           totpSecret: secret.base32,
-          backupCodes: hashedCodes,
+          backupCodes: backupCodes.map(code => this.hashBackupCode(code)),
+          isEnabled: false, // Will be enabled after first successful verification
+          updatedAt: new Date(),
+        },
+        create: {
+          userId,
+          totpSecret: secret.base32,
+          backupCodes: backupCodes.map(code => this.hashBackupCode(code)),
           isEnabled: false,
-        });
-      }
+        },
+      });
 
       // Generate QR code
       const qrCode = await QRCode.toDataURL(secret.otpauth_url!);
@@ -85,10 +67,9 @@ export class MfaService implements IMfaService {
 
   async verifyTotp(userId: string, token: string): Promise<boolean> {
     try {
-      const repository = this.userMfaRepository;
-      const mfaRecord = repository
-        ? await repository.findUnique({ where: { userId } })
-        : this.fallbackStore.get(userId);
+      const mfaRecord = await this.prisma.userMfa.findUnique({
+        where: { userId },
+      });
 
       if (!mfaRecord || !mfaRecord.totpSecret) {
         this.logger.warn(`No MFA setup found for user ${userId}`);
@@ -104,18 +85,11 @@ export class MfaService implements IMfaService {
       });
 
       if (isValid && !mfaRecord.isEnabled) {
-        if (repository) {
-          await repository.update({
-            where: { userId },
-            data: { isEnabled: true },
-          });
-        } else {
-          this.fallbackStore.set(userId, {
-            ...mfaRecord,
-            isEnabled: true,
-          });
-        }
-
+        // Enable MFA after first successful verification
+        await this.prisma.userMfa.update({
+          where: { userId },
+          data: { isEnabled: true },
+        });
         this.logger.log(`MFA enabled for user ${userId}`);
       }
 
@@ -129,28 +103,15 @@ export class MfaService implements IMfaService {
 
   async generateBackupCodes(userId: string): Promise<string[]> {
     try {
-      const backupCodes = this.createBackupCodes();
-      const hashedCodes = backupCodes.map(code => this.hashBackupCode(code));
-
-      const repository = this.userMfaRepository;
-      if (repository) {
-        await repository.update({
-          where: { userId },
-          data: {
-            backupCodes: hashedCodes,
-            updatedAt: new Date(),
-          },
-        });
-      } else {
-        const existing = this.fallbackStore.get(userId);
-        if (!existing) {
-          throw new Error('MFA setup not found');
-        }
-        this.fallbackStore.set(userId, {
-          ...existing,
-          backupCodes: hashedCodes,
-        });
-      }
+      const backupCodes = this.generateBackupCodes();
+      
+      await this.prisma.userMfa.update({
+        where: { userId },
+        data: {
+          backupCodes: backupCodes.map(code => this.hashBackupCode(code)),
+          updatedAt: new Date(),
+        },
+      });
 
       this.logger.log(`New backup codes generated for user ${userId}`);
       return backupCodes;
@@ -162,10 +123,9 @@ export class MfaService implements IMfaService {
 
   async verifyBackupCode(userId: string, code: string): Promise<boolean> {
     try {
-      const repository = this.userMfaRepository;
-      const mfaRecord = repository
-        ? await repository.findUnique({ where: { userId } })
-        : this.fallbackStore.get(userId);
+      const mfaRecord = await this.prisma.userMfa.findUnique({
+        where: { userId },
+      });
 
       if (!mfaRecord || !mfaRecord.backupCodes) {
         this.logger.warn(`No backup codes found for user ${userId}`);
@@ -184,20 +144,13 @@ export class MfaService implements IMfaService {
       const updatedCodes = [...mfaRecord.backupCodes];
       updatedCodes.splice(codeIndex, 1);
 
-      if (repository) {
-        await repository.update({
-          where: { userId },
-          data: {
-            backupCodes: updatedCodes,
-            updatedAt: new Date(),
-          },
-        });
-      } else {
-        this.fallbackStore.set(userId, {
-          ...mfaRecord,
+      await this.prisma.userMfa.update({
+        where: { userId },
+        data: {
           backupCodes: updatedCodes,
-        });
-      }
+          updatedAt: new Date(),
+        },
+      });
 
       this.logger.log(`Backup code used successfully for user ${userId}`);
       return true;
@@ -209,14 +162,9 @@ export class MfaService implements IMfaService {
 
   async disableMfa(userId: string): Promise<void> {
     try {
-      const repository = this.userMfaRepository;
-      if (repository) {
-        await repository.delete({
-          where: { userId },
-        });
-      }
-
-      this.fallbackStore.delete(userId);
+      await this.prisma.userMfa.delete({
+        where: { userId },
+      });
 
       this.logger.log(`MFA disabled for user ${userId}`);
     } catch (error) {
@@ -225,7 +173,7 @@ export class MfaService implements IMfaService {
     }
   }
 
-  private createBackupCodes(count: number = 10): string[] {
+  private generateBackupCodes(count: number = 10): string[] {
     const codes: string[] = [];
     
     for (let i = 0; i < count; i++) {

@@ -1,3 +1,12 @@
+export interface OtpPayload {
+  identifier: string; // phone number or email
+  code: string;
+  purpose: 'login' | 'registration' | 'password-reset' | 'kyc' | 'transaction' | 'mfa';
+  expiresAt: Date;
+  attempts?: number;
+  maxAttempts?: number;
+}
+
 export interface OtpGenerationOptions {
   length?: number;
   expiryMinutes?: number;
@@ -5,56 +14,11 @@ export interface OtpGenerationOptions {
   alphanumeric?: boolean;
 }
 
-export interface OtpDeliveryStatus {
-  sent: boolean;
-  channel: 'sms' | 'email' | 'unknown';
-  error?: string;
-}
-
-export interface GenerateOtpRequest {
-  identifier: string;
-  purpose: string;
-  userId?: string;
-  expiryMinutes?: number;
-  maxAttempts?: number;
-  options?: OtpGenerationOptions;
-  metadata?: Record<string, any>;
-}
-
-export interface ResendOtpRequest {
-  originalOtpId?: string;
-  identifier?: string;
-  purpose?: string;
-  userId?: string;
-  newExpiryMinutes?: number;
-  options?: OtpGenerationOptions;
-  metadata?: Record<string, any>;
-}
-
-export interface OtpOperationResult {
-  success: boolean;
-  otpId?: string;
-  otpCode?: string;
-  expiresAt?: Date;
-  attemptsRemaining?: number;
-  deliveryStatus?: OtpDeliveryStatus;
-  metadata?: Record<string, any>;
-  error?: string;
-}
-
-export interface ValidateOtpRequest {
-  otpId?: string;
-  identifier?: string;
-  purpose?: string;
-  code: string;
-}
-
-export interface OtpValidationResponse {
-  success: boolean;
-  error?: string;
+export interface OtpValidationResult {
+  isValid: boolean;
   isExpired?: boolean;
   attemptsExceeded?: boolean;
-  attemptsRemaining?: number;
+  remainingAttempts?: number;
 }
 
 export interface PasswordValidationOptions {
@@ -92,22 +56,11 @@ export interface TokenOptions {
   audience?: string;
 }
 
-export interface SecurityLogEntry {
-  userId?: string;
-  action: string;
-  resource?: string;
-  ipAddress?: string;
-  userAgent?: string;
-  success: boolean;
-  errorMessage?: string;
-  metadata?: Record<string, any>;
-}
-
 export interface IOtpService {
-  generateOtp(request: GenerateOtpRequest): Promise<OtpOperationResult>;
-  validateOtp(request: ValidateOtpRequest): Promise<OtpValidationResponse>;
-  resendOtp(request: ResendOtpRequest): Promise<OtpOperationResult>;
-  invalidateOtp(request: { otpId?: string; identifier?: string; purpose?: string }): Promise<void>;
+  generateOtp(identifier: string, purpose: OtpPayload['purpose'], options?: OtpGenerationOptions): Promise<string>;
+  validateOtp(identifier: string, code: string, purpose: OtpPayload['purpose']): Promise<OtpValidationResult>;
+  resendOtp(identifier: string, purpose: OtpPayload['purpose']): Promise<string>;
+  invalidateOtp(identifier: string, purpose: OtpPayload['purpose']): Promise<void>;
   cleanupExpiredOtps(): Promise<void>;
 }
 
@@ -136,76 +89,7 @@ export interface ITokenService {
 }
 
 export interface ISecurityLogger {
-  logSecurityEvent(
-    userId: string | undefined,
-    action: string,
-    success: boolean,
-    metadata?: Record<string, any>,
-  ): Promise<void>;
-  logOtpGeneration(
-    userId: string,
-    purpose: string,
-    deliveryMethod: string,
-    success: boolean,
-    metadata?: Record<string, any>,
-  ): Promise<void>;
-  logOtpValidation(
-    userId: string,
-    purpose: string,
-    success: boolean,
-    metadata?: Record<string, any>,
-  ): Promise<void>;
-  logPasswordChange(
-    userId: string,
-    success: boolean,
-    metadata?: Record<string, any>,
-  ): Promise<void>;
-  logPasswordValidation(
-    userId: string,
-    success: boolean,
-    metadata?: Record<string, any>,
-  ): Promise<void>;
-  logMfaSetup(
-    userId: string,
-    mfaType: string,
-    success: boolean,
-    metadata?: Record<string, any>,
-  ): Promise<void>;
-  logMfaValidation(
-    userId: string,
-    mfaType: string,
-    success: boolean,
-    metadata?: Record<string, any>,
-  ): Promise<void>;
-  logTokenGeneration(
-    userId: string,
-    tokenType: string,
-    success: boolean,
-    metadata?: Record<string, any>,
-  ): Promise<void>;
-  logTokenValidation(
-    userId: string,
-    tokenType: string,
-    success: boolean,
-    metadata?: Record<string, any>,
-  ): Promise<void>;
-  logLoginAttempt(
-    userId: string | undefined,
-    method: string,
-    success: boolean,
-    metadata?: Record<string, any>,
-  ): Promise<void>;
-  logSuspiciousActivity(
-    userId: string | undefined,
-    activityType: string,
-    metadata?: Record<string, any>,
-  ): Promise<void>;
-  getSecurityLogs(
-    userId?: string,
-    action?: string,
-    startDate?: Date,
-    endDate?: Date,
-    limit?: number,
-  ): Promise<SecurityLogEntry[]>;
-  cleanupOldLogs(daysToKeep?: number): Promise<void>;
+  logSecurityEvent(event: string, userId?: string, metadata?: Record<string, any>): Promise<void>;
+  logFailedAttempt(type: string, identifier: string, metadata?: Record<string, any>): Promise<void>;
+  logSuccessfulAuth(userId: string, method: string, metadata?: Record<string, any>): Promise<void>;
 }

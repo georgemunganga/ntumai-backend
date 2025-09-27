@@ -88,7 +88,6 @@ export class KycIntegrationExample {
 
       // Generate OTP for phone verification
       const otpResult = await this.otpService.generateOtp({
-        identifier: phoneNumber || email,
         userId,
         purpose: 'KYC_PHONE_VERIFICATION',
         expiryMinutes: 10,
@@ -164,7 +163,7 @@ export class KycIntegrationExample {
       // Verify OTP
       const verificationResult = await this.otpService.validateOtp({
         otpId,
-        code: otpCode,
+        otpCode,
         userId,
       });
 
@@ -237,7 +236,6 @@ export class KycIntegrationExample {
     try {
       // Generate OTP for address verification
       const otpResult = await this.otpService.generateOtp({
-        identifier: phoneNumber,
         userId,
         purpose: 'KYC_ADDRESS_VERIFICATION',
         expiryMinutes: 15,
@@ -314,7 +312,6 @@ export class KycIntegrationExample {
     try {
       // Generate final verification OTP
       const otpResult = await this.otpService.generateOtp({
-        identifier: phoneNumber || email,
         userId,
         purpose: 'KYC_FINAL_VERIFICATION',
         expiryMinutes: 10,
@@ -397,7 +394,7 @@ export class KycIntegrationExample {
       // Verify final OTP
       const verificationResult = await this.otpService.validateOtp({
         otpId,
-        code: otpCode,
+        otpCode,
         userId,
       });
 

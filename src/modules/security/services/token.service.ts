@@ -63,6 +63,8 @@ export class TokenService implements ITokenService {
     options?: TokenOptions,
   ): Promise<string> {
     try {
+      const sessionId = payload.sessionId || crypto.randomUUID();
+      
       const tokenOptions = {
         expiresIn: options?.expiresIn || this.defaultRefreshTokenExpiry,
         issuer: options?.issuer || 'ntumai-api',
@@ -72,6 +74,7 @@ export class TokenService implements ITokenService {
       const token = this.jwtService.sign(
         {
           sub: payload.userId,
+          sessionId,
           type: 'refresh',
         },
         {
@@ -96,6 +99,7 @@ export class TokenService implements ITokenService {
       await this.prisma.refreshToken.create({
         data: {
           userId: payload.userId,
+          sessionId,
           token: await this.hashToken(token),
           expiresAt,
         },
@@ -140,12 +144,11 @@ export class TokenService implements ITokenService {
       }
 
       // Check if refresh token exists in database
-      const hashedToken = await this.hashToken(refreshToken);
-
       const tokenRecord = await this.prisma.refreshToken.findFirst({
         where: {
           userId: decoded.sub,
-          token: hashedToken,
+          sessionId: decoded.sessionId,
+          token: await this.hashToken(refreshToken),
           expiresAt: { gt: new Date() },
         },
         include: {
@@ -153,11 +156,8 @@ export class TokenService implements ITokenService {
             select: {
               id: true,
               email: true,
-              phone: true,
-              userRoles: {
-                where: { isActive: true },
-                select: { role: true },
-              },
+              phoneNumber: true,
+              roles: true,
             },
           },
         },
@@ -170,9 +170,10 @@ export class TokenService implements ITokenService {
       // Generate new tokens
       const payload: TokenPayload = {
         userId: tokenRecord.user.id,
-        email: tokenRecord.user.email || undefined,
-        phoneNumber: tokenRecord.user.phone || undefined,
-        roles: tokenRecord.user.userRoles?.map(userRole => userRole.role) || [],
+        email: tokenRecord.user.email,
+        phoneNumber: tokenRecord.user.phoneNumber,
+        roles: tokenRecord.user.roles,
+        sessionId: decoded.sessionId,
       };
 
       const newAccessToken = await this.generateAccessToken(payload);
