@@ -33,6 +33,7 @@ export class AuthIntegrationExample {
     try {
       // Generate OTP using SecurityModule
       const otpResult = await this.otpService.generateOtp({
+        identifier: phoneNumber ?? email,
         userId: 'temp-user-id', // Would be actual user ID
         purpose: 'LOGIN',
         expiryMinutes: 5,
@@ -97,7 +98,7 @@ export class AuthIntegrationExample {
       // Verify OTP using SecurityModule
       const verificationResult = await this.otpService.validateOtp({
         otpId,
-        otpCode,
+        code: otpCode,
         userId,
       });
 
@@ -166,6 +167,7 @@ export class AuthIntegrationExample {
     try {
       // Generate password reset OTP
       const otpResult = await this.otpService.generateOtp({
+        identifier: email,
         userId,
         purpose: 'PASSWORD_RESET',
         expiryMinutes: 15,
@@ -224,7 +226,7 @@ export class AuthIntegrationExample {
       // Verify password reset OTP
       const verificationResult = await this.otpService.validateOtp({
         otpId,
-        otpCode,
+        code: otpCode,
         userId,
       });
 

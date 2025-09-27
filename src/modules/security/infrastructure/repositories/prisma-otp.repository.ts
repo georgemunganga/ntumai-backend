@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { OTPType } from '@prisma/client';
 import { Otp, OtpPurpose } from '../../domain/entities/otp.entity';
 import {
   OtpRepository,
@@ -8,7 +9,6 @@ import {
   PaginationOptions,
   PaginatedOtpResult,
 } from '../../domain/repositories/otp.repository';
-import { OtpCode } from '../../domain/value-objects/otp-code.value-object';
 
 @Injectable()
 export class PrismaOtpRepository extends OtpRepository {
@@ -16,48 +16,61 @@ export class PrismaOtpRepository extends OtpRepository {
     super();
   }
 
+  private get prismaOtpClient(): any {
+    const client = (this.prisma as any).oTPVerification;
+    if (!client) {
+      throw new Error('Prisma OTP verification model is not configured. Please define the OTPVerification model in the Prisma schema.');
+    }
+    return client;
+  }
+
   async save(otp: Otp): Promise<Otp> {
     const data = otp.toPersistence();
-    
-    const savedData = await this.prisma.otp.upsert({
-      where: { id: data.id },
+
+    const savedData = await this.prismaOtpClient.upsert({
+      where: { requestId: data.id },
       update: {
-        code: data.code,
+        otp: data.hashedCode,
         attempts: data.attempts,
-        isUsed: data.isUsed,
+        maxAttempts: data.maxAttempts,
+        isVerified: data.isUsed,
+        expiresAt: data.expiresAt,
+        verifiedAt: otp.verifiedAt ?? null,
         updatedAt: data.updatedAt,
       },
       create: {
-        id: data.id,
-        identifier: data.identifier,
-        code: data.code,
-        purpose: data.purpose,
-        expiresAt: data.expiresAt,
-        maxAttempts: data.maxAttempts,
+        requestId: data.id,
+        phoneNumber: data.identifier,
+        countryCode: data.identifier.includes('@') ? 'EMAIL' : 'INTL',
+        otp: data.hashedCode,
+        type: this.mapPurposeToPrisma(data.purpose),
+        isVerified: data.isUsed,
         attempts: data.attempts,
-        isUsed: data.isUsed,
+        maxAttempts: data.maxAttempts,
+        expiresAt: data.expiresAt,
+        verifiedAt: otp.verifiedAt ?? null,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
       },
     });
 
-    return Otp.fromPersistence(savedData);
+    return this.toDomain(savedData);
   }
 
   async findById(id: string): Promise<Otp | null> {
-    const data = await this.prisma.otp.findUnique({
-      where: { id },
+    const data = await this.prismaOtpClient.findUnique({
+      where: { requestId: id },
     });
 
-    return data ? Otp.fromPersistence(data) : null;
+    return data ? this.toDomain(data) : null;
   }
 
   async findValidOtp(identifier: string, purpose: OtpPurpose): Promise<Otp | null> {
-    const data = await this.prisma.otp.findFirst({
+    const data = await this.prismaOtpClient.findFirst({
       where: {
-        identifier,
-        purpose,
-        isUsed: false,
+        phoneNumber: identifier,
+        type: this.mapPurposeToPrisma(purpose),
+        isVerified: false,
         expiresAt: {
           gt: new Date(),
         },
@@ -67,22 +80,22 @@ export class PrismaOtpRepository extends OtpRepository {
       },
     });
 
-    return data ? Otp.fromPersistence(data) : null;
+    return data ? this.toDomain(data) : null;
   }
 
   async findOne(options: FindOtpOptions): Promise<Otp | null> {
     const where: any = {};
 
     if (options.identifier) {
-      where.identifier = options.identifier;
+      where.phoneNumber = options.identifier;
     }
 
     if (options.purpose) {
-      where.purpose = options.purpose;
+      where.type = this.mapPurposeToPrisma(options.purpose);
     }
 
     if (options.isUsed !== undefined) {
-      where.isUsed = options.isUsed;
+      where.isVerified = options.isUsed;
     }
 
     if (!options.includeExpired) {
@@ -91,27 +104,27 @@ export class PrismaOtpRepository extends OtpRepository {
       };
     }
 
-    const data = await this.prisma.otp.findFirst({
+    const data = await this.prismaOtpClient.findFirst({
       where,
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    return data ? Otp.fromPersistence(data) : null;
+    return data ? this.toDomain(data) : null;
   }
 
   async findMany(filters: OtpFilters): Promise<Otp[]> {
     const where = this.buildWhereClause(filters);
 
-    const data = await this.prisma.otp.findMany({
+    const data = await this.prismaOtpClient.findMany({
       where,
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    return data.map(item => Otp.fromPersistence(item));
+    return data.map(item => this.toDomain(item));
   }
 
   async findWithPagination(
@@ -122,7 +135,7 @@ export class PrismaOtpRepository extends OtpRepository {
     const skip = (pagination.page - 1) * pagination.limit;
 
     const [data, total] = await Promise.all([
-      this.prisma.otp.findMany({
+      this.prismaOtpClient.findMany({
         where,
         skip,
         take: pagination.limit,
@@ -130,10 +143,10 @@ export class PrismaOtpRepository extends OtpRepository {
           createdAt: 'desc',
         },
       }),
-      this.prisma.otp.count({ where }),
+      this.prismaOtpClient.count({ where }),
     ]);
 
-    const otps = data.map(item => Otp.fromPersistence(item));
+    const otps = data.map(item => this.toDomain(item));
     const totalPages = Math.ceil(total / pagination.limit);
 
     return {
@@ -146,13 +159,13 @@ export class PrismaOtpRepository extends OtpRepository {
   }
 
   async delete(id: string): Promise<void> {
-    await this.prisma.otp.delete({
-      where: { id },
+    await this.prismaOtpClient.delete({
+      where: { requestId: id },
     });
   }
 
   async deleteExpired(): Promise<number> {
-    const result = await this.prisma.otp.deleteMany({
+    const result = await this.prismaOtpClient.deleteMany({
       where: {
         expiresAt: {
           lt: new Date(),
@@ -164,7 +177,7 @@ export class PrismaOtpRepository extends OtpRepository {
   }
 
   async deleteOlderThan(date: Date): Promise<number> {
-    const result = await this.prisma.otp.deleteMany({
+    const result = await this.prismaOtpClient.deleteMany({
       where: {
         createdAt: {
           lt: date,
@@ -177,7 +190,7 @@ export class PrismaOtpRepository extends OtpRepository {
 
   async count(filters: OtpFilters): Promise<number> {
     const where = this.buildWhereClause(filters);
-    return this.prisma.otp.count({ where });
+    return this.prismaOtpClient.count({ where });
   }
 
   async countForIdentifierInPeriod(
@@ -187,10 +200,10 @@ export class PrismaOtpRepository extends OtpRepository {
   ): Promise<number> {
     const periodStart = new Date(Date.now() - periodMinutes * 60 * 1000);
 
-    return this.prisma.otp.count({
+    return this.prismaOtpClient.count({
       where: {
-        identifier,
-        purpose,
+        phoneNumber: identifier,
+        type: this.mapPurposeToPrisma(purpose),
         createdAt: {
           gte: periodStart,
         },
@@ -202,14 +215,14 @@ export class PrismaOtpRepository extends OtpRepository {
     identifier: string,
     purpose: OtpPurpose
   ): Promise<void> {
-    await this.prisma.otp.updateMany({
+    await this.prismaOtpClient.updateMany({
       where: {
-        identifier,
-        purpose,
-        isUsed: false,
+        phoneNumber: identifier,
+        type: this.mapPurposeToPrisma(purpose),
+        isVerified: false,
       },
       data: {
-        isUsed: true,
+        isVerified: true,
         updatedAt: new Date(),
       },
     });
@@ -234,20 +247,20 @@ export class PrismaOtpRepository extends OtpRepository {
     const where: any = {};
 
     if (filters.identifier) {
-      where.identifier = filters.identifier;
+      where.phoneNumber = filters.identifier;
     }
 
     if (filters.purpose) {
-      where.purpose = filters.purpose;
+      where.type = this.mapPurposeToPrisma(filters.purpose);
     }
 
     if (filters.isUsed !== undefined) {
-      where.isUsed = filters.isUsed;
+      where.isVerified = filters.isUsed;
     }
 
     if (filters.createdAfter || filters.createdBefore) {
       where.createdAt = {};
-      
+
       if (filters.createdAfter) {
         where.createdAt.gte = filters.createdAfter;
       }
@@ -258,5 +271,50 @@ export class PrismaOtpRepository extends OtpRepository {
     }
 
     return where;
+  }
+
+  private toDomain(record: any): Otp {
+    return Otp.fromPersistence({
+      id: record.id,
+      requestId: record.requestId,
+      phoneNumber: record.phoneNumber,
+      purpose: this.mapPurposeFromPrisma(record.type),
+      otp: record.otp,
+      expiresAt: record.expiresAt,
+      maxAttempts: record.maxAttempts,
+      attempts: record.attempts,
+      isVerified: record.isVerified,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      verifiedAt: record.verifiedAt,
+    });
+  }
+
+  private mapPurposeToPrisma(purpose: OtpPurpose): OTPType {
+    switch (purpose) {
+      case 'login':
+      case 'mfa':
+        return OTPType.login;
+      case 'password-reset':
+      case 'password_reset':
+        return OTPType.password_reset;
+      case 'registration':
+      case 'transaction':
+      case 'kyc':
+      default:
+        return OTPType.registration;
+    }
+  }
+
+  private mapPurposeFromPrisma(type: OTPType): OtpPurpose {
+    switch (type) {
+      case OTPType.login:
+        return 'login';
+      case OTPType.password_reset:
+        return 'password-reset';
+      case OTPType.registration:
+      default:
+        return 'registration';
+    }
   }
 }

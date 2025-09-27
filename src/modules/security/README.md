@@ -49,6 +49,7 @@ The `CommunicationModule` handles all message delivery:
 ```typescript
 // 1. Generate OTP (SecurityModule)
 const otpResult = await otpService.generateOtp({
+  identifier: phoneNumber,
   userId: 'user123',
   purpose: 'LOGIN',
   expiryMinutes: 5
@@ -64,7 +65,7 @@ const deliveryResult = await securityCommunication.sendLoginOtp(
 // 3. Verify OTP (SecurityModule)
 const verificationResult = await otpService.validateOtp({
   otpId: otpResult.otpId,
-  otpCode: userInputCode,
+  code: userInputCode,
   userId
 });
 ```

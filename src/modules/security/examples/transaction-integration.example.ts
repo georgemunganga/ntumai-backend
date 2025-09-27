@@ -87,6 +87,7 @@ export class TransactionIntegrationExample {
 
       // Generate transaction OTP
       const otpResult = await this.otpService.generateOtp({
+        identifier: userPhone || userEmail,
         userId,
         purpose: 'TRANSACTION_VERIFICATION',
         expiryMinutes: 3, // Short expiry for transactions
@@ -175,7 +176,7 @@ export class TransactionIntegrationExample {
       // Verify transaction OTP
       const verificationResult = await this.otpService.validateOtp({
         otpId,
-        otpCode,
+        code: otpCode,
         userId,
       });
 
@@ -315,6 +316,7 @@ export class TransactionIntegrationExample {
         
         // Generate additional verification OTP
         const otpResult = await this.otpService.generateOtp({
+          identifier: userPhone || userEmail,
           userId,
           purpose: 'SUSPICIOUS_TRANSACTION_VERIFICATION',
           expiryMinutes: 5,
@@ -538,6 +540,7 @@ export class TransactionIntegrationExample {
 
       // Bulk transactions always require OTP verification
       const otpResult = await this.otpService.generateOtp({
+        identifier: userPhone || userEmail,
         userId,
         purpose: 'BULK_TRANSACTION_VERIFICATION',
         expiryMinutes: 5,
