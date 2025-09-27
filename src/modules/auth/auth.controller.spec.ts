@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
-import { AuthenticationService, PasswordManagementService, OtpManagementService } from './application/services';
+import { AuthenticationService, PasswordManagementService } from './application/services';
+import { OtpSecurityAdapter } from './application/services/otp-security.adapter';
 import { JwtAuthGuard } from './guards';
 import { RegisterDto, LoginDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto, RegisterOtpDto, VerifyOtpDto, CompleteRegistrationDto, LoginOtpDto } from './dto';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
@@ -9,7 +10,7 @@ describe('AuthController', () => {
   let controller: AuthController;
   let authService: jest.Mocked<AuthenticationService>;
   let passwordService: jest.Mocked<PasswordManagementService>;
-  let otpService: jest.Mocked<OtpManagementService>;
+  let otpService: jest.Mocked<OtpSecurityAdapter>;
 
   const mockUser = {
     id: '123e4567-e89b-12d3-a456-426614174000',
@@ -63,7 +64,7 @@ describe('AuthController', () => {
           useValue: mockPasswordService,
         },
         {
-          provide: OtpManagementService,
+          provide: OtpSecurityAdapter,
           useValue: mockOtpService,
         },
       ],
@@ -75,7 +76,7 @@ describe('AuthController', () => {
     controller = module.get<AuthController>(AuthController);
     authService = module.get(AuthenticationService);
     passwordService = module.get(PasswordManagementService);
-    otpService = module.get(OtpManagementService);
+    otpService = module.get(OtpSecurityAdapter);
   });
 
   it('should be defined', () => {

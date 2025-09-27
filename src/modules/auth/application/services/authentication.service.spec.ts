@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthenticationService } from './authentication.service';
 import { UserRepository } from '../../domain/repositories';
 import { UserManagementDomainService } from '../../domain/services/user-management-domain.service';
-import { OtpManagementService } from './otp-management.service';
+import { OtpSecurityAdapter } from './otp-security.adapter';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { User } from '../../domain/entities/user.entity';
@@ -62,7 +62,7 @@ describe('AuthenticationService', () => {
       emit: jest.fn(),
     };
 
-    const mockOtpManagementService = {
+    const mockOtpSecurityAdapter = {
       registerOtp: jest.fn(),
       verifyOtp: jest.fn(),
       completeRegistration: jest.fn(),
@@ -89,8 +89,8 @@ describe('AuthenticationService', () => {
           useValue: mockEventEmitter,
         },
         {
-          provide: OtpManagementService,
-          useValue: mockOtpManagementService,
+          provide: OtpSecurityAdapter,
+          useValue: mockOtpSecurityAdapter,
         },
       ],
     }).compile();

@@ -5,7 +5,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 
 // Database
 import { AuthDatabaseModule } from './database';
-import { PrismaService } from '../../common/prisma/prisma.service';
+import { PrismaService } from '../../../modules/common/prisma/prisma.service';
 
 // Repositories
 import { UserCacheService, OptimizedPrismaUserRepository } from './repositories';

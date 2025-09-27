@@ -307,7 +307,7 @@ export class User {
       password: Password.fromHash(data.password),
       firstName: firstName,
       lastName: lastName,
-      phone: data.phone ? Phone.create(data.phone) : undefined,
+      phone: data.phone ? Phone.create(`${data.countryCode || ''}${data.phone}`) : undefined,
       role: UserRole.create(data.currentRole),
       isEmailVerified: data.isEmailVerified,
       isPhoneVerified: data.isPhoneVerified,

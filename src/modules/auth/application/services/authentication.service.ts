@@ -25,7 +25,8 @@ import { UserManagementDomainService } from '../../domain/services';
 import { User } from '../../domain/entities';
 import { Email, Password, UserRole, Phone } from '../../domain/value-objects';
 import { UserRegisteredEvent, UserLoggedInEvent } from '../../domain/events';
-import { OtpManagementService } from './otp-management.service';
+// Comment out OtpSecurityAdapter import
+// import { OtpSecurityAdapter } from './otp-security.adapter';
 
 export interface TokenPair {
   accessToken: string;
@@ -45,7 +46,8 @@ export class AuthenticationService extends AuthenticationUseCase {
     @Inject('JWT_SERVICE')
     private readonly jwtService: JwtService,
     private readonly eventEmitter: EventEmitter2,
-    private readonly otpManagementService: OtpManagementService,
+    // Comment out OtpSecurityAdapter dependency
+    // private readonly otpSecurityAdapter: OtpSecurityAdapter,
   ) {
     super();
   }
@@ -122,18 +124,29 @@ export class AuthenticationService extends AuthenticationUseCase {
   async loginUser(command: LoginUserCommand): Promise<AuthenticationResult> {
     try {
       // Validate that either email or phone is provided
-      if (!command.email && !(command.phone && command.countryCode)) {
-        throw new BadRequestException('Either email or phone number with country code is required');
+      if (!command.email && !command.phoneNumber && !(command.phone && command.countryCode)) {
+        throw new BadRequestException('Either email or phone number (E.164 format or phone+countryCode) is required');
       }
 
       // Find user by email or phone (include unverified users for login)
       let user;
       if (command.email) {
         user = await this.userRepository.findByEmail(Email.create(command.email), { includeUnverified: true });
-      } else if (command.phone && command.countryCode) {
-        // Combine country code and phone number
-        const fullPhoneNumber = `${command.countryCode}${command.phone}`;
-        user = await this.userRepository.findByPhone(fullPhoneNumber);
+      } else {
+        // Handle phone number - support both E.164 format and legacy phone/countryCode
+        let phoneToSearch: string;
+        
+        if (command.phoneNumber) {
+          // New E.164 format (preferred)
+          phoneToSearch = command.phoneNumber;
+        } else if (command.phone && command.countryCode) {
+          // Legacy format - combine country code and phone number
+          phoneToSearch = `${command.countryCode}${command.phone}`;
+        } else {
+          throw new BadRequestException('Phone number must be provided in E.164 format or as phone+countryCode');
+        }
+        
+        user = await this.userRepository.findByPhone(phoneToSearch);
       }
       
       if (!user) {
@@ -281,24 +294,26 @@ export class AuthenticationService extends AuthenticationUseCase {
     return { accessToken, refreshToken };
   }
 
-  // OTP-related methods (delegated to OtpManagementService)
+  // Comment out OTP-related methods (delegated to OtpSecurityAdapter)
+  /*
   async registerOtp(command: GenerateRegistrationOtpCommand): Promise<OtpGenerationResult> {
-    return this.otpManagementService.generateRegistrationOtp(command);
+    return this.otpSecurityAdapter.generateRegistrationOtp(command);
   }
 
   async verifyOtp(command: VerifyOtpCommand): Promise<OtpVerificationResult> {
-    return this.otpManagementService.verifyOtp(command);
+    return this.otpSecurityAdapter.verifyOtp(command);
   }
 
   async completeRegistration(command: CompleteRegistrationCommand): Promise<RegistrationResult> {
-    return this.otpManagementService.completeRegistration(command);
+    return this.otpSecurityAdapter.completeRegistration(command);
   }
 
   async loginOtp(command: GenerateLoginOtpCommand): Promise<OtpGenerationResult> {
-    return this.otpManagementService.generateLoginOtp(command);
+    return this.otpSecurityAdapter.generateLoginOtp(command);
   }
 
   async completeLogin(command: VerifyOtpCommand): Promise<LoginResult> {
-    return this.otpManagementService.completeLogin(command);
+    return this.otpSecurityAdapter.completeLogin(command);
   }
+  */
 }
