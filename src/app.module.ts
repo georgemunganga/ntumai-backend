@@ -1,14 +1,15 @@
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { AuthModule } from './modules/auth/auth.module';
-import { CommunicationModule } from './modules/communication/communication.module';
 import { ConfigModule } from '@nestjs/config';
-import { ErrandsModule } from './modules/errands/errands.module';
-import { MarketplaceModule } from './modules/marketplace';
 import { Module } from '@nestjs/common';
 import { PrismaModule } from './modules/common/prisma/prisma.module';
-import { SecurityModule } from './modules/security/security.module';
-import { UsersModule } from './modules/users/users.module';
+import { AuthModule } from './modules/auth/auth.module';
+// Temporarily comment out feature modules while we address compilation errors
+// import { UsersModule } from './modules/users/users.module';
+// import { MarketplaceModule } from './modules/marketplace';
+// import { SecurityModule } from './modules/security/security.module';
+// import { CommunicationModule } from './modules/communication/communication.module';
+// import { ErrandsModule } from './modules/errands/errands.module';
 
 @Module({
   imports: [
@@ -16,12 +17,14 @@ import { UsersModule } from './modules/users/users.module';
       isGlobal: true,
     }),
     PrismaModule,
+    // Keep AuthModule enabled first while we work through module-specific errors
     AuthModule,
-    UsersModule,
-    MarketplaceModule,
-    SecurityModule,
-    CommunicationModule,
-    ErrandsModule,
+    // Re-enable modules one-by-one as their compilation issues are resolved
+    // UsersModule,
+    // MarketplaceModule,
+    // SecurityModule,
+    // CommunicationModule,
+    // ErrandsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
