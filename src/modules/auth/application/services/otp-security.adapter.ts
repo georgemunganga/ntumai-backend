@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common';
-import { OtpApplicationService } from '../../../../modules/security/application/services/otp-application.service';
+import { randomInt } from 'crypto';
+import { OtpApplicationService } from '../../../security/application/services/otp-application.service';
 
 import { JwtAdapter } from '../../infrastructure/services/jwt.adapter';
 import { UserRepository } from '../../domain/repositories/user.repository';
@@ -22,7 +23,6 @@ import {
   LoginResult,
   PasswordResetResult,
 } from '../use-cases/otp-management.use-case';
-import { OtpPurpose } from '../../../security/domain/entities/otp.entity';
 
 /**
  * Adapter service that bridges Auth module's OTP interfaces with SecurityModule's OtpService
@@ -185,7 +185,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
       }
       const otpResult = await this.otpService.generateOtp({
         identifier,
-        purpose: 'password-reset',
+        purpose: 'password_reset',
         expiryMinutes: 10, // Longer expiry for password reset
         codeLength: 6,
         alphanumeric: false,
@@ -229,7 +229,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
       const validationResult = await this.otpService.validateOtp({
         identifier,
         code: otp,
-        purpose: 'registration', // Default to registration, could be dynamic based on context
+        requestId,
       });
 
       return {
@@ -249,7 +249,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
 
   async completeRegistration(command: CompleteRegistrationCommand): Promise<RegistrationResult> {
     try {
-      const { otp, requestId, phoneNumber, email, firstName, lastName, password, role } = command;
+      const { otp, requestId, phoneNumber, email, firstName, lastName, role } = command;
 
       // First verify the OTP
       const otpVerification = await this.verifyOtp({ otp, requestId, phoneNumber, email });
@@ -263,7 +263,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
       }
 
       const userRole = UserRole.create(role || 'CUSTOMER');
-      const userPassword = await Password.create(password);
+      const userPassword = await Password.create(this.generateInternalPassword());
       
       // If no email provided, create a temporary one based on phone
       const userEmail = email 
@@ -396,7 +396,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
 
       // Update password
       const password = await Password.create(newPassword);
-      user.updatePassword(password.hashedValue);
+      await user.changePassword(password);
       await this.userRepository.save(user);
 
       return {
@@ -407,5 +407,27 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
       this.logger.error('Password reset completion failed', error);
       throw error;
     }
+  }
+
+  private generateInternalPassword(length = 16): string {
+    const uppercase = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijkmnopqrstuvwxyz';
+    const digits = '23456789';
+    const special = '!@#$%^&*()-_=+[]{}<>?';
+    const pools = [uppercase, lowercase, digits, special];
+
+    const requiredChars = pools.map((pool) => pool[randomInt(pool.length)]);
+    const allChars = pools.join('');
+
+    while (requiredChars.length < length) {
+      requiredChars.push(allChars[randomInt(allChars.length)]);
+    }
+
+    for (let i = requiredChars.length - 1; i > 0; i--) {
+      const j = randomInt(i + 1);
+      [requiredChars[i], requiredChars[j]] = [requiredChars[j], requiredChars[i]];
+    }
+
+    return requiredChars.join('');
   }
 }

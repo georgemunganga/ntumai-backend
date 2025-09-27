@@ -4,8 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 
 // Database
-import { AuthDatabaseModule } from './database';
-import { PrismaService } from '../../../modules/common/prisma/prisma.service';
+import { PrismaModule } from '@common/prisma/prisma.module';
 
 // Repositories
 import { UserCacheService, OptimizedPrismaUserRepository } from './repositories';
@@ -20,7 +19,7 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
 
 @Module({
   imports: [
-    AuthDatabaseModule,
+    PrismaModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
@@ -34,19 +33,18 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
     EventEmitterModule.forRoot(),
   ],
   providers: [
-    // Database
-    PrismaService,
-    
     // Cache Service
     UserCacheService,
-    
+
     // Repositories
     {
       provide: UserRepository,
       useClass: OptimizedPrismaUserRepository, // Using optimized version with caching
     },
-    
+
     // Service Adapters
+    JwtAdapter,
+    NotificationAdapter,
     {
       provide: JWT_SERVICE_TOKEN,
       useClass: JwtAdapter,
@@ -59,19 +57,18 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
   exports: [
     // Repositories
     UserRepository,
-    
+
     // Cache Service
     UserCacheService,
-    
+
     // Service Adapters
+    JwtAdapter,
     JWT_SERVICE_TOKEN,
     NOTIFICATION_SERVICE_TOKEN,
-    
+
     // JWT Module
     JwtModule,
     
-    // Database
-    PrismaService,
   ],
 })
 export class AuthInfrastructureModule {}

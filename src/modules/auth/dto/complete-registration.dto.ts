@@ -40,25 +40,6 @@ export class CompleteRegistrationDto extends BaseOtpDto {
   lastName: string;
 
   @ApiProperty({
-    description: 'Secure password - must contain at least 8 characters with uppercase, lowercase, number and special character',
-    example: 'SecurePass123!',
-    minLength: 8,
-    maxLength: 128,
-    pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$',
-    format: 'password'
-  })
-  @IsString({ message: 'Password must be a string' })
-  @MinLength(8, { message: 'Password must be at least 8 characters long' })
-  @MaxLength(128, { message: 'Password must not exceed 128 characters' })
-  @Matches(
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-    {
-      message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
-    }
-  )
-  password: string;
-
-  @ApiProperty({
     description: 'User role in the system - determines access permissions and available features',
     enum: UserRole,
     enumName: 'UserRole',
