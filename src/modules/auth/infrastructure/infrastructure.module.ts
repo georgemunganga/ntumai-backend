@@ -5,7 +5,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 
 // Database
 import { AuthDatabaseModule } from './database';
-import { PrismaService } from '../../../modules/common/prisma/prisma.service';
+import { PrismaService } from '@common/prisma/prisma.service';
 
 // Repositories
 import { UserCacheService, OptimizedPrismaUserRepository } from './repositories';
@@ -36,17 +36,19 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
   providers: [
     // Database
     PrismaService,
-    
+
     // Cache Service
     UserCacheService,
-    
+
     // Repositories
     {
       provide: UserRepository,
       useClass: OptimizedPrismaUserRepository, // Using optimized version with caching
     },
-    
+
     // Service Adapters
+    JwtAdapter,
+    NotificationAdapter,
     {
       provide: JWT_SERVICE_TOKEN,
       useClass: JwtAdapter,
@@ -59,14 +61,15 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
   exports: [
     // Repositories
     UserRepository,
-    
+
     // Cache Service
     UserCacheService,
-    
+
     // Service Adapters
+    JwtAdapter,
     JWT_SERVICE_TOKEN,
     NOTIFICATION_SERVICE_TOKEN,
-    
+
     // JWT Module
     JwtModule,
     
