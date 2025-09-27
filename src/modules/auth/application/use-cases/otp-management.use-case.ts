@@ -31,7 +31,6 @@ export interface VerifyOtpCommand extends BaseOtpCommand {
 export interface CompleteRegistrationCommand extends VerifyOtpCommand {
   firstName: string;
   lastName: string;
-  password: string;
   role?: string;
 }
 

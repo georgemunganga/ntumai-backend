@@ -961,9 +961,9 @@ export class AuthController {
 
   @Post('complete-registration')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ 
-    summary: 'Complete user registration after OTP verification',
-    description: 'Completes the registration process by providing additional user details after successful OTP verification. Creates the user account and returns authentication tokens.'
+  @ApiOperation({
+    summary: 'Complete passwordless registration after OTP verification',
+    description: 'Completes the registration process by providing personal details after successful OTP verification. No password is required—once verified, the account is created and authentication tokens are returned.'
   })
   @ApiResponse({
     status: 201,
@@ -1046,11 +1046,11 @@ export class AuthController {
         summary: 'Complete Customer Registration',
         description: 'Complete registration for a customer account',
         value: {
-          token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+          requestId: 'otp_req_clh7x9k2l0000qh8v4g2m1n3p',
+          otp: '123456',
           firstName: 'John',
           lastName: 'Doe',
           email: 'john.doe@example.com',
-          password: 'SecurePassword123!',
           userType: 'CUSTOMER',
           acceptTerms: true
         }
@@ -1059,11 +1059,11 @@ export class AuthController {
         summary: 'Complete Driver Registration',
         description: 'Complete registration for a driver account',
         value: {
-          token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+          requestId: 'otp_req_driver_clh7x9k2l0000qh8v4g2m1n3p',
+          otp: '654321',
           firstName: 'Mike',
           lastName: 'Johnson',
-          email: 'mike.driver@example.com',
-          password: 'DriverPass456!',
+          phoneNumber: '+260977123456',
           userType: 'DRIVER',
           licenseNumber: 'DL123456789',
           vehicleType: 'motorcycle',
@@ -1074,11 +1074,11 @@ export class AuthController {
         summary: 'Complete Vendor Registration',
         description: 'Complete registration for a vendor account',
         value: {
-          token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+          requestId: 'otp_req_vendor_clh7x9k2l0000qh8v4g2m1n3p',
+          otp: '789123',
           firstName: 'Sarah',
           lastName: 'Wilson',
           email: 'sarah.vendor@example.com',
-          password: 'VendorPass789!',
           userType: 'VENDOR',
           businessName: 'Sarah\'s Kitchen',
           businessType: 'restaurant',
