@@ -16,10 +16,18 @@ export class PrismaOtpRepository extends OtpRepository {
     super();
   }
 
+  private get prismaOtpClient(): any {
+    const client = (this.prisma as any).oTPVerification;
+    if (!client) {
+      throw new Error('Prisma OTP verification model is not configured. Please define the OTPVerification model in the Prisma schema.');
+    }
+    return client;
+  }
+
   async save(otp: Otp): Promise<Otp> {
     const data = otp.toPersistence();
-    
-    const savedData = await this.prisma.otp.upsert({
+
+    const savedData = await this.prismaOtpClient.upsert({
       where: { id: data.id },
       update: {
         code: data.code,
@@ -45,7 +53,7 @@ export class PrismaOtpRepository extends OtpRepository {
   }
 
   async findById(id: string): Promise<Otp | null> {
-    const data = await this.prisma.otp.findUnique({
+    const data = await this.prismaOtpClient.findUnique({
       where: { id },
     });
 
@@ -53,7 +61,7 @@ export class PrismaOtpRepository extends OtpRepository {
   }
 
   async findValidOtp(identifier: string, purpose: OtpPurpose): Promise<Otp | null> {
-    const data = await this.prisma.otp.findFirst({
+    const data = await this.prismaOtpClient.findFirst({
       where: {
         identifier,
         purpose,
@@ -91,7 +99,7 @@ export class PrismaOtpRepository extends OtpRepository {
       };
     }
 
-    const data = await this.prisma.otp.findFirst({
+    const data = await this.prismaOtpClient.findFirst({
       where,
       orderBy: {
         createdAt: 'desc',
@@ -104,7 +112,7 @@ export class PrismaOtpRepository extends OtpRepository {
   async findMany(filters: OtpFilters): Promise<Otp[]> {
     const where = this.buildWhereClause(filters);
 
-    const data = await this.prisma.otp.findMany({
+    const data = await this.prismaOtpClient.findMany({
       where,
       orderBy: {
         createdAt: 'desc',
@@ -122,7 +130,7 @@ export class PrismaOtpRepository extends OtpRepository {
     const skip = (pagination.page - 1) * pagination.limit;
 
     const [data, total] = await Promise.all([
-      this.prisma.otp.findMany({
+      this.prismaOtpClient.findMany({
         where,
         skip,
         take: pagination.limit,
@@ -130,7 +138,7 @@ export class PrismaOtpRepository extends OtpRepository {
           createdAt: 'desc',
         },
       }),
-      this.prisma.otp.count({ where }),
+      this.prismaOtpClient.count({ where }),
     ]);
 
     const otps = data.map(item => Otp.fromPersistence(item));
@@ -146,13 +154,13 @@ export class PrismaOtpRepository extends OtpRepository {
   }
 
   async delete(id: string): Promise<void> {
-    await this.prisma.otp.delete({
+    await this.prismaOtpClient.delete({
       where: { id },
     });
   }
 
   async deleteExpired(): Promise<number> {
-    const result = await this.prisma.otp.deleteMany({
+    const result = await this.prismaOtpClient.deleteMany({
       where: {
         expiresAt: {
           lt: new Date(),
@@ -164,7 +172,7 @@ export class PrismaOtpRepository extends OtpRepository {
   }
 
   async deleteOlderThan(date: Date): Promise<number> {
-    const result = await this.prisma.otp.deleteMany({
+    const result = await this.prismaOtpClient.deleteMany({
       where: {
         createdAt: {
           lt: date,
@@ -177,7 +185,7 @@ export class PrismaOtpRepository extends OtpRepository {
 
   async count(filters: OtpFilters): Promise<number> {
     const where = this.buildWhereClause(filters);
-    return this.prisma.otp.count({ where });
+    return this.prismaOtpClient.count({ where });
   }
 
   async countForIdentifierInPeriod(
@@ -187,7 +195,7 @@ export class PrismaOtpRepository extends OtpRepository {
   ): Promise<number> {
     const periodStart = new Date(Date.now() - periodMinutes * 60 * 1000);
 
-    return this.prisma.otp.count({
+    return this.prismaOtpClient.count({
       where: {
         identifier,
         purpose,
@@ -202,7 +210,7 @@ export class PrismaOtpRepository extends OtpRepository {
     identifier: string,
     purpose: OtpPurpose
   ): Promise<void> {
-    await this.prisma.otp.updateMany({
+    await this.prismaOtpClient.updateMany({
       where: {
         identifier,
         purpose,

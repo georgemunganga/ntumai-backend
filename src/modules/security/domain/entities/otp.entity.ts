@@ -33,3 +33,5 @@ export interface ValidateOtpResult {
   attemptsRemaining: number;
   isExpired: boolean;
 }
+
+export type Otp = any;
