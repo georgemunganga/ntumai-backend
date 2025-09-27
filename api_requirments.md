@@ -14,9 +14,10 @@ User Authentication
 –	Description: Register a new user with phone number or email : either one of them is  required.  Ui reference pill switch signup with email or phone number
 –	Request:
  	{
-  "phoneNumber": "string", -required;
- 	  "email": "string", -required
-  "countryCode": "string", -required
+  "phoneNumber": "string",
+  "countryCode": "string",
+ 	or
+  "email": "string", -required
  	
   "deviceId": "string", (if you are recording analytics)
   "deviceType": "string" (if you are recording analytics)
@@ -42,7 +43,7 @@ User Authentication
  	"email": "string",
 
 
-    "otp": "string",
+    "otp": "stri`ng",
   "requestId": "string" optional if security is not needed now.
 }
 –	Response:
