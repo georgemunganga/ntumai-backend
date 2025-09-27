@@ -1,18 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { ISecurityLogger } from '../interfaces/security.interface';
-
-export interface SecurityLogEntry {
-  userId?: string;
-  action: string;
-  resource?: string;
-  ipAddress?: string;
-  userAgent?: string;
-  success: boolean;
-  errorMessage?: string;
-  metadata?: Record<string, any>;
-}
+import { ISecurityLogger, SecurityLogEntry } from '../interfaces/security.interface';
 
 @Injectable()
 export class SecurityLogger implements ISecurityLogger {
@@ -50,8 +39,15 @@ export class SecurityLogger implements ISecurityLogger {
 
     // Optionally log to database for audit trail
     if (this.enableDatabaseLogging) {
+      const securityLogRepository = (this.prisma as any).securityLog;
+
+      if (!securityLogRepository) {
+        this.logger.warn('SecurityLog model not found in Prisma client; skipping database logging');
+        return;
+      }
+
       try {
-        await this.prisma.securityLog.create({
+        await securityLogRepository.create({
           data: {
             userId,
             action,
@@ -246,8 +242,15 @@ export class SecurityLogger implements ISecurityLogger {
       return [];
     }
 
+    const securityLogRepository = (this.prisma as any).securityLog;
+
+    if (!securityLogRepository) {
+      this.logger.warn('SecurityLog model not found in Prisma client; returning empty result set');
+      return [];
+    }
+
     try {
-      const logs = await this.prisma.securityLog.findMany({
+      const logs = await securityLogRepository.findMany({
         where: {
           ...(userId && { userId }),
           ...(action && { action }),
@@ -281,11 +284,18 @@ export class SecurityLogger implements ISecurityLogger {
       return;
     }
 
+    const securityLogRepository = (this.prisma as any).securityLog;
+
+    if (!securityLogRepository) {
+      this.logger.warn('SecurityLog model not found in Prisma client; skipping cleanup');
+      return;
+    }
+
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-      const result = await this.prisma.securityLog.deleteMany({
+      const result = await securityLogRepository.deleteMany({
         where: {
           createdAt: { lt: cutoffDate },
         },

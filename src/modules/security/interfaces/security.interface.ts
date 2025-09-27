@@ -56,6 +56,17 @@ export interface TokenOptions {
   audience?: string;
 }
 
+export interface SecurityLogEntry {
+  userId?: string;
+  action: string;
+  resource?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  success: boolean;
+  errorMessage?: string;
+  metadata?: Record<string, any>;
+}
+
 export interface IOtpService {
   generateOtp(identifier: string, purpose: OtpPayload['purpose'], options?: OtpGenerationOptions): Promise<string>;
   validateOtp(identifier: string, code: string, purpose: OtpPayload['purpose']): Promise<OtpValidationResult>;
@@ -89,7 +100,76 @@ export interface ITokenService {
 }
 
 export interface ISecurityLogger {
-  logSecurityEvent(event: string, userId?: string, metadata?: Record<string, any>): Promise<void>;
-  logFailedAttempt(type: string, identifier: string, metadata?: Record<string, any>): Promise<void>;
-  logSuccessfulAuth(userId: string, method: string, metadata?: Record<string, any>): Promise<void>;
+  logSecurityEvent(
+    userId: string | undefined,
+    action: string,
+    success: boolean,
+    metadata?: Record<string, any>,
+  ): Promise<void>;
+  logOtpGeneration(
+    userId: string,
+    purpose: string,
+    deliveryMethod: string,
+    success: boolean,
+    metadata?: Record<string, any>,
+  ): Promise<void>;
+  logOtpValidation(
+    userId: string,
+    purpose: string,
+    success: boolean,
+    metadata?: Record<string, any>,
+  ): Promise<void>;
+  logPasswordChange(
+    userId: string,
+    success: boolean,
+    metadata?: Record<string, any>,
+  ): Promise<void>;
+  logPasswordValidation(
+    userId: string,
+    success: boolean,
+    metadata?: Record<string, any>,
+  ): Promise<void>;
+  logMfaSetup(
+    userId: string,
+    mfaType: string,
+    success: boolean,
+    metadata?: Record<string, any>,
+  ): Promise<void>;
+  logMfaValidation(
+    userId: string,
+    mfaType: string,
+    success: boolean,
+    metadata?: Record<string, any>,
+  ): Promise<void>;
+  logTokenGeneration(
+    userId: string,
+    tokenType: string,
+    success: boolean,
+    metadata?: Record<string, any>,
+  ): Promise<void>;
+  logTokenValidation(
+    userId: string,
+    tokenType: string,
+    success: boolean,
+    metadata?: Record<string, any>,
+  ): Promise<void>;
+  logLoginAttempt(
+    userId: string | undefined,
+    method: string,
+    success: boolean,
+    metadata?: Record<string, any>,
+  ): Promise<void>;
+  logSuspiciousActivity(
+    userId: string | undefined,
+    activityType: string,
+    metadata?: Record<string, any>,
+  ): Promise<void>;
+  getSecurityLogs(
+    userId?: string,
+    action?: string,
+    startDate?: Date,
+    endDate?: Date,
+    limit?: number,
+  ): Promise<SecurityLogEntry[]>;
+  cleanupOldLogs(daysToKeep?: number): Promise<void>;
 }
