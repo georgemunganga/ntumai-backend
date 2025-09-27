@@ -73,13 +73,6 @@ async function bootstrap() {
       },
       'JWT-auth',
     )
-<<<<<<< HEAD
-    .addTag('Authentication', 'User authentication and authorization endpoints')
-    .addTag('Users', 'User management and profile endpoints')
-    .addTag('Admin', 'Administrative functions and management')
-    .addTag('Marketplace', 'Marketplace discovery and browsing endpoints')
-    .addServer(process.env.API_BASE_URL || 'http://localhost:3000', 'Development server')
-=======
     .addApiKey(
       {
         type: 'apiKey',
@@ -110,10 +103,12 @@ async function bootstrap() {
     .addTag('System', 'System health checks and application status')
     .addTag('Search', 'Search functionality and filters')
     .addTag('Scheduling', 'Task scheduling and automation')
-    .addServer(process.env.API_BASE_URL || 'http://192.168.100.147')
-    .addServer('http://localhost:3000', 'Local Development')
+    .addServer(
+      process.env.API_BASE_URL || 'http://localhost:3000',
+      'Development server',
+    )
+    .addServer('http://192.168.100.147', 'Local network')
     .addServer('https://api.ntumai.com', 'Production Server')
->>>>>>> main
     .build();
   
   const document = SwaggerModule.createDocument(app, config, {
