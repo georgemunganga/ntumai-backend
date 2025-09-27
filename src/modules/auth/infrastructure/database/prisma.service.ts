@@ -1,13 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../../modules/common/prisma/prisma.service';
-import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '@common/prisma/prisma.service';
 
 @Injectable()
 export class AuthPrismaService extends PrismaService {
-  constructor(configService: ConfigService) {
-    super(configService);
-  }
-
   // Auth-specific database operations can be added here
   async findUserByEmail(email: string) {
     return this.user.findUnique({

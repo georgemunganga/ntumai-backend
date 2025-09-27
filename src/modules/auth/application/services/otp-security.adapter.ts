@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common';
-import { OtpApplicationService } from '../../../../modules/security/application/services/otp-application.service';
+import { OtpApplicationService } from '../../../security/application/services/otp-application.service';
 
 import { JwtAdapter } from '../../infrastructure/services/jwt.adapter';
 import { UserRepository } from '../../domain/repositories/user.repository';
@@ -22,7 +22,6 @@ import {
   LoginResult,
   PasswordResetResult,
 } from '../use-cases/otp-management.use-case';
-import { OtpPurpose } from '../../../security/domain/entities/otp.entity';
 
 /**
  * Adapter service that bridges Auth module's OTP interfaces with SecurityModule's OtpService
@@ -185,7 +184,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
       }
       const otpResult = await this.otpService.generateOtp({
         identifier,
-        purpose: 'password-reset',
+        purpose: 'password_reset',
         expiryMinutes: 10, // Longer expiry for password reset
         codeLength: 6,
         alphanumeric: false,
@@ -229,7 +228,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
       const validationResult = await this.otpService.validateOtp({
         identifier,
         code: otp,
-        purpose: 'registration', // Default to registration, could be dynamic based on context
+        requestId,
       });
 
       return {
@@ -396,7 +395,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
 
       // Update password
       const password = await Password.create(newPassword);
-      user.updatePassword(password.hashedValue);
+      await user.changePassword(password);
       await this.userRepository.save(user);
 
       return {

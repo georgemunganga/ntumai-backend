@@ -32,5 +32,13 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/modules/users/application",
+    "src/modules/users/domain",
+    "src/modules/users/infrastructure",
+    "src/modules/users/presentation"
+  ]
 }
