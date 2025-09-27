@@ -1,16 +1,8 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '@common/prisma/prisma.service';
 
 @Injectable()
-export class AuthPrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
-  async onModuleInit() {
-    await this.$connect();
-  }
-
-  async onModuleDestroy() {
-    await this.$disconnect();
-  }
-
+export class AuthPrismaService extends PrismaService {
   // Auth-specific database operations can be added here
   async findUserByEmail(email: string) {
     return this.user.findUnique({

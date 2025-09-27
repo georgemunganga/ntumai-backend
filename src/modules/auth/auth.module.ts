@@ -7,22 +7,24 @@ import { JwtStrategy, LocalStrategy } from './strategies';
 import { JwtAuthGuard, RolesGuard } from './guards';
 import { AuthInfrastructureModule, JWT_SERVICE_TOKEN, NOTIFICATION_SERVICE_TOKEN } from './infrastructure';
 import { JwtAdapter, NotificationAdapter } from './infrastructure/services';
-import { AuthenticationService, PasswordManagementService, RepositoryMonitoringService, OtpManagementService } from './application/services';
-// Removed deprecated imports - using consolidated UserManagementDomainService
+import { AuthenticationService, PasswordManagementService, RepositoryMonitoringService } from './application/services';
+import { OtpSecurityAdapter } from './application/services/otp-security.adapter';
 import { UserManagementDomainService } from './domain/services/user-management-domain.service';
+import { SecurityModule } from '../security/security.module';
 
 @Module({
   imports: [
     ConfigModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     AuthInfrastructureModule,
+    SecurityModule,
   ],
   controllers: [AuthController],
   providers: [
     AuthenticationService,
     PasswordManagementService,
     RepositoryMonitoringService,
-    OtpManagementService,
+    OtpSecurityAdapter,
     UserManagementDomainService,
     JwtStrategy,
     LocalStrategy,
@@ -42,7 +44,7 @@ import { UserManagementDomainService } from './domain/services/user-management-d
     AuthenticationService,
     PasswordManagementService,
     RepositoryMonitoringService,
-    OtpManagementService,
+    OtpSecurityAdapter,
     JwtAuthGuard,
     RolesGuard,
     PassportModule,

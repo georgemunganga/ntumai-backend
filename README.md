@@ -171,34 +171,162 @@ npx prisma db reset
 
 ## 📚 API Documentation
 
+### Interactive API Documentation
+
+The NTUMAI API provides comprehensive interactive documentation powered by Swagger/OpenAPI:
+
+- **Local Development**: `http://localhost:3000/api/docs`
+- **Network Access**: `http://192.168.100.147:3000/api/docs`
+- **JSON Schema**: `http://localhost:3000/api/docs-json`
+- **YAML Schema**: `http://localhost:3000/api/docs/swagger.yaml`
+
+### API Features
+
+✅ **Comprehensive Documentation**: All endpoints documented with examples  
+✅ **Interactive Testing**: Try API calls directly from the documentation  
+✅ **Authentication Support**: Built-in JWT token management  
+✅ **Request/Response Schemas**: Detailed data models and validation rules  
+✅ **Error Handling**: Standardized error responses with codes  
+✅ **Real-time Updates**: WebSocket endpoint documentation  
+
 ### API Endpoints Structure
 
 ```
-/api/v1/
-├── auth/          # Authentication endpoints
-├── users/         # User management
-├── products/      # Product catalog
-├── orders/        # Order processing
-├── delivery/      # Delivery management
-├── chat/          # Real-time messaging
-├── notifications/ # Push notifications
-├── admin/         # Administrative functions
-└── ...
+/api/
+├── health                    # System health check
+├── auth/                     # Authentication & Authorization
+│   ├── register             # User registration with OTP
+│   ├── login                # Email/phone login
+│   ├── refresh-token        # Token refresh
+│   ├── forgot-password      # Password reset request
+│   ├── reset-password       # Password reset confirmation
+│   └── logout               # User logout
+├── users/                   # User Management
+│   ├── profile              # User profile operations
+│   ├── switch-role          # Role switching
+│   └── addresses            # Address management
+├── products/                # Product Catalog (Planned)
+├── orders/                  # Order Processing (Planned)
+├── delivery/                # Delivery Management (Planned)
+├── chat/                    # Real-time Messaging (Planned)
+├── notifications/           # Push Notifications (Planned)
+├── admin/                   # Administrative Functions (Planned)
+└── ws/                      # WebSocket Endpoints (Planned)
+    ├── chat                 # Real-time chat
+    ├── notifications        # Live notifications
+    └── tracking             # Delivery tracking
 ```
 
 ### Authentication
 
-All protected endpoints require JWT token in the Authorization header:
+The API uses JWT (JSON Web Tokens) for authentication with the following flow:
 
-```
-Authorization: Bearer <your-jwt-token>
+1. **Registration/Login**: Obtain access and refresh tokens
+2. **API Calls**: Include access token in Authorization header
+3. **Token Refresh**: Use refresh token when access token expires
+
+```bash
+# Authentication Header
+Authorization: Bearer <your-jwt-access-token>
+
+# Example API Call
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+     -H "Content-Type: application/json" \
+     http://localhost:3000/api/users/profile
 ```
 
-### User Roles
-- **ADMIN** - Full system access
-- **VENDOR** - Store and product management
-- **DRIVER** - Delivery and task management
-- **CUSTOMER** - Shopping and ordering
+### User Roles & Permissions
+
+| Role | Description | Permissions |
+|------|-------------|-------------|
+| **ADMIN** | System Administrator | Full system access, user management, system configuration |
+| **VENDOR** | Store Owner/Manager | Store management, product catalog, order fulfillment |
+| **DRIVER** | Delivery Personnel | Delivery assignments, route optimization, order tracking |
+| **CUSTOMER** | End User | Shopping, ordering, profile management, chat support |
+
+### Standard Response Format
+
+All API endpoints return responses in a consistent format:
+
+```json
+{
+  "success": true,
+  "message": "Operation completed successfully",
+  "data": {
+    // Response data here
+  },
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "requestId": "req_1642248600000_abc123def"
+}
+```
+
+### Error Responses
+
+Error responses follow a standardized format with detailed information:
+
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "error": "VALIDATION_ERROR",
+  "statusCode": 400,
+  "details": [
+    {
+      "field": "email",
+      "message": "Email must be a valid email address",
+      "code": "INVALID_EMAIL"
+    }
+  ],
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "requestId": "req_1642248600000_abc123def"
+}
+```
+
+### Common HTTP Status Codes
+
+| Code | Description | Usage |
+|------|-------------|-------|
+| 200 | OK | Successful GET, PUT, PATCH requests |
+| 201 | Created | Successful POST requests |
+| 400 | Bad Request | Invalid request data or validation errors |
+| 401 | Unauthorized | Missing or invalid authentication |
+| 403 | Forbidden | Insufficient permissions |
+| 404 | Not Found | Resource not found |
+| 409 | Conflict | Resource already exists or conflict |
+| 422 | Unprocessable Entity | Business logic validation errors |
+| 500 | Internal Server Error | Server-side errors |
+
+### Rate Limiting
+
+API endpoints are protected with rate limiting:
+
+- **Authentication endpoints**: 5 requests per minute per IP
+- **General API endpoints**: 100 requests per minute per user
+- **File upload endpoints**: 10 requests per minute per user
+
+### Pagination
+
+List endpoints support pagination with the following parameters:
+
+```bash
+GET /api/products?page=1&limit=20&sort=createdAt&order=desc
+```
+
+Paginated responses include metadata:
+
+```json
+{
+  "items": [...],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 150,
+    "totalPages": 8,
+    "hasNext": true,
+    "hasPrev": false
+  }
+}
+```
 
 ## 🧪 Testing
 

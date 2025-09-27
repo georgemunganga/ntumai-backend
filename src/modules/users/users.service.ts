@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
-import { OtpManagementService } from '../auth/application/services';
+import { PrismaService } from '@common/prisma/prisma.service';
+import { OtpSecurityAdapter } from '../auth/application/services';
 import { VerifyOtpCommand } from '../auth/application/use-cases';
 import { SwitchRoleDto } from './dto';
 import { UserRole } from '@prisma/client';
@@ -9,7 +9,7 @@ import { UserRole } from '@prisma/client';
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly otpManagementService: OtpManagementService,
+    private readonly otpManagementService: OtpSecurityAdapter,
   ) {}
 
   async switchRole(userId: string, switchRoleDto: SwitchRoleDto) {
