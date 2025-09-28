@@ -67,10 +67,7 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
 
     // Service Adapters
     JwtAdapter,
-<<<<<<< HEAD
     NotificationAdapter,
-=======
->>>>>>> main
     JWT_SERVICE_TOKEN,
     NOTIFICATION_SERVICE_TOKEN,
 
