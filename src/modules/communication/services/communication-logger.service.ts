@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../common/prisma/prisma.service';
+import { PrismaService } from '@common/prisma/prisma.service';
 import { ICommunicationLogger, CommunicationChannel } from '../interfaces/communication.interface';
 
 export interface CommunicationLogEntry {

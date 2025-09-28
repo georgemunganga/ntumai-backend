@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../common/prisma/prisma.service';
+import { PrismaService } from '@common/prisma/prisma.service';
 import { IMfaService, MfaSetupResult } from '../interfaces/security.interface';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../common/prisma/prisma.service';
+import { PrismaService } from '@common/prisma/prisma.service';
 import { ShiftRepository } from '../../domain/repositories/shift.repository';
 import { Shift } from '../../domain/entities/shift.entity';
 import { ShiftStatus } from '../../domain/value-objects/shift-status.vo';

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../common/prisma/prisma.service';
+import { PrismaService } from '@common/prisma/prisma.service';
 import { ErrandTemplateRepository, ErrandTemplateFilters, ErrandTemplateSortOptions, PaginationOptions, PaginatedResult } from '../../domain/repositories/errand-template.repository';
 import { ErrandTemplateEntity } from '../../domain/entities/errand-template.entity';
 import { LocationVO } from '../../domain/value-objects/location.vo';

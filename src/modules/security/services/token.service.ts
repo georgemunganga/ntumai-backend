@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../../common/prisma/prisma.service';
+import { PrismaService } from '@common/prisma/prisma.service';
 import { ITokenService, TokenPayload, TokenOptions } from '../interfaces/security.interface';
 import * as crypto from 'crypto';
 
