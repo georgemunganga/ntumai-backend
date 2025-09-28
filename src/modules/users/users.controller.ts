@@ -72,31 +72,7 @@ export class UsersController {
     },
   })
   async getProfile(@Request() req) {
-    // TODO: Implement get profile logic
-    return {
-      id: 'temp-user-id',
-      name: 'John Doe',
-      phoneNumber: '+1234567890',
-      email: 'user@example.com',
-      profileImage: 'https://example.com/profile.jpg',
-      userType: 'customer',
-      addresses: [
-        {
-          id: 'addr-1',
-          type: 'home',
-          address: '123 Main St',
-          city: 'New York',
-          state: 'NY',
-          country: 'USA',
-          postalCode: '10001',
-          latitude: 40.7128,
-          longitude: -74.0060,
-          isDefault: true,
-        },
-      ],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    return await this.usersService.getProfile(req.user.id);
   }
 
   @Put('profile')
@@ -125,20 +101,7 @@ export class UsersController {
     },
   })
   async updateProfile(@Body() updateProfileDto: UpdateProfileDto, @Request() req) {
-    // TODO: Implement update profile logic
-    return {
-      success: true,
-      message: 'Profile updated successfully',
-      user: {
-        id: 'temp-user-id',
-        name: updateProfileDto.name || 'John Doe',
-        phoneNumber: '+1234567890',
-        email: updateProfileDto.email || 'user@example.com',
-        profileImage: updateProfileDto.profileImage || 'https://example.com/profile.jpg',
-        userType: 'customer',
-        updatedAt: new Date().toISOString(),
-      },
-    };
+    return await this.usersService.updateProfile(req.user.id, updateProfileDto);
   }
 
   @Put('change-password')
@@ -154,12 +117,8 @@ export class UsersController {
       },
     },
   })
-  async changePassword(@Body() changePasswordDto: ChangePasswordDto) {
-    // TODO: Implement change password logic
-    return {
-      success: true,
-      message: 'Password changed successfully',
-    };
+  async changePassword(@Body() changePasswordDto: ChangePasswordDto, @Request() req) {
+    return await this.usersService.changePassword(req.user.id, changePasswordDto);
   }
 
   @Post('upload-profile-image')
@@ -177,11 +136,11 @@ export class UsersController {
       },
     },
   })
-  async uploadProfileImage(@UploadedFile() file: any) {
-    // TODO: Implement image upload logic
+  async uploadProfileImage(@Request() req, @UploadedFile() file: any) {
+    const profileImageUrl = await this.usersService.updateProfileImage(req.user.id, file);
     return {
       success: true,
-      imageUrl: 'https://example.com/uploaded-image.jpg',
+      imageUrl: profileImageUrl,
     };
   }
 
@@ -212,23 +171,8 @@ export class UsersController {
       },
     },
   })
-  async addAddress(@Body() addAddressDto: AddAddressDto) {
-    // TODO: Implement add address logic
-    return {
-      success: true,
-      address: {
-        id: 'temp-addr-id',
-        type: addAddressDto.type,
-        address: addAddressDto.address,
-        city: addAddressDto.city,
-        state: addAddressDto.state,
-        country: addAddressDto.country,
-        postalCode: addAddressDto.postalCode,
-        latitude: addAddressDto.latitude,
-        longitude: addAddressDto.longitude,
-        isDefault: addAddressDto.isDefault,
-      },
-    };
+  async addAddress(@Body() addAddressDto: AddAddressDto, @Request() req) {
+    return await this.usersService.addAddress(req.user.id, addAddressDto);
   }
 
   @Post('switch-role')
@@ -282,13 +226,7 @@ export class UsersController {
   })
   async registerRole(@Body() switchRoleDto: SwitchRoleDto, @Request() req) {
     const userId = req.user.id;
-    return await this.usersService.registerForRole(
-      userId,
-      switchRoleDto.targetRole,
-      switchRoleDto.otpCode,
-      switchRoleDto.phoneNumber,
-      switchRoleDto.email
-    );
+    return await this.usersService.registerForRole(userId, switchRoleDto);
   }
 
   @Get('roles')
