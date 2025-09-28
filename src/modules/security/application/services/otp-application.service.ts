@@ -1,51 +1,3 @@
-<<<<<<< HEAD
-import { Injectable } from '@nestjs/common';
-import { randomBytes } from 'crypto';
-
-interface GenerateOtpOptions {
-  identifier: string;
-  purpose: string;
-  expiryMinutes?: number;
-  codeLength?: number;
-  alphanumeric?: boolean;
-}
-
-interface ValidateOtpOptions {
-  identifier: string;
-  code: string;
-  purpose: string;
-  otpId?: string;
-}
-
-interface OtpRecord {
-  identifier: string;
-  purpose: string;
-  code: string;
-  expiresAt: Date;
-}
-
-@Injectable()
-export class OtpApplicationService {
-  private readonly otpStore = new Map<string, OtpRecord>();
-
-  async generateOtp(options: GenerateOtpOptions) {
-    const {
-      identifier,
-      purpose,
-      expiryMinutes = 5,
-      codeLength = 6,
-      alphanumeric = false,
-    } = options;
-
-    const code = this.generateCode(codeLength, alphanumeric);
-    const otpId = randomBytes(16).toString('hex');
-    const expiresAt = new Date(Date.now() + expiryMinutes * 60_000);
-
-    this.otpStore.set(otpId, {
-      identifier: identifier.toLowerCase(),
-      purpose,
-      code,
-=======
 import { Injectable, Logger } from '@nestjs/common';
 import { randomInt, randomUUID } from 'crypto';
 import { PrismaService } from '@common/prisma/prisma.service';
@@ -99,12 +51,10 @@ export class OtpApplicationService {
     this.logger.debug(`Generated OTP for ${options.identifier}`, {
       purpose: options.purpose,
       requestId,
->>>>>>> main
       expiresAt,
     });
 
     return {
-<<<<<<< HEAD
       otpId,
       code,
       expiresAt,
@@ -160,7 +110,6 @@ export class OtpApplicationService {
       }
     }
     return undefined;
-=======
       otpId: requestId,
       expiresAt,
       deliveryStatus,
@@ -240,25 +189,10 @@ export class OtpApplicationService {
 
   private detectChannel(identifier: string): 'sms' | 'email' {
     return identifier.includes('@') ? 'email' : 'sms';
->>>>>>> main
   }
 
   private generateCode(length: number, alphanumeric: boolean): string {
     if (alphanumeric) {
-<<<<<<< HEAD
-      const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      let result = '';
-      for (let i = 0; i < length; i += 1) {
-        const index = Math.floor(Math.random() * characters.length);
-        result += characters[index];
-      }
-      return result;
-    }
-
-    const max = 10 ** length;
-    const min = 10 ** (length - 1);
-    return Math.floor(Math.random() * (max - min) + min).toString();
-=======
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       let code = '';
       for (let i = 0; i < length; i++) {
@@ -273,6 +207,5 @@ export class OtpApplicationService {
       code += randomInt(0, 10).toString();
     }
     return code;
->>>>>>> main
   }
 }

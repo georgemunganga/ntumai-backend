@@ -296,19 +296,14 @@ export class User {
   }
 
   static fromPersistence(data: any): User {
-    // Split the name field into firstName and lastName
-    const nameParts = (data.name || '').trim().split(' ');
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
-    
     return new User({
       id: data.id,
       email: Email.create(data.email),
       password: Password.fromHash(data.password),
-      firstName: firstName,
-      lastName: lastName,
+      firstName: data.firstName || '',
+      lastName: data.lastName || '',
       phone: data.phone ? Phone.create(`${data.countryCode || ''}${data.phone}`) : undefined,
-      role: UserRole.create(data.currentRole),
+      role: UserRole.create(data.role),
       isEmailVerified: data.isEmailVerified,
       isPhoneVerified: data.isPhoneVerified,
       isActive: data.isActive,

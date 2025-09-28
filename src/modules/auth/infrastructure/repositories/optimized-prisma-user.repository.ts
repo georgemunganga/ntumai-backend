@@ -38,9 +38,11 @@ export class OptimizedPrismaUserRepository extends UserRepository {
         update: {
           email: userData.email,
           password: userData.password,
-          name: `${userData.firstName} ${userData.lastName}`.trim(),
+          firstName: userData.firstName,
+          lastName: userData.lastName,
           phone: userData.phone,
-          currentRole: userData.role,
+          countryCode: userData.countryCode,
+          role: userData.role,
           isEmailVerified: userData.isEmailVerified,
           isPhoneVerified: userData.isPhoneVerified,
           lastLoginAt: userData.lastLoginAt,
@@ -50,9 +52,11 @@ export class OptimizedPrismaUserRepository extends UserRepository {
           id: userData.id,
           email: userData.email,
           password: userData.password,
-          name: `${userData.firstName} ${userData.lastName}`.trim(),
+          firstName: userData.firstName,
+          lastName: userData.lastName,
           phone: userData.phone,
-          currentRole: userData.role,
+          countryCode: userData.countryCode,
+          role: userData.role,
           isEmailVerified: userData.isEmailVerified,
           isPhoneVerified: userData.isPhoneVerified,
           lastLoginAt: userData.lastLoginAt,
@@ -241,16 +245,19 @@ export class OptimizedPrismaUserRepository extends UserRepository {
   }
 
   async findByRefreshToken(token: string): Promise<User | null> {
-    // Build query using query builder
-    const query = this.queryBuilder
-      .reset()
-      .withRefreshToken(token)
-      .buildFindQuery();
-
-    const userData = await this.prisma.user.findFirst(query);
+    // Find user by device session with matching refresh token
+    const deviceSession = await this.prisma.deviceSession.findFirst({
+      where: {
+        refreshToken: token,
+        isActive: true,
+      },
+      include: {
+        user: true,
+      },
+    });
     
-    if (userData) {
-      const domainUser = User.fromPersistence(userData);
+    if (deviceSession && deviceSession.user) {
+      const domainUser = User.fromPersistence(deviceSession.user);
       // Cache the user
       this.cacheService.setUserById(domainUser.id, domainUser);
       this.cacheService.setUserByEmail(domainUser.email, domainUser);
@@ -261,13 +268,26 @@ export class OptimizedPrismaUserRepository extends UserRepository {
   }
 
   async findByResetToken(token: string): Promise<User | null> {
-    // Build query using query builder
-    const query = this.queryBuilder
-      .reset()
-      .withValidResetToken(token)
-      .buildFindQuery();
+    // Find user by OTP verification record for password reset
+    const otpRecord = await this.prisma.oTPVerification.findFirst({
+      where: {
+        otp: token,
+        type: 'PASSWORD_RESET',
+        expiresAt: {
+          gt: new Date(),
+        },
+        isVerified: false,
+      },
+    });
 
-    const userData = await this.prisma.user.findFirst(query);
+    if (!otpRecord) {
+      return null;
+    }
+
+    // Find the user by identifier (userId)
+    const userData = await this.prisma.user.findFirst({
+      where: { id: otpRecord.identifier },
+    });
     
     if (userData) {
       const domainUser = User.fromPersistence(userData);
@@ -281,38 +301,57 @@ export class OptimizedPrismaUserRepository extends UserRepository {
   }
 
   async createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
-    // Delete any existing password reset tokens for this user
-    await this.prisma.passwordResetToken.deleteMany({
-      where: { userId }
+    // Delete any existing OTP verification records for password reset for this user
+    await this.prisma.oTPVerification.deleteMany({
+      where: { 
+        identifier: userId,
+        type: 'PASSWORD_RESET'
+      }
     });
 
-    // Create new password reset token
-    await this.prisma.passwordResetToken.create({
+    // Create new OTP verification record for password reset
+    await this.prisma.oTPVerification.create({
       data: {
-        userId,
-        token,
+        identifier: userId,
+        otp: token,
+        type: 'PASSWORD_RESET',
         expiresAt,
       },
     });
   }
 
   async deletePasswordResetToken(token: string): Promise<void> {
-    await this.prisma.passwordResetToken.deleteMany({
-      where: { token }
+    await this.prisma.oTPVerification.deleteMany({
+      where: { 
+        otp: token,
+        type: 'PASSWORD_RESET'
+      }
     });
   }
 
   async findUsersWithExpiredTokens(): Promise<User[]> {
-    // Build query using query builder
-    const query = this.queryBuilder
-      .reset()
-      .withExpiredTokens()
-      .buildFindManyQuery();
+    // Find users with expired device sessions
+    const expiredSessions = await this.prisma.deviceSession.findMany({
+      where: {
+        OR: [
+          {
+            lastUsedAt: {
+              lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+            },
+          },
+          {
+            isActive: false,
+          },
+        ],
+      },
+      include: {
+        user: true,
+      },
+      distinct: ['userId'],
+    });
 
-    const users = await this.prisma.user.findMany(query);
-    
-    return users.map(user => {
-      const domainUser = User.fromPersistence(user);
+    return expiredSessions.map(session => {
+      const domainUser = User.fromPersistence(session.user);
       // Cache individual users
       this.cacheService.setUserById(domainUser.id, domainUser);
       this.cacheService.setUserByEmail(domainUser.email, domainUser);

@@ -33,25 +33,13 @@ export async function seedAddresses() {
         userId: customerUser.id,
         type: AddressType.HOME,
         address: '123 Main Street',
-        addressLine2: 'Apt 4B',
         city: 'New York',
         state: 'NY',
         postalCode: '10001',
         country: 'United States',
         latitude: 40.7128,
         longitude: -74.0060,
-        landmark: 'Near Central Park',
-        contactName: 'John Doe',
-        contactPhone: '+1987654321',
-        deliveryInstructions: 'Ring doorbell twice. Leave packages with doorman if not home.',
-        accessCode: '1234',
-        floorNumber: '4',
         isDefault: true,
-        isActive: true,
-        lastUsedAt: new Date(),
-        usageCount: 15,
-        createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000), // 25 days ago
-        updatedAt: new Date(),
       },
     });
 
@@ -64,23 +52,13 @@ export async function seedAddresses() {
         userId: customerUser.id,
         type: AddressType.WORK,
         address: '456 Business Ave',
-        addressLine2: 'Suite 200',
         city: 'New York',
         state: 'NY',
         postalCode: '10002',
         country: 'United States',
         latitude: 40.7589,
         longitude: -73.9851,
-        landmark: 'Next to Starbucks',
-        contactName: 'John Doe',
-        contactPhone: '+1987654321',
-        deliveryInstructions: 'Deliver to reception desk during business hours (9 AM - 6 PM).',
         isDefault: false,
-        isActive: true,
-        lastUsedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-        usageCount: 8,
-        createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000), // 20 days ago
-        updatedAt: new Date(),
       },
     });
 
@@ -103,16 +81,7 @@ export async function seedAddresses() {
         country: 'United States',
         latitude: 40.6892,
         longitude: -73.9442,
-        landmark: 'Near Brooklyn Bridge',
-        contactName: 'Mike Wilson',
-        contactPhone: '+1555666777',
-        deliveryInstructions: 'Call upon arrival. Usually available after 6 PM.',
         isDefault: true,
-        isActive: true,
-        lastUsedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
-        usageCount: 3,
-        createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
-        updatedAt: new Date(),
       },
     });
 
@@ -158,24 +127,13 @@ export async function seedAddresses() {
         userId: vendorUser.id,
         type: AddressType.OTHER,
         address: '555 Warehouse District',
-        addressLine2: 'Unit 12',
         city: 'Queens',
         state: 'NY',
         postalCode: '11101',
         country: 'United States',
         latitude: 40.7505,
         longitude: -73.9934,
-        landmark: 'Industrial area near highway',
-        contactName: 'Warehouse Manager',
-        contactPhone: '+1444555667',
-        deliveryInstructions: 'Loading dock access. Call 30 minutes before arrival.',
-        accessCode: 'DOCK123',
         isDefault: false,
-        isActive: true,
-        lastUsedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-        usageCount: 12,
-        createdAt: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000), // 35 days ago
-        updatedAt: new Date(),
       },
     });
 

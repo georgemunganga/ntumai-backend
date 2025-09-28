@@ -32,25 +32,27 @@ async function main() {
         phone: adminPhone,
         countryCode: adminCountryCode,
         password: hashedPassword,
-        name: 'System Administrator',
-        currentRole: UserRole.ADMIN,
+        firstName: 'System',
+        lastName: 'Administrator',
+        role: UserRole.ADMIN,
         isEmailVerified: true,
         isPhoneVerified: true,
       },
     });
 
-    // Grant admin role
-    await prisma.userRole_Assignment.create({
-      data: {
-        userId: adminUser.id,
-        role: UserRole.ADMIN,
-      },
-    });
+    // Grant admin role (skipped, using single role field on User)
+    // await prisma.userRole_Assignment.create({
+    //   data: {
+    //     userId: adminUser.id,
+    //     role: UserRole.ADMIN,
+    //   },
+    // });
+    console.log('ℹ️  Skipping multi-role assignment; using single role field');
 
     console.log('✅ Admin user created:', {
       id: adminUser.id,
       email: adminUser.email,
-      role: adminUser.currentRole,
+      role: adminUser.role,
     });
   } else {
     console.log('ℹ️  Admin user already exists');
@@ -80,25 +82,27 @@ async function main() {
         phone: customerPhone,
         countryCode: customerCountryCode,
         password: hashedCustomerPassword,
-        name: 'John Doe',
-        currentRole: UserRole.CUSTOMER,
+        firstName: 'John',
+        lastName: 'Doe',
+        role: UserRole.CUSTOMER,
         isEmailVerified: true,
         isPhoneVerified: true,
       },
     });
 
-    // Grant customer role
-    await prisma.userRole_Assignment.create({
-      data: {
-        userId: customerUser.id,
-        role: UserRole.CUSTOMER,
-      },
-    });
+    // Grant customer role (skipped)
+    // await prisma.userRole_Assignment.create({
+    //   data: {
+    //     userId: customerUser.id,
+    //     role: UserRole.CUSTOMER,
+    //   },
+    // });
+    console.log('ℹ️  Skipping multi-role assignment; using single role field');
 
     console.log('✅ Customer user created:', {
       id: customerUser.id,
       email: customerUser.email,
-      role: customerUser.currentRole,
+      role: customerUser.role,
     });
   } else {
     console.log('ℹ️  Customer user already exists');
@@ -128,27 +132,29 @@ async function main() {
         phone: testPhone,
         countryCode: testCountryCode,
         password: hashedTestPassword,
-        name: 'Test User',
-        currentRole: UserRole.CUSTOMER,
+        firstName: 'Test',
+        lastName: 'User',
+        role: UserRole.CUSTOMER,
         isEmailVerified: true,
         isPhoneVerified: true,
       },
     });
 
-    // Grant customer role
-    await prisma.userRole_Assignment.create({
-      data: {
-        userId: testUser.id,
-        role: UserRole.CUSTOMER,
-      },
-    });
+    // Grant customer role (skipped)
+    // await prisma.userRole_Assignment.create({
+    //   data: {
+    //     userId: testUser.id,
+    //     role: UserRole.CUSTOMER,
+    //   },
+    // });
+    console.log('ℹ️  Skipping multi-role assignment; using single role field');
 
     console.log('✅ Test user created:', {
       id: testUser.id,
       email: testUser.email,
       phone: testUser.phone,
       countryCode: testUser.countryCode,
-      role: testUser.currentRole,
+      role: testUser.role,
     });
   } else {
     console.log('ℹ️  Test user already exists');
@@ -176,25 +182,27 @@ async function main() {
         email: driverEmail,
         phone: driverPhone,
         password: hashedDriverPassword,
-        name: 'Jane Smith',
-        currentRole: UserRole.DRIVER,
+        firstName: 'Jane',
+        lastName: 'Smith',
+        role: UserRole.DRIVER,
         isEmailVerified: true,
         isPhoneVerified: true,
       },
     });
 
-    // Grant driver role
-    await prisma.userRole_Assignment.create({
-      data: {
-        userId: driverUser.id,
-        role: UserRole.DRIVER,
-      },
-    });
+    // Grant driver role (skipped)
+    // await prisma.userRole_Assignment.create({
+    //   data: {
+    //     userId: driverUser.id,
+    //     role: UserRole.DRIVER,
+    //   },
+    // });
+    console.log('ℹ️  Skipping multi-role assignment; using single role field');
 
     console.log('✅ Driver user created:', {
       id: driverUser.id,
       email: driverUser.email,
-      role: driverUser.currentRole,
+      role: driverUser.role,
     });
   } else {
     console.log('ℹ️  Driver user already exists');
@@ -222,25 +230,27 @@ async function main() {
         email: vendorEmail,
         phone: vendorPhone,
         password: hashedVendorPassword,
-        name: 'Bob Johnson',
-        currentRole: UserRole.VENDOR,
+        firstName: 'Bob',
+        lastName: 'Johnson',
+        role: UserRole.VENDOR,
         isEmailVerified: true,
         isPhoneVerified: true,
       },
     });
 
-    // Grant vendor role
-    await prisma.userRole_Assignment.create({
-      data: {
-        userId: vendorUser.id,
-        role: UserRole.VENDOR,
-      },
-    });
+    // Grant vendor role (skipped)
+    // await prisma.userRole_Assignment.create({
+    //   data: {
+    //     userId: vendorUser.id,
+    //     role: UserRole.VENDOR,
+    //   },
+    // });
+    console.log('ℹ️  Skipping multi-role assignment; using single role field');
 
     console.log('✅ Vendor user created:', {
       id: vendorUser.id,
       email: vendorUser.email,
-      role: vendorUser.currentRole,
+      role: vendorUser.role,
     });
   } else {
     console.log('ℹ️  Vendor user already exists');

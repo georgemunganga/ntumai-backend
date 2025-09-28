@@ -25,7 +25,7 @@ export class UserQueryBuilder {
    */
   withFilters(filters: UserFilters): UserQueryBuilder {
     if (filters.role) {
-      this.whereClause.currentRole = filters.role as any;
+      this.whereClause.role = filters.role as any;
     }
 
     if (filters.isEmailVerified !== undefined) {
@@ -84,41 +84,43 @@ export class UserQueryBuilder {
   }
 
   /**
-   * Add refresh token filter
+   * Add refresh token filter - using DeviceSession table
    */
   withRefreshToken(token: string): UserQueryBuilder {
-    this.whereClause.refreshTokens = {
+    this.whereClause.deviceSessions = {
       some: {
-        token: token,
+        refreshToken: token,
+        isActive: true,
       },
     };
     return this;
   }
 
   /**
-   * Add password reset token filter
+   * Add password reset token filter - using OTPVerification table
    */
   withValidResetToken(token: string): UserQueryBuilder {
-    this.whereClause.passwordResetTokens = {
-      some: {
-        token: token,
-        expiresAt: {
-          gt: new Date(),
-        },
-      },
-    };
+    // This method is deprecated - use direct OTPVerification queries instead
+    // Keeping for backward compatibility but should not be used
     return this;
   }
 
   /**
-   * Add expired tokens filter
+   * Add expired tokens filter - using DeviceSession table
    */
   withExpiredTokens(): UserQueryBuilder {
-    this.whereClause.refreshTokens = {
+    this.whereClause.deviceSessions = {
       some: {
-        expiresAt: {
-          lt: new Date(),
-        },
+        OR: [
+          {
+            lastUsedAt: {
+              lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
+            },
+          },
+          {
+            isActive: false,
+          },
+        ],
       },
     };
     return this;

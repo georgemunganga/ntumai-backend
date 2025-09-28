@@ -1,12 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-<<<<<<< HEAD
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { UserRole } from '@prisma/client';
-=======
 import { IsOptional, IsString, Matches } from 'class-validator';
 
 const TARGET_ROLES = ['customer', 'driver', 'rider', 'vendor', 'admin'] as const;
->>>>>>> main
 
 export class SwitchRoleDto {
   @ApiProperty({
