@@ -110,4 +110,27 @@ export class Phone {
   static create(value: string): Phone {
     return new Phone(value);
   }
+
+  static fromParts(countryCode: string, nationalNumber: string): Phone {
+    const normalizedCountry = (countryCode || '').trim();
+    const digits = (nationalNumber || '').replace(/[^\d]/g, '');
+
+    if (!normalizedCountry) {
+      throw new BadRequestException('Country code is required when using split phone input');
+    }
+
+    if (!digits) {
+      throw new BadRequestException('Phone number cannot be empty');
+    }
+
+    const formattedCountry = normalizedCountry.startsWith('+')
+      ? normalizedCountry
+      : `+${normalizedCountry.replace(/[^\d]/g, '')}`;
+
+    if (!/^\+\d{1,4}$/.test(formattedCountry)) {
+      throw new BadRequestException('Country code must include the + prefix followed by digits');
+    }
+
+    return new Phone(`${formattedCountry}${digits}`);
+  }
 }

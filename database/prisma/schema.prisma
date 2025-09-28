@@ -10,7 +10,7 @@ datasource db {
 model User {
   id                           String               @id @default(uuid())
   email                        String?              @unique
-  phone                        String?              @unique
+  phone                        String?
   countryCode                  String?
   password                     String
   firstName                    String
@@ -36,6 +36,8 @@ model User {
   Reward                       Reward[]
   ownedStores                  Store[]              @relation("StoreVendor")
   Task                         Task[]
+
+  @@unique([phone, countryCode])
 }
 
 model Address {
@@ -235,12 +237,18 @@ model OrderItem {
 model OTPVerification {
   id         String   @id @default(uuid())
   identifier String
-  otp        String
+  otpHash    String
   type       OTPType
-  requestId  String?  @unique
+  requestId  String   @unique
+  attempts   Int      @default(0)
+  maxAttempts Int     @default(5)
+  resendAvailableAt DateTime?
+  consumedAt DateTime?
   isVerified Boolean  @default(false)
   expiresAt  DateTime
   createdAt  DateTime @default(now())
+
+  @@index([identifier, type])
 }
 
 model DeviceSession {

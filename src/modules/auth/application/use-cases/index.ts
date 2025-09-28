@@ -32,6 +32,11 @@ export type {
   RegistrationResult,
   LoginResult,
   PasswordResetResult,
+  RequestOtpChallengeCommand,
+  OtpChallengeResult,
+  VerifyOtpChallengeCommand,
+  OtpChallengeVerificationResult,
+  CompleteRegistrationWithTokenCommand,
 } from './otp-management.use-case';
 
 // Legacy Command and Result Types

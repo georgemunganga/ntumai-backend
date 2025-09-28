@@ -6,6 +6,14 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
  * Supports traditional email/password registration with role-based account creation
  */
 export class RegisterDto {
+  @ApiPropertyOptional({
+    description: 'Registration token returned from /auth/otp/verify when completing OTP-based signup',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  @IsOptional()
+  @IsString({ message: 'Registration token must be a string' })
+  registrationToken?: string;
+
   @ApiProperty({
     description: 'User first name - must be between 2-50 characters',
     example: 'John',
@@ -38,9 +46,10 @@ export class RegisterDto {
     format: 'email',
     uniqueItems: true
   })
+  @ValidateIf((dto) => !dto.registrationToken)
   @IsEmail({}, { message: 'Please provide a valid email address' })
   @IsNotEmpty({ message: 'Email is required' })
-  email: string;
+  email?: string;
 
   @ApiProperty({
     description: 'Strong password with minimum 8 characters, including uppercase, lowercase, number and special character',
@@ -50,13 +59,17 @@ export class RegisterDto {
     pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]',
     format: 'password'
   })
+  @ValidateIf((dto) => !dto.registrationToken || typeof dto.password === 'string')
   @IsString({ message: 'Password must be a string' })
+  @ValidateIf((dto) => !dto.registrationToken)
   @IsNotEmpty({ message: 'Password is required' })
+  @ValidateIf((dto) => !dto.registrationToken || typeof dto.password === 'string')
   @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  @ValidateIf((dto) => !dto.registrationToken || typeof dto.password === 'string')
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, {
     message: 'Password must contain at least one uppercase letter, one lowercase letter, one number and one special character'
   })
-  password: string;
+  password?: string;
 
   @ApiProperty({
     description: 'International phone number in E.164 format for SMS verification and communication',
@@ -64,9 +77,10 @@ export class RegisterDto {
     pattern: '^\\+[1-9]\\d{1,14}$',
     uniqueItems: true
   })
+  @ValidateIf((dto) => !dto.registrationToken)
   @IsPhoneNumber(undefined, { message: 'Please provide a valid phone number in international format' })
   @IsNotEmpty({ message: 'Phone number is required' })
-  phone: string;
+  phone?: string;
 
   @ApiPropertyOptional({
     description: 'User role determining access permissions and features available',
