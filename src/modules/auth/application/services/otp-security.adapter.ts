@@ -313,27 +313,28 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
 
   async completeRegistration(command: CompleteRegistrationCommand): Promise<RegistrationResult> {
     try {
-      const { otp, requestId, phoneNumber, email, firstName, lastName, role } = command;
+      const { otp, requestId, phone, countryCode, email, firstName, lastName, role } = command;
 
       // First verify the OTP
-      const otpVerification = await this.verifyOtp({ otp, requestId, phoneNumber, email });
+      const otpVerification = await this.verifyOtp({ otp, requestId, phone, countryCode, email });
       if (!otpVerification.isValid) {
         throw new BadRequestException('Invalid or expired OTP');
       }
 
       // Create user - ensure we have either email or phone
-      if (!email && !phoneNumber) {
-        throw new BadRequestException('Either email or phone number is required for registration');
+      if (!email && !(phone && countryCode)) {
+        throw new BadRequestException('Either email or both phone and country code are required for registration');
       }
 
       const userRole = UserRole.create(role || 'CUSTOMER');
       const userPassword = await Password.create(this.generateInternalPassword());
-      
+
       // If no email provided, create a temporary one based on phone
-      const userEmail = email 
-        ? Email.create(email) 
-        : Email.create(`temp_${phoneNumber?.replace(/[^0-9]/g, '')}@temp.local`);
-      const userPhone = phoneNumber ? Phone.create(phoneNumber) : undefined;
+      const phoneVo = phone && countryCode ? Phone.fromParts(countryCode, phone) : undefined;
+      const userEmail = email
+        ? Email.create(email)
+        : Email.create(`temp_${phoneVo?.nationalNumber ?? ''}@temp.local`);
+      const userPhone = phoneVo;
 
       const user = await User.create({
         firstName,
@@ -343,7 +344,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
         password: userPassword,
         role: userRole,
         isEmailVerified: !!email,
-        isPhoneVerified: !!phoneNumber,
+        isPhoneVerified: !!phoneVo,
       });
 
       const savedUser = await this.userRepository.save(user);
@@ -444,10 +445,10 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
 
   async completeLogin(command: VerifyOtpCommand): Promise<LoginResult> {
     try {
-      const { otp, requestId, phoneNumber, email } = command;
+      const { otp, requestId, phone, countryCode, email } = command;
 
       // First verify the OTP
-      const otpVerification = await this.verifyOtp({ otp, requestId, phoneNumber, email });
+      const otpVerification = await this.verifyOtp({ otp, requestId, phone, countryCode, email });
       if (!otpVerification.isValid) {
         throw new UnauthorizedException('Invalid or expired OTP');
       }
@@ -483,19 +484,19 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
 
   async completePasswordReset(command: CompletePasswordResetCommand): Promise<PasswordResetResult> {
     try {
-      const { otp, requestId, newPassword, phoneNumber, email } = command;
+      const { otp, requestId, newPassword, phone, countryCode, email } = command;
 
       // First verify the OTP
-      const otpVerification = await this.verifyOtp({ otp, requestId, phoneNumber, email });
+      const otpVerification = await this.verifyOtp({ otp, requestId, phone, countryCode, email });
       if (!otpVerification.isValid) {
         throw new BadRequestException('Invalid or expired OTP');
       }
 
       // Find user
       let user: User | null = null;
-      if (phoneNumber) {
-        const phone = Phone.create(phoneNumber);
-        user = await this.userRepository.findByPhone(phone.value);
+      const phoneVo = phone && countryCode ? Phone.fromParts(countryCode, phone) : undefined;
+      if (phoneVo) {
+        user = await this.userRepository.findByPhone(phoneVo.value);
       }
       if (!user && email) {
         const emailVO = Email.create(email);

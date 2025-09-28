@@ -75,7 +75,8 @@ describe('AuthController', () => {
     it('should register a new user successfully', async () => {
       const registerDto: RegisterDto = {
         email: 'test@example.com',
-        phone: '+1234567890',
+        phone: '1234567890',
+        countryCode: '+1',
         password: 'Password123!',
         firstName: 'Test',
         lastName: 'User',
@@ -97,6 +98,7 @@ describe('AuthController', () => {
         firstName: registerDto.firstName,
         lastName: registerDto.lastName,
         phone: registerDto.phone,
+        countryCode: registerDto.countryCode,
         role: registerDto.role,
       });
       expect(result).toEqual({
@@ -136,7 +138,8 @@ describe('AuthController', () => {
     it('should throw BadRequestException when user already exists', async () => {
       const registerDto: RegisterDto = {
         email: 'existing@example.com',
-        phone: '+1234567890',
+        phone: '1234567890',
+        countryCode: '+1',
         password: 'Password123!',
         firstName: 'Test',
         lastName: 'User',
@@ -236,7 +239,7 @@ describe('AuthController', () => {
 
       expect(authService.generatePasswordResetOtp).toHaveBeenCalledWith({
         email: forgotPasswordDto.email,
-        phoneNumber: forgotPasswordDto.phoneNumber,
+        phone: forgotPasswordDto.phone,
         countryCode: forgotPasswordDto.countryCode,
       });
       expect(result).toEqual({
@@ -270,7 +273,7 @@ describe('AuthController', () => {
         otp: resetPasswordDto.otp,
         newPassword: resetPasswordDto.newPassword,
         requestId: resetPasswordDto.requestId,
-        phoneNumber: resetPasswordDto.phoneNumber,
+        phone: resetPasswordDto.phone,
         email: resetPasswordDto.email,
         countryCode: resetPasswordDto.countryCode,
       });

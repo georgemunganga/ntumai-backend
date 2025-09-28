@@ -2,9 +2,9 @@ import { User } from '../../domain/entities/user.entity';
 
 // Base command for OTP operations
 export interface BaseOtpCommand {
-  phoneNumber?: string;
-  email?: string;
+  phone?: string;
   countryCode?: string;
+  email?: string;
   deviceId?: string;
   deviceType?: string;
 }

@@ -142,7 +142,8 @@ export class AuthController {
           password: 'SecurePass123!',
           firstName: 'John',
           lastName: 'Doe',
-          phone: '+260972827372',
+          phone: '972827372',
+          countryCode: '+260',
           role: 'CUSTOMER'
         }
       },
@@ -154,7 +155,8 @@ export class AuthController {
           password: 'SecurePass123!',
           firstName: 'Jane',
           lastName: 'Smith',
-          phone: '+260977123456',
+          phone: '977123456',
+          countryCode: '+260',
           role: 'DRIVER'
         }
       },
@@ -197,6 +199,7 @@ export class AuthController {
       firstName: registerDto.firstName,
       lastName: registerDto.lastName,
       phone: registerDto.phone,
+      countryCode: registerDto.countryCode,
       role: registerDto.role,
     });
     return {
@@ -314,15 +317,7 @@ export class AuthController {
       },
       phoneLogin: {
         summary: 'Login with Phone',
-        description: 'Login using phone number and password (E.164 format preferred)',
-        value: {
-          phoneNumber: '+260972827372',
-          password: 'SecurePass123!'
-        }
-      },
-      legacyPhoneLogin: {
-        summary: 'Login with Phone (Legacy)',
-        description: 'Login using separate phone and country code (deprecated)',
+        description: 'Login using phone number and password (submit national number and country code separately)',
         value: {
           phone: '972827372',
           countryCode: '+260',
@@ -476,9 +471,10 @@ export class AuthController {
       },
       phoneReset: {
         summary: 'Reset with Phone',
-        description: 'Request password reset using phone number (E.164 format preferred)',
+        description: 'Request password reset using phone number (submit national number and country code separately)',
         value: {
-          phoneNumber: '+260972827372'
+          phone: '972827372',
+          countryCode: '+260'
         }
       }
     }
@@ -486,7 +482,7 @@ export class AuthController {
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     const result = await this.authenticationService.generatePasswordResetOtp({
       email: forgotPasswordDto.email,
-      phoneNumber: forgotPasswordDto.phoneNumber,
+      phone: forgotPasswordDto.phone,
       countryCode: forgotPasswordDto.countryCode,
     });
 
@@ -573,9 +569,10 @@ export class AuthController {
       },
       phoneReset: {
         summary: 'Complete Phone Reset',
-        description: 'Reset password using OTP sent to phone (E.164 format preferred)',
+        description: 'Reset password using OTP sent to phone (submit national number and country code separately)',
         value: {
-          phoneNumber: '+260972827372',
+          phone: '972827372',
+          countryCode: '+260',
           otp: '654321',
           newPassword: 'NewSecurePass456!',
           requestId: 'pwd_reset_clh7x9k2l0000qh8v4g2m1n3p'
@@ -588,7 +585,7 @@ export class AuthController {
       otp: resetPasswordDto.otp,
       requestId: resetPasswordDto.requestId,
       newPassword: resetPasswordDto.newPassword,
-      phoneNumber: resetPasswordDto.phoneNumber,
+      phone: resetPasswordDto.phone,
       email: resetPasswordDto.email,
       countryCode: resetPasswordDto.countryCode,
     });

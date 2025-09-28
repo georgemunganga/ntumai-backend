@@ -69,9 +69,18 @@ export class AuthenticationService extends AuthenticationUseCase {
         throw new BadRequestException('User with this email already exists');
       }
 
+      let phoneValue: Phone | undefined = undefined;
+
       if (command.phone) {
+        if (!command.countryCode) {
+          throw new BadRequestException('Country code is required when providing a phone number');
+        }
+
+        const phoneVo = Phone.fromParts(command.countryCode, command.phone);
+        phoneValue = phoneVo;
+
         const existingUserByPhone = await this.userRepository.findByPhone(
-          command.phone,
+          phoneVo.value,
           { includeInactive: true },
         );
         if (existingUserByPhone) {
@@ -83,7 +92,7 @@ export class AuthenticationService extends AuthenticationUseCase {
       const email = Email.create(command.email);
       const password = await Password.create(command.password);
       const role = UserRole.create(command.role || 'CUSTOMER');
-      const phone = command.phone ? Phone.create(command.phone) : undefined;
+      const phone = phoneValue;
 
       // Create user entity
       const user = await User.create({
@@ -130,8 +139,8 @@ export class AuthenticationService extends AuthenticationUseCase {
   async loginUser(command: LoginUserCommand): Promise<AuthenticationResult> {
     try {
       // Validate that either email or phone is provided
-      if (!command.email && !command.phoneNumber && !(command.phone && command.countryCode)) {
-        throw new BadRequestException('Either email or phone number (E.164 format or phone+countryCode) is required');
+      if (!command.email && !(command.phone && command.countryCode)) {
+        throw new BadRequestException('Either email or both phone and country code are required');
       }
 
       // Find user by email or phone (include unverified users for login)
@@ -140,19 +149,13 @@ export class AuthenticationService extends AuthenticationUseCase {
         user = await this.userRepository.findByEmail(Email.create(command.email), { includeUnverified: true });
       } else {
         // Handle phone number - support both E.164 format and legacy phone/countryCode
-        let phoneToSearch: string;
-        
-        if (command.phoneNumber) {
-          // New E.164 format (preferred)
-          phoneToSearch = command.phoneNumber;
-        } else if (command.phone && command.countryCode) {
-          // Legacy format - combine country code and phone number
-          phoneToSearch = `${command.countryCode}${command.phone}`;
-        } else {
-          throw new BadRequestException('Phone number must be provided in E.164 format or as phone+countryCode');
+        if (!command.countryCode) {
+          throw new BadRequestException('Country code is required when using phone login');
         }
-        
-        user = await this.userRepository.findByPhone(phoneToSearch);
+
+        const phone = Phone.fromParts(command.countryCode, command.phone);
+
+        user = await this.userRepository.findByPhone(phone.value);
       }
       
       if (!user) {
