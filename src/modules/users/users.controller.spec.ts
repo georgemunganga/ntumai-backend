@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards';
-import { SwitchRoleDto } from '../auth/dto';
+import { SwitchRoleDto } from './dto';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 
 describe('UsersController', () => {
@@ -22,6 +22,11 @@ describe('UsersController', () => {
   };
 
   const mockUsersService = {
+    getProfile: jest.fn(),
+    updateProfile: jest.fn(),
+    changePassword: jest.fn(),
+    updateProfileImage: jest.fn(),
+    addAddress: jest.fn(),
     switchRole: jest.fn(),
     registerForRole: jest.fn(),
     getUserRoles: jest.fn(),
@@ -52,10 +57,11 @@ describe('UsersController', () => {
   describe('switchRole', () => {
     it('should allow a user to switch roles if they have the right to do so', async () => {
       const switchRoleDto: SwitchRoleDto = {
-        targetRole: 'DRIVER',
+        targetRole: 'driver',
         otpCode: '123456',
         phoneNumber: '+1234567890',
         email: 'test@example.com',
+        requestId: 'otp-request-id',
       };
 
       const mockRequest = { user: mockUser };
@@ -86,6 +92,7 @@ describe('UsersController', () => {
         targetRole: 'driver',
         otpCode: '123456',
         phoneNumber: '+1234567890',
+        requestId: 'otp-request-id',
       };
       const mockRequest = { user: mockUser };
       const expectedResult = {
@@ -100,10 +107,7 @@ describe('UsersController', () => {
 
       expect(usersService.registerForRole).toHaveBeenCalledWith(
         '123e4567-e89b-12d3-a456-426614174000',
-        'driver',
-        '123456',
-        '+1234567890',
-        undefined
+        switchRoleDto,
       );
       expect(result).toEqual(expectedResult);
     });
