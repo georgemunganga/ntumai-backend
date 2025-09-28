@@ -6,7 +6,7 @@ import { OtpSecurityAdapter } from './otp-security.adapter';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { User } from '../../domain/entities/user.entity';
-import { Email, Password, UserRole } from '../../domain/value-objects';
+import { Email, Password, Phone, UserRole } from '../../domain/value-objects';
 
 describe('AuthenticationService', () => {
   let service: AuthenticationService;
@@ -115,7 +115,8 @@ describe('AuthenticationService', () => {
   describe('registerUser', () => {
     const registerCommand = {
       email: 'test@example.com',
-      phone: '+1234567890',
+      phone: '1234567890',
+      countryCode: '+1',
       password: 'Password123!',
       name: 'Test User',
       role: 'CUSTOMER',
@@ -137,7 +138,8 @@ describe('AuthenticationService', () => {
       const result = await service.registerUser(registerCommand);
 
       expect(userRepository.findByEmail).toHaveBeenCalledWith(Email.create(registerCommand.email), { includeInactive: true });
-      expect(userRepository.findByPhone).toHaveBeenCalledWith(registerCommand.phone, { includeInactive: true });
+      const expectedPhoneValue = Phone.fromParts(registerCommand.countryCode!, registerCommand.phone).value;
+      expect(userRepository.findByPhone).toHaveBeenCalledWith(expectedPhoneValue, { includeInactive: true });
       expect(User.create).toHaveBeenCalled();
       expect(userRepository.save).toHaveBeenCalledWith(mockUser);
       // Note: Test expectation needs to be updated for UserManagementDomainService

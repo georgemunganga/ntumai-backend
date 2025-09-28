@@ -1,44 +1,40 @@
-import { IsEmail, IsOptional, IsString, IsPhoneNumber, ValidateIf } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
 
 /**
  * Data Transfer Object for password reset request
- * Supports both email and phone number based password reset flows
+ * Supports both email and split phone number based password reset flows
  */
 export class ForgotPasswordDto {
-  @ApiProperty({
-    description: 'International phone number in E.164 format for SMS-based password reset',
-    example: '+260972827372',
-    required: false,
-    pattern: '^\\+[1-9]\\d{1,14}$',
-    format: 'phone'
+  @ApiPropertyOptional({
+    description: 'Phone number without country code for SMS-based password reset',
+    example: '972827372',
+    pattern: '^\\d{5,15}$',
   })
-  @IsOptional()
-  @ValidateIf((o) => !o.email || o.phoneNumber)
-  @IsPhoneNumber(undefined, { message: 'Please provide a valid phone number in international format' })
-  phoneNumber?: string;
+  @ValidateIf((o) => !o.email)
+  @IsNotEmpty({ message: 'Phone number is required when email is not provided' })
+  @Matches(/^\d{5,15}$/, { message: 'Phone number must be between 5 and 15 digits' })
+  @IsString({ message: 'Phone number must be a string of digits' })
+  phone?: string;
 
-  @ApiProperty({
-    description: 'ISO 3166-1 alpha-2 country code (required when using phone number)',
-    example: 'ZM',
-    required: false,
-    pattern: '^[A-Z]{2}$',
-    minLength: 2,
-    maxLength: 2
+  @ApiPropertyOptional({
+    description: 'International dialling code prefixed with + (required with phone when email is not provided)',
+    example: '+260',
+    pattern: '^\\+?\\d{1,4}$',
   })
-  @IsOptional()
-  @ValidateIf((o) => o.phoneNumber)
+  @ValidateIf((o) => !o.email && !!o.phone)
+  @IsNotEmpty({ message: 'Country code is required when using phone reset' })
+  @Matches(/^\+?\d{1,4}$/, { message: 'Country code must include digits and may start with +' })
   @IsString({ message: 'Country code must be a string' })
   countryCode?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Valid email address for email-based password reset',
     example: 'john.doe@example.com',
-    required: false,
-    format: 'email'
+    format: 'email',
   })
   @IsOptional()
-  @ValidateIf((o) => !o.phoneNumber || o.email)
+  @ValidateIf((o) => !!o.email)
   @IsEmail({}, { message: 'Please provide a valid email address' })
   email?: string;
 }

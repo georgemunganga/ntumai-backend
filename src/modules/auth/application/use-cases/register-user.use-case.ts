@@ -7,6 +7,7 @@ export interface RegisterUserCommand {
   firstName: string;
   lastName: string;
   phone?: string;
+  countryCode?: string;
   role?: string;
 }
 

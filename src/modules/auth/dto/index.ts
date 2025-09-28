@@ -9,11 +9,9 @@ export { ForgotPasswordDto } from './forgot-password.dto';
 export { ResetPasswordDto } from './reset-password.dto';
 
 // OTP-based DTOs
-export { RegisterOtpDto } from './register-otp.dto';
-export { VerifyOtpDto } from './verify-otp.dto';
-export { CompleteRegistrationDto } from './complete-registration.dto';
-export { LoginOtpDto } from './login-otp.dto';
 export { LogoutDto } from './logout.dto';
+export { OtpRequestDto } from './otp-request.dto';
+export { OtpVerifyDto } from './otp-verify.dto';
 
 // Profile management DTOs
 export { UpdateProfileDto } from './update-profile.dto';

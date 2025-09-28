@@ -1,5 +1,5 @@
 export interface ResetPasswordCommand {
-  phoneNumber?: string;
+  phone?: string;
   email?: string;
   countryCode?: string;
   otp: string;

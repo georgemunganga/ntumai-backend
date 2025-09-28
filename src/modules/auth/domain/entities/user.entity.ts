@@ -283,7 +283,8 @@ export class User {
       password: this._password.hashedValue,
       firstName: this._firstName,
       lastName: this._lastName,
-      phone: this._phone?.value,
+      phone: this._phone?.nationalNumber,
+      countryCode: this._phone?.countryCode,
       role: this._role.value,
       isEmailVerified: this._isEmailVerified,
       isPhoneVerified: this._isPhoneVerified,
@@ -302,7 +303,44 @@ export class User {
       password: Password.fromHash(data.password),
       firstName: data.firstName || '',
       lastName: data.lastName || '',
-      phone: data.phone ? Phone.create(`${data.countryCode || ''}${data.phone}`) : undefined,
+      phone: (() => {
+        if (!data.phone) {
+          return undefined;
+        }
+
+        try {
+          const phoneValue = String(data.phone);
+          const digitsOnly = phoneValue.replace(/[^0-9]/g, '');
+          const rawCountryCode = typeof data.countryCode === 'string' ? data.countryCode.trim() : '';
+
+          if (rawCountryCode) {
+            const numericCountry = rawCountryCode.replace(/[^0-9+]/g, '');
+            const normalizedCountryCode = numericCountry.startsWith('+')
+              ? numericCountry
+              : numericCountry.length > 0
+                ? `+${numericCountry}`
+                : rawCountryCode.startsWith('+')
+                  ? rawCountryCode
+                  : undefined;
+
+            if (normalizedCountryCode && digitsOnly.length > 0) {
+              return Phone.create(`${normalizedCountryCode}${digitsOnly}`);
+            }
+          }
+
+          if (phoneValue.startsWith('+')) {
+            return Phone.create(phoneValue);
+          }
+
+          if (digitsOnly.length > 0) {
+            return Phone.create(`+${digitsOnly}`);
+          }
+        } catch (error) {
+          return undefined;
+        }
+
+        return undefined;
+      })(),
       role: UserRole.create(data.role),
       isEmailVerified: data.isEmailVerified,
       isPhoneVerified: data.isPhoneVerified,

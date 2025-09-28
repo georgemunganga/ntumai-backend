@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { randomInt, randomUUID } from 'crypto';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { randomInt, randomUUID, createHash } from 'crypto';
 import { PrismaService } from '@common/prisma/prisma.service';
 import { OTPType } from '@prisma/client';
 import {
@@ -18,12 +18,15 @@ export class OtpApplicationService {
   constructor(private readonly prisma: PrismaService) {}
 
   async generateOtp(options: GenerateOtpOptions): Promise<GenerateOtpResult> {
-    const normalizedIdentifier = options.identifier.trim().toLowerCase();
+    const normalizedIdentifier = this.normalizeIdentifier(options.identifier);
     const purpose = this.mapPurpose(options.purpose);
     const channel = this.detectChannel(normalizedIdentifier);
     const otp = this.generateCode(options.codeLength ?? 6, options.alphanumeric ?? false);
     const expiresAt = new Date(Date.now() + (options.expiryMinutes ?? 5) * 60_000);
     const requestId = randomUUID();
+    const maxAttempts = options.maxAttempts ?? 5;
+    const resendCooldownSeconds = options.resendCooldownSeconds ?? 60;
+    const resendAvailableAt = new Date(Date.now() + resendCooldownSeconds * 1000);
 
     await this.prisma.oTPVerification.deleteMany({
       where: {
@@ -36,9 +39,11 @@ export class OtpApplicationService {
       data: {
         requestId,
         identifier: normalizedIdentifier,
-        otp,
+        otpHash: this.hashCode(otp),
         type: purpose,
         expiresAt,
+        maxAttempts,
+        resendAvailableAt,
       },
     });
 
@@ -57,44 +62,102 @@ export class OtpApplicationService {
       otpId: requestId,
       expiresAt,
       deliveryStatus,
+      resendAvailableAt,
+      maxAttempts,
     };
   }
 
   async validateOtp(options: ValidateOtpOptions): Promise<ValidateOtpResult> {
-    const normalizedIdentifier = options.identifier.trim().toLowerCase();
-    const purpose = options.purpose ? this.mapPurpose(options.purpose) : undefined;
+    const requestId = options.challengeId ?? options.requestId;
 
-    const otpRecord = await this.prisma.oTPVerification.findFirst({
-      where: {
-        ...(options.requestId ? { requestId: options.requestId } : { identifier: normalizedIdentifier }),
-        ...(purpose ? { type: purpose } : {}),
-      },
-      orderBy: { createdAt: 'desc' },
+    if (!requestId) {
+      throw new BadRequestException('challengeId is required for OTP verification');
+    }
+
+    const otpRecord = await this.prisma.oTPVerification.findUnique({
+      where: { requestId },
     });
 
     if (!otpRecord) {
-      return { isValid: false, attemptsRemaining: 0, isExpired: false };
+      return {
+        isValid: false,
+        attemptsRemaining: 0,
+        isExpired: false,
+        isLocked: false,
+      };
     }
 
     const now = new Date();
-    const isExpired = otpRecord.expiresAt <= now;
+    const isExpired = otpRecord.expiresAt.getTime() <= now.getTime();
 
-    if (isExpired) {
-      return { isValid: false, attemptsRemaining: 0, isExpired: true };
+    if (otpRecord.consumedAt) {
+      return {
+        isValid: false,
+        attemptsRemaining: 0,
+        isExpired: isExpired,
+        isLocked: true,
+      };
     }
 
-    const isValid = otpRecord.otp === options.code;
+    if (isExpired) {
+      await this.prisma.oTPVerification.update({
+        where: { id: otpRecord.id },
+        data: { consumedAt: now },
+      });
+
+      return {
+        isValid: false,
+        attemptsRemaining: 0,
+        isExpired: true,
+        isLocked: false,
+      };
+    }
+
+    const hashedInput = this.hashCode(options.code);
+    const isValid = otpRecord.otpHash === hashedInput;
 
     if (!isValid) {
-      return { isValid: false, attemptsRemaining: 0, isExpired: false };
+      const nextAttempts = otpRecord.attempts + 1;
+      const locked = nextAttempts >= otpRecord.maxAttempts;
+
+      await this.prisma.oTPVerification.update({
+        where: { id: otpRecord.id },
+        data: {
+          attempts: nextAttempts,
+          ...(locked ? { consumedAt: now } : {}),
+        },
+      });
+
+      return {
+        isValid: false,
+        attemptsRemaining: Math.max(otpRecord.maxAttempts - nextAttempts, 0),
+        isExpired: false,
+        isLocked: locked,
+      };
     }
 
     await this.prisma.oTPVerification.update({
       where: { id: otpRecord.id },
-      data: { isVerified: true },
+      data: {
+        attempts: otpRecord.attempts + 1,
+        isVerified: true,
+        consumedAt: now,
+      },
     });
 
-    return { isValid: true, attemptsRemaining: 0, isExpired: false };
+    return {
+      isValid: true,
+      attemptsRemaining: Math.max(otpRecord.maxAttempts - (otpRecord.attempts + 1), 0),
+      isExpired: false,
+      isLocked: false,
+      challengeId: otpRecord.requestId,
+      identifier: otpRecord.identifier,
+      purpose: this.reverseMapPurpose(otpRecord.type),
+    };
+  }
+
+  private normalizeIdentifier(identifier: string): string {
+    return identifier.trim().toLowerCase();
   }
 
   private mapPurpose(purpose: OtpPurpose): OTPType {
@@ -107,6 +170,17 @@ export class OtpApplicationService {
         return OTPType.PASSWORD_RESET;
       default:
         return OTPType.REGISTRATION;
+    }
+  }
+
+  private reverseMapPurpose(type: OTPType): OtpPurpose {
+    switch (type) {
+      case OTPType.LOGIN:
+        return 'login';
+      case OTPType.PASSWORD_RESET:
+        return 'password_reset';
+      default:
+        return 'registration';
     }
   }
 
@@ -130,5 +204,9 @@ export class OtpApplicationService {
       code += randomInt(0, 10).toString();
     }
     return code;
+  }
+
+  private hashCode(code: string): string {
+    return createHash('sha256').update(code).digest('hex');
   }
 }

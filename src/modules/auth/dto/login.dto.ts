@@ -1,8 +1,19 @@
-import { IsEmail, IsNotEmpty, IsString, MinLength, IsOptional, IsPhoneNumber, ValidateIf, registerDecorator, ValidationOptions, ValidationArguments, MaxLength, Matches } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+  MaxLength,
+  Matches,
+  ValidateIf,
+  ValidationArguments,
+  ValidationOptions,
+  registerDecorator,
+} from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // Custom validator to ensure at least one of email or phone is provided
-// Supports both new E.164 phoneNumber format and legacy phone/countryCode fields
 function IsEmailOrPhone(validationOptions?: ValidationOptions) {
   return function (object: Object, propertyName: string) {
     registerDecorator({
@@ -13,10 +24,10 @@ function IsEmailOrPhone(validationOptions?: ValidationOptions) {
       validator: {
         validate(value: any, args: ValidationArguments) {
           const obj = args.object as any;
-          return !!(obj.email || obj.phoneNumber || (obj.phone && obj.countryCode));
+          return !!(obj.email || (obj.phone && obj.countryCode));
         },
-        defaultMessage(args: ValidationArguments) {
-          return 'Either email or phone number (E.164 format or phone+countryCode) must be provided';
+        defaultMessage() {
+          return 'Either email or both phone and country code must be provided';
         },
       },
     });
@@ -25,57 +36,40 @@ function IsEmailOrPhone(validationOptions?: ValidationOptions) {
 
 /**
  * Data Transfer Object for user authentication
- * Supports both email and phone number based login with secure password validation
+ * Supports both email and split phone number based login
  */
 export class LoginDto {
-  @ApiProperty({
-    description: 'Valid email address for login (required if phone number is not provided) - must be a registered email',
+  @ApiPropertyOptional({
+    description: 'Valid email address for login (required if phone number is not provided)',
     example: 'john.doe@example.com',
-    required: false,
-    format: 'email'
+    format: 'email',
   })
   @IsOptional()
   @ValidateIf((o) => !(o.phone && o.countryCode))
   @IsEmail({}, { message: 'Please provide a valid email address' })
-  @IsEmailOrPhone({ message: 'Either email or both phone number and country code must be provided' })
+  @IsEmailOrPhone({ message: 'Either email or both phone and country code must be provided' })
   email?: string;
 
-  @ApiProperty({
-    description: 'International phone number in E.164 format (required if email is not provided) - must be a registered phone number',
-    example: '+260972827372',
-    required: false,
-    pattern: '^\\+[1-9]\\d{1,14}$',
-    format: 'phone'
+  @ApiPropertyOptional({
+    description: 'Phone number without country code (required with countryCode when email is not provided)',
+    example: '972827372',
+    pattern: '^\\d{5,15}$',
   })
   @ValidateIf((o) => !o.email)
   @IsNotEmpty({ message: 'Phone number is required when email is not provided' })
-  @IsPhoneNumber(undefined, { message: 'Please provide a valid phone number in E.164 international format (e.g., +260972827372)' })
-  phoneNumber?: string;
-
-  @ApiProperty({
-    description: 'Phone number without country code - DEPRECATED: Use phoneNumber in E.164 format instead',
-    example: '972827372',
-    required: false,
-    pattern: '^[0-9]{8,15}$',
-    deprecated: true
-  })
-  @IsOptional()
-  @IsString({ message: 'Phone number must be a string' })
-  @Matches(/^[0-9]{8,15}$/, { message: 'Phone number must contain only digits and be 8-15 characters long' })
+  @Matches(/^\d{5,15}$/, { message: 'Phone number must be between 5 and 15 digits' })
+  @IsString({ message: 'Phone number must be a string of digits' })
   phone?: string;
 
-  @ApiProperty({
-    description: 'ISO 3166-1 alpha-2 country code - DEPRECATED: Use phoneNumber in E.164 format instead',
-    example: 'ZM',
-    required: false,
-    pattern: '^[A-Z]{2}$',
-    minLength: 2,
-    maxLength: 2,
-    deprecated: true
+  @ApiPropertyOptional({
+    description: 'International dialling code prefixed with + (required with phone when email is not provided)',
+    example: '+260',
+    pattern: '^\\+?\\d{1,4}$',
   })
-  @IsOptional()
+  @ValidateIf((o) => !o.email)
+  @IsNotEmpty({ message: 'Country code is required when using phone login' })
+  @Matches(/^\+?\d{1,4}$/, { message: 'Country code must include digits and may start with +' })
   @IsString({ message: 'Country code must be a string' })
-  @Matches(/^[A-Z]{2}$/, { message: 'Country code must be a valid 2-letter ISO country code' })
   countryCode?: string;
 
   @ApiProperty({
@@ -83,7 +77,7 @@ export class LoginDto {
     example: 'MySecurePass123!',
     minLength: 6,
     maxLength: 128,
-    format: 'password'
+    format: 'password',
   })
   @IsString({ message: 'Password must be a string' })
   @IsNotEmpty({ message: 'Password is required' })

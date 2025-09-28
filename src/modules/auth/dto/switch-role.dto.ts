@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsIn, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsIn, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
 
 export class SwitchRoleDto {
   @ApiProperty({
@@ -13,28 +13,39 @@ export class SwitchRoleDto {
   })
   targetRole: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'OTP code for role switching verification (if required)',
     example: '123456',
-    required: false,
   })
   @IsOptional()
   @IsString()
   otpCode?: string;
 
-  @ApiProperty({
-    description: 'Phone number for OTP verification (if required)',
-    example: '+1234567890',
-    required: false,
+  @ApiPropertyOptional({
+    description: 'Phone number without country code for OTP verification (if required)',
+    example: '972827372',
+    pattern: '^\\d{5,15}$',
   })
   @IsOptional()
-  @IsString()
-  phoneNumber?: string;
+  @ValidateIf((o) => !!o.phone)
+  @Matches(/^\d{5,15}$/, { message: 'Phone number must be between 5 and 15 digits' })
+  @IsString({ message: 'Phone number must be a string of digits' })
+  phone?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    description: 'International dialling code prefixed with + for OTP verification (if required)',
+    example: '+260',
+    pattern: '^\\+?\\d{1,4}$',
+  })
+  @ValidateIf((o) => !!o.phone)
+  @IsOptional()
+  @Matches(/^\+?\d{1,4}$/, { message: 'Country code must include digits and may start with +' })
+  @IsString({ message: 'Country code must be a string' })
+  countryCode?: string;
+
+  @ApiPropertyOptional({
     description: 'Email for OTP verification (if required)',
     example: 'user@example.com',
-    required: false,
   })
   @IsOptional()
   @IsString()

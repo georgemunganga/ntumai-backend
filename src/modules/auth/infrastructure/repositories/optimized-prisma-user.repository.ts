@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { PrismaService } from '@common/prisma/prisma.service';
 import { User } from '../../domain/entities/user.entity';
-import { Email } from '../../domain/value-objects';
+import { Email, Phone } from '../../domain/value-objects';
 import {
   UserRepository,
   FindUserOptions,
@@ -141,8 +142,23 @@ export class OptimizedPrismaUserRepository extends UserRepository {
   }
 
   async findByPhone(phone: string, options: FindUserOptions = {}): Promise<User | null> {
+    let normalizedPhone = phone;
+    let countryCode: string | undefined;
+    let cacheLookupKey = phone;
+
+    if (phone && phone.startsWith('+')) {
+      try {
+        const phoneVo = Phone.create(phone);
+        normalizedPhone = phoneVo.nationalNumber;
+        countryCode = phoneVo.countryCode;
+        cacheLookupKey = phoneVo.value;
+      } catch (error) {
+        normalizedPhone = phone;
+      }
+    }
+
     // Check cache first
-    const cachedUser = this.cacheService.getUserByPhone(phone);
+    const cachedUser = this.cacheService.getUserByPhone(cacheLookupKey);
     if (cachedUser && this.matchesFindOptions(cachedUser, options)) {
       return cachedUser;
     }
@@ -150,19 +166,21 @@ export class OptimizedPrismaUserRepository extends UserRepository {
     // Build query using query builder
     const query = this.queryBuilder
       .reset()
-      .withPhone(phone)
+      .withPhone(normalizedPhone, countryCode)
       .withFindOptions(options)
       .buildFindQuery();
 
     const userData = await this.prisma.user.findFirst(query);
-    
+
     if (userData) {
       const domainUser = User.fromPersistence(userData);
-      this.cacheService.setUserByPhone(phone, domainUser);
+      if (domainUser.phone) {
+        this.cacheService.setUserByPhone(domainUser.phone.value, domainUser);
+      }
       this.cacheService.setUserById(domainUser.id, domainUser);
       return domainUser;
     }
-    
+
     return null;
   }
 
@@ -269,9 +287,11 @@ export class OptimizedPrismaUserRepository extends UserRepository {
 
   async findByResetToken(token: string): Promise<User | null> {
     // Find user by OTP verification record for password reset
+    const hashedToken = this.hashToken(token);
+
     const otpRecord = await this.prisma.oTPVerification.findFirst({
       where: {
-        otp: token,
+        otpHash: hashedToken,
         type: 'PASSWORD_RESET',
         expiresAt: {
           gt: new Date(),
@@ -310,20 +330,26 @@ export class OptimizedPrismaUserRepository extends UserRepository {
     });
 
     // Create new OTP verification record for password reset
+    const hashedToken = this.hashToken(token);
+
     await this.prisma.oTPVerification.create({
       data: {
+        requestId: hashedToken,
         identifier: userId,
-        otp: token,
+        otpHash: hashedToken,
         type: 'PASSWORD_RESET',
         expiresAt,
+        maxAttempts: 1,
       },
     });
   }
 
   async deletePasswordResetToken(token: string): Promise<void> {
+    const hashedToken = this.hashToken(token);
+
     await this.prisma.oTPVerification.deleteMany({
-      where: { 
-        otp: token,
+      where: {
+        otpHash: hashedToken,
         type: 'PASSWORD_RESET'
       }
     });
@@ -406,5 +432,9 @@ export class OptimizedPrismaUserRepository extends UserRepository {
    */
   clearCache(): void {
     this.cacheService.clearAll();
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 }
