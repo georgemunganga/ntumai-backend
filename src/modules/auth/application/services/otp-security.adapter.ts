@@ -48,10 +48,9 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
   async generateRegistrationOtp(command: GenerateRegistrationOtpCommand): Promise<OtpGenerationResult> {
     try {
       const { identifier, channel } = this.resolveContact({
-        phoneNumber: command.phoneNumber,
-        email: command.email,
-        phone: command.phoneNumber,
+        phone: command.phone,
         countryCode: command.countryCode,
+        email: command.email,
       });
 
       const otpResult = await this.otpService.generateOtp({
@@ -87,10 +86,9 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
   async generateLoginOtp(command: GenerateLoginOtpCommand): Promise<OtpGenerationResult> {
     try {
       const { identifier, channel } = this.resolveContact({
-        phoneNumber: command.phoneNumber,
-        email: command.email,
-        phone: command.phoneNumber,
+        phone: command.phone,
         countryCode: command.countryCode,
+        email: command.email,
       });
 
       const user = await this.findUserByIdentifier(identifier, channel === 'sms');
@@ -128,10 +126,9 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
   async generatePasswordResetOtp(command: GeneratePasswordResetOtpCommand): Promise<OtpGenerationResult> {
     try {
       const { identifier, channel } = this.resolveContact({
-        phoneNumber: command.phoneNumber,
-        email: command.email,
-        phone: command.phoneNumber,
+        phone: command.phone,
         countryCode: command.countryCode,
+        email: command.email,
       });
 
       const user = await this.findUserByIdentifier(identifier, channel === 'sms');
@@ -173,7 +170,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
   async verifyOtp(command: VerifyOtpCommand): Promise<OtpVerificationResult> {
     try {
       const validationResult = await this.otpService.validateOtp({
-        identifier: command.phoneNumber ?? command.email,
+        identifier: command.phone ?? command.email,
         code: command.otp,
         requestId: command.requestId,
         challengeId: command.requestId,
@@ -214,7 +211,6 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
     try {
       const { identifier, channel } = this.resolveContact({
         phone: command.phone,
-        phoneNumber: command.phone,
         countryCode: command.countryCode,
         email: command.email,
       });
@@ -453,13 +449,13 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
         throw new UnauthorizedException('Invalid or expired OTP');
       }
 
-      const identifier = phoneNumber ?? email;
+      const identifier = phone ?? email;
 
       if (!identifier) {
         throw new UnauthorizedException('Missing identifier for login completion');
       }
 
-      const user = await this.findUserByIdentifier(identifier, !!phoneNumber && !email);
+      const user = await this.findUserByIdentifier(identifier, !!phone && !email);
 
       if (!user) {
         throw new UnauthorizedException('User not found');
@@ -523,12 +519,10 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
   }
 
   private resolveContact({
-    phoneNumber,
     phone,
     countryCode,
     email,
   }: {
-    phoneNumber?: string;
     phone?: string;
     countryCode?: string;
     email?: string;
@@ -538,7 +532,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
       return { identifier: emailVo.value, channel: 'email' };
     }
 
-    const rawPhone = phoneNumber ?? phone;
+    const rawPhone = phone;
 
     if (rawPhone && rawPhone.startsWith('+')) {
       const phoneVo = Phone.create(rawPhone);
