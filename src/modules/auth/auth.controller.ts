@@ -189,8 +189,8 @@ export class AuthController {
       };
     }
 
-    if (!registerDto.email || !registerDto.password || !registerDto.phone || !registerDto.countryCode) {
-      throw new BadRequestException('Email, password, phone, and country code are required for direct registration');
+    if (!registerDto.email || !registerDto.password || !registerDto.phone) {
+      throw new BadRequestException('Email, password, and phone are required for direct registration');
     }
 
     const result = await this.authenticationService.registerUser({
