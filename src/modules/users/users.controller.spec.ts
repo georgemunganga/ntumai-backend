@@ -1,9 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
-import { JwtAuthGuard } from '../auth/guards';
-import { SwitchRoleDto } from '../auth/dto';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { SwitchRoleDto } from './dto';
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -14,11 +12,6 @@ describe('UsersController', () => {
     email: 'test@example.com',
     name: 'Test User',
     role: 'CUSTOMER',
-  };
-
-  const mockTokens = {
-    accessToken: 'mock-access-token',
-    refreshToken: 'mock-refresh-token',
   };
 
   const mockUsersService = {
@@ -36,10 +29,7 @@ describe('UsersController', () => {
           useValue: mockUsersService,
         },
       ],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: jest.fn(() => true) })
-      .compile();
+    }).compile();
 
     controller = module.get<UsersController>(UsersController);
     usersService = module.get<UsersService>(UsersService);
@@ -56,7 +46,7 @@ describe('UsersController', () => {
         otpCode: '123456',
         phoneNumber: '+1234567890',
         email: 'test@example.com',
-      };
+      } as unknown as SwitchRoleDto;
 
       const mockRequest = { user: mockUser };
 
@@ -83,10 +73,10 @@ describe('UsersController', () => {
   describe('registerRole', () => {
     it('should register user for a new role', async () => {
       const switchRoleDto: SwitchRoleDto = {
-        targetRole: 'driver',
+        targetRole: 'DRIVER',
         otpCode: '123456',
         phoneNumber: '+1234567890',
-      };
+      } as unknown as SwitchRoleDto;
       const mockRequest = { user: mockUser };
       const expectedResult = {
         success: true,
@@ -100,10 +90,10 @@ describe('UsersController', () => {
 
       expect(usersService.registerForRole).toHaveBeenCalledWith(
         '123e4567-e89b-12d3-a456-426614174000',
-        'driver',
+        'DRIVER',
         '123456',
         '+1234567890',
-        undefined
+        undefined,
       );
       expect(result).toEqual(expectedResult);
     });

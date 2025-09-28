@@ -22,7 +22,6 @@ import {
   LoginResult,
   PasswordResetResult,
 } from '../use-cases/otp-management.use-case';
-import { OtpPurpose } from '../../../security/domain/entities/otp.entity';
 
 /**
  * Adapter service that bridges Auth module's OTP interfaces with SecurityModule's OtpService
@@ -396,7 +395,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
 
       // Update password
       const password = await Password.create(newPassword);
-      user.updatePassword(password.hashedValue);
+      await user.changePassword(password);
       await this.userRepository.save(user);
 
       return {

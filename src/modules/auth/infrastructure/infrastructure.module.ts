@@ -36,37 +36,41 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
   providers: [
     // Database
     PrismaService,
-    
+
     // Cache Service
     UserCacheService,
-    
+
     // Repositories
     {
       provide: UserRepository,
       useClass: OptimizedPrismaUserRepository, // Using optimized version with caching
     },
-    
+
     // Service Adapters
+    JwtAdapter,
+    NotificationAdapter,
     {
       provide: JWT_SERVICE_TOKEN,
-      useClass: JwtAdapter,
+      useExisting: JwtAdapter,
     },
     {
       provide: NOTIFICATION_SERVICE_TOKEN,
-      useClass: NotificationAdapter,
+      useExisting: NotificationAdapter,
     },
   ],
   exports: [
     // Repositories
     UserRepository,
-    
+
     // Cache Service
     UserCacheService,
-    
+
     // Service Adapters
+    JwtAdapter,
+    NotificationAdapter,
     JWT_SERVICE_TOKEN,
     NOTIFICATION_SERVICE_TOKEN,
-    
+
     // JWT Module
     JwtModule,
     

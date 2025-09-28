@@ -462,23 +462,17 @@ export class AuthController {
     }
   })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
-    // Comment out OTP functionality
-    /*
-    const result = await this.otpSecurityAdapter.generatePasswordResetOtp({
+    const result = await this.authenticationService.generatePasswordResetOtp({
       email: forgotPasswordDto.email,
       phoneNumber: forgotPasswordDto.phoneNumber,
       countryCode: forgotPasswordDto.countryCode,
     });
+
     return {
       success: result.success,
       message: result.message,
       requestId: result.requestId,
-    };
-    */
-    return {
-      success: true,
-      message: 'Password reset functionality temporarily disabled',
-      requestId: 'disabled',
+      expiresAt: result.expiresAt,
     };
   }
 
@@ -568,19 +562,18 @@ export class AuthController {
     }
   })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-    // Comment out OtpSecurityAdapter dependency
-    // const result = await this.otpSecurityAdapter.completePasswordReset({
-    //   otp: resetPasswordDto.otp,
-    //   newPassword: resetPasswordDto.newPassword,
-    //   requestId: resetPasswordDto.requestId,
-    //   phoneNumber: resetPasswordDto.phoneNumber,
-    //   email: resetPasswordDto.email,
-    //   countryCode: resetPasswordDto.countryCode,
-    // });
-    // Temporary response until SecurityModule dependency is resolved
+    const result = await this.authenticationService.completePasswordReset({
+      otp: resetPasswordDto.otp,
+      requestId: resetPasswordDto.requestId,
+      newPassword: resetPasswordDto.newPassword,
+      phoneNumber: resetPasswordDto.phoneNumber,
+      email: resetPasswordDto.email,
+      countryCode: resetPasswordDto.countryCode,
+    });
+
     return {
-      success: true,
-      message: 'Password reset functionality temporarily disabled while SecurityModule dependency is being resolved',
+      success: result.success,
+      message: result.message,
     };
   }
 

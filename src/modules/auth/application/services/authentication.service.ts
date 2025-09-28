@@ -13,20 +13,22 @@ import {
   GetUserProfileResult,
   GenerateRegistrationOtpCommand,
   GenerateLoginOtpCommand,
+  GeneratePasswordResetOtpCommand,
   VerifyOtpCommand,
   CompleteRegistrationCommand,
+  CompletePasswordResetCommand,
   OtpGenerationResult,
   OtpVerificationResult,
   RegistrationResult,
   LoginResult,
+  PasswordResetResult,
 } from '../use-cases';
 import { UserRepository } from '../../domain/repositories';
 import { UserManagementDomainService } from '../../domain/services';
 import { User } from '../../domain/entities';
 import { Email, Password, UserRole, Phone } from '../../domain/value-objects';
 import { UserRegisteredEvent, UserLoggedInEvent } from '../../domain/events';
-// Comment out OtpSecurityAdapter import
-// import { OtpSecurityAdapter } from './otp-security.adapter';
+import { OtpSecurityAdapter } from './otp-security.adapter';
 
 export interface TokenPair {
   accessToken: string;
@@ -46,8 +48,7 @@ export class AuthenticationService extends AuthenticationUseCase {
     @Inject('JWT_SERVICE')
     private readonly jwtService: JwtService,
     private readonly eventEmitter: EventEmitter2,
-    // Comment out OtpSecurityAdapter dependency
-    // private readonly otpSecurityAdapter: OtpSecurityAdapter,
+    private readonly otpSecurityAdapter: OtpSecurityAdapter,
   ) {
     super();
   }
@@ -294,8 +295,6 @@ export class AuthenticationService extends AuthenticationUseCase {
     return { accessToken, refreshToken };
   }
 
-  // Comment out OTP-related methods (delegated to OtpSecurityAdapter)
-  /*
   async registerOtp(command: GenerateRegistrationOtpCommand): Promise<OtpGenerationResult> {
     return this.otpSecurityAdapter.generateRegistrationOtp(command);
   }
@@ -315,5 +314,12 @@ export class AuthenticationService extends AuthenticationUseCase {
   async completeLogin(command: VerifyOtpCommand): Promise<LoginResult> {
     return this.otpSecurityAdapter.completeLogin(command);
   }
-  */
+
+  async generatePasswordResetOtp(command: GeneratePasswordResetOtpCommand): Promise<OtpGenerationResult> {
+    return this.otpSecurityAdapter.generatePasswordResetOtp(command);
+  }
+
+  async completePasswordReset(command: CompletePasswordResetCommand): Promise<PasswordResetResult> {
+    return this.otpSecurityAdapter.completePasswordReset(command);
+  }
 }
