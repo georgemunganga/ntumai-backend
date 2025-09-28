@@ -136,8 +136,8 @@ export class UserCacheService {
     // Remove from all caches
     this.userByIdCache.delete(userData.id);
     this.userByEmailCache.delete(userData.email);
-    if (userData.phone) {
-      this.userByPhoneCache.delete(userData.phone);
+    if (user.phone) {
+      this.userByPhoneCache.delete(user.phone.value);
     }
     this.existsCache.delete(userData.email);
   }

@@ -1,23 +1,34 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
-import { AuthenticationService, PasswordManagementService } from './application/services';
-import { OtpSecurityAdapter } from './application/services/otp-security.adapter';
+import { AuthenticationService } from './application/services';
 import { JwtAuthGuard } from './guards';
-import { RegisterDto, LoginDto, RefreshTokenDto, ForgotPasswordDto, ResetPasswordDto, RegisterOtpDto, VerifyOtpDto, CompleteRegistrationDto, LoginOtpDto } from './dto';
+import {
+  RegisterDto,
+  LoginDto,
+  RefreshTokenDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  OtpRequestDto,
+  OtpVerifyDto,
+} from './dto';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 
 describe('AuthController', () => {
   let controller: AuthController;
   let authService: jest.Mocked<AuthenticationService>;
-  let passwordService: jest.Mocked<PasswordManagementService>;
-  let otpService: jest.Mocked<OtpSecurityAdapter>;
-
   const mockUser = {
     id: '123e4567-e89b-12d3-a456-426614174000',
-    email: 'test@example.com',
-    name: 'Test User',
-    role: 'CUSTOMER',
-  };
+    email: { value: 'test@example.com' },
+    firstName: 'Test',
+    lastName: 'User',
+    role: { value: 'CUSTOMER' },
+    phone: { value: '+1234567890' },
+    isEmailVerified: true,
+    isPhoneVerified: true,
+    lastLoginAt: new Date('2024-01-15T10:30:00Z'),
+    createdAt: new Date('2024-01-01T00:00:00Z'),
+    updatedAt: new Date('2024-01-10T00:00:00Z'),
+  } as any;
 
   const mockTokens = {
     accessToken: 'mock-access-token',
@@ -32,25 +43,12 @@ describe('AuthController', () => {
       logoutUser: jest.fn(),
       logoutAll: jest.fn(),
       getUserProfile: jest.fn(),
-      registerOtp: jest.fn(),
-      verifyOtp: jest.fn(),
-      completeRegistration: jest.fn(),
-      loginOtp: jest.fn(),
-    };
-
-    const mockPasswordService = {
-      forgotPassword: jest.fn(),
-      resetPassword: jest.fn(),
-    };
-
-    const mockOtpService = {
-      generateOtp: jest.fn(),
-      verifyOtp: jest.fn(),
-      sendOtp: jest.fn(),
-      generateLoginOtp: jest.fn(),
+      requestOtpChallenge: jest.fn(),
+      verifyOtpChallenge: jest.fn(),
+      completeRegistrationWithToken: jest.fn(),
       generatePasswordResetOtp: jest.fn(),
       completePasswordReset: jest.fn(),
-    };
+    } as unknown as jest.Mocked<AuthenticationService>;
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -58,14 +56,6 @@ describe('AuthController', () => {
         {
           provide: AuthenticationService,
           useValue: mockAuthService,
-        },
-        {
-          provide: PasswordManagementService,
-          useValue: mockPasswordService,
-        },
-        {
-          provide: OtpSecurityAdapter,
-          useValue: mockOtpService,
         },
       ],
     })
@@ -75,8 +65,6 @@ describe('AuthController', () => {
 
     controller = module.get<AuthController>(AuthController);
     authService = module.get(AuthenticationService);
-    passwordService = module.get(PasswordManagementService);
-    otpService = module.get(OtpSecurityAdapter);
   });
 
   it('should be defined', () => {
@@ -117,12 +105,41 @@ describe('AuthController', () => {
       });
     });
 
+    it('should complete OTP registration when registrationToken is provided', async () => {
+      const registerDto: RegisterDto = {
+        registrationToken: 'otp-token',
+        firstName: 'Amina',
+        lastName: 'Tembo',
+        password: 'Password123!',
+        role: 'CUSTOMER',
+      } as RegisterDto;
+
+      const expectedResult = {
+        user: mockUser,
+        tokens: mockTokens,
+      };
+
+      authService.completeRegistrationWithToken.mockResolvedValue(expectedResult);
+
+      const result = await controller.register(registerDto);
+
+      expect(authService.completeRegistrationWithToken).toHaveBeenCalledWith({
+        registrationToken: registerDto.registrationToken,
+        firstName: registerDto.firstName,
+        lastName: registerDto.lastName,
+        password: registerDto.password,
+        role: registerDto.role,
+      });
+      expect(result).toEqual({ success: true, data: expectedResult });
+    });
+
     it('should throw BadRequestException when user already exists', async () => {
       const registerDto: RegisterDto = {
         email: 'existing@example.com',
         phone: '+1234567890',
         password: 'Password123!',
-        name: 'Test User',
+        firstName: 'Test',
+        lastName: 'User',
         role: 'CUSTOMER',
       };
 
@@ -210,13 +227,14 @@ describe('AuthController', () => {
         success: true,
         message: 'Password reset OTP sent',
         requestId: 'req-123',
+        expiresAt: new Date(),
       };
 
-      otpService.generatePasswordResetOtp.mockResolvedValue(expectedResult);
+      authService.generatePasswordResetOtp.mockResolvedValue(expectedResult);
 
       const result = await controller.forgotPassword(forgotPasswordDto);
 
-      expect(otpService.generatePasswordResetOtp).toHaveBeenCalledWith({
+      expect(authService.generatePasswordResetOtp).toHaveBeenCalledWith({
         email: forgotPasswordDto.email,
         phoneNumber: forgotPasswordDto.phoneNumber,
         countryCode: forgotPasswordDto.countryCode,
@@ -225,9 +243,10 @@ describe('AuthController', () => {
         success: expectedResult.success,
         message: expectedResult.message,
         requestId: expectedResult.requestId,
+        expiresAt: expectedResult.expiresAt,
       });
-     });
-   });
+    });
+  });
 
   describe('resetPassword', () => {
     it('should reset password successfully', async () => {
@@ -243,11 +262,11 @@ describe('AuthController', () => {
         message: 'Password reset successfully',
       };
 
-      otpService.completePasswordReset.mockResolvedValue(expectedResult);
+      authService.completePasswordReset.mockResolvedValue(expectedResult);
 
       const result = await controller.resetPassword(resetPasswordDto);
 
-      expect(otpService.completePasswordReset).toHaveBeenCalledWith({
+      expect(authService.completePasswordReset).toHaveBeenCalledWith({
         otp: resetPasswordDto.otp,
         newPassword: resetPasswordDto.newPassword,
         requestId: resetPasswordDto.requestId,
@@ -268,7 +287,7 @@ describe('AuthController', () => {
         requestId: 'req-123',
       };
 
-      otpService.completePasswordReset.mockRejectedValue(new BadRequestException('Invalid or expired reset token'));
+      authService.completePasswordReset.mockRejectedValue(new BadRequestException('Invalid or expired reset token'));
 
       await expect(controller.resetPassword(resetPasswordDto)).rejects.toThrow(BadRequestException);
     });
@@ -348,211 +367,114 @@ describe('AuthController', () => {
     });
   });
 
-  describe('registerWithOtp', () => {
-    it('should initiate OTP registration successfully', async () => {
-      const registerOtpDto: RegisterOtpDto = {
-        phoneNumber: '+1234567890',
-        email: 'test@example.com',
-        countryCode: 'US',
-        deviceId: 'device-123',
-        deviceType: 'mobile',
+  describe('requestOtp', () => {
+    it('should request an OTP challenge neutrally', async () => {
+      const otpRequestDto: OtpRequestDto = {
+        phone: '972827372',
+        countryCode: '+260',
+        purpose: 'login',
       };
 
       const expectedResult = {
-        success: true,
-        requestId: 'req-123',
-        message: 'OTP sent successfully',
+        challengeId: 'challenge-123',
+        expiresAt: new Date(),
+        resendAvailableAt: new Date(),
+        attemptsAllowed: 5,
       };
 
-      authService.registerOtp.mockResolvedValue(expectedResult);
+      (authService.requestOtpChallenge as jest.Mock).mockResolvedValue(expectedResult);
 
-      const result = await controller.registerWithOtp(registerOtpDto);
+      const result = await controller.requestOtp(otpRequestDto);
 
-      expect(authService.registerOtp).toHaveBeenCalledWith(registerOtpDto);
-      expect(result).toEqual(expectedResult);
-    });
-
-    it('should throw BadRequestException when user already exists', async () => {
-      const registerOtpDto: RegisterOtpDto = {
-        phoneNumber: '+1234567890',
-        email: 'existing@example.com',
-        countryCode: 'US',
-      };
-
-      authService.registerOtp.mockRejectedValue(new BadRequestException('User already exists'));
-
-      await expect(controller.registerWithOtp(registerOtpDto)).rejects.toThrow(BadRequestException);
-    });
-  });
-
-  describe('verifyOtp', () => {
-    it('should verify OTP successfully', async () => {
-      const verifyOtpDto: VerifyOtpDto = {
-        phoneNumber: '+1234567890',
-        email: 'test@example.com',
-        otp: '123456',
-        requestId: 'req-123',
-      };
-
-      const expectedResult = {
-        success: true,
-        verified: true,
-        message: 'OTP verified successfully',
-      };
-
-      authService.verifyOtp.mockResolvedValue(expectedResult);
-
-      const result = await controller.verifyOtp(verifyOtpDto);
-
-      expect(authService.verifyOtp).toHaveBeenCalledWith(verifyOtpDto);
-      expect(result).toEqual(expectedResult);
-    });
-
-    it('should throw BadRequestException for invalid OTP', async () => {
-      const verifyOtpDto: VerifyOtpDto = {
-        phoneNumber: '+1234567890',
-        otp: '000000',
-        requestId: 'req-123',
-      };
-
-      authService.verifyOtp.mockRejectedValue(new BadRequestException('Invalid OTP'));
-
-      await expect(controller.verifyOtp(verifyOtpDto)).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw BadRequestException for expired OTP', async () => {
-      const verifyOtpDto: VerifyOtpDto = {
-        phoneNumber: '+1234567890',
-        otp: '123456',
-        requestId: 'req-123',
-      };
-
-      authService.verifyOtp.mockRejectedValue(new BadRequestException('OTP expired'));
-
-      await expect(controller.verifyOtp(verifyOtpDto)).rejects.toThrow(BadRequestException);
-    });
-  });
-
-  describe('completeRegistration', () => {
-    it('should complete registration successfully', async () => {
-      const completeRegistrationDto: CompleteRegistrationDto = {
-        phoneNumber: '+1234567890',
-        email: 'test@example.com',
-        otp: '123456',
-        requestId: 'req-123',
-        firstName: 'John',
-        lastName: 'Doe',
-        password: 'Password123!',
-        role: 'CUSTOMER',
-      };
-
-      const expectedResult = {
-        user: mockUser,
-        tokens: mockTokens,
-      };
-
-      authService.completeRegistration.mockResolvedValue(expectedResult);
-
-      const result = await controller.completeRegistration(completeRegistrationDto);
-
-      expect(authService.completeRegistration).toHaveBeenCalledWith(completeRegistrationDto);
+      expect(authService.requestOtpChallenge).toHaveBeenCalledWith({
+        purpose: otpRequestDto.purpose,
+        email: otpRequestDto.email,
+        phone: otpRequestDto.phone,
+        countryCode: otpRequestDto.countryCode,
+        deviceId: otpRequestDto.deviceId,
+        deviceType: otpRequestDto.deviceType,
+      });
       expect(result).toEqual({
         success: true,
         data: {
-          user: expectedResult.user,
-          accessToken: expectedResult.tokens.accessToken,
-          refreshToken: expectedResult.tokens.refreshToken,
+          challengeId: expectedResult.challengeId,
+          expiresAt: expectedResult.expiresAt,
+          resendAvailableAt: expectedResult.resendAvailableAt,
+          attemptsAllowed: expectedResult.attemptsAllowed,
+        },
+        message: 'If the identifier is registered you will receive an OTP shortly.',
+      });
+    });
+  });
+
+  describe('verifyOtpChallenge', () => {
+    it('should return tokens for an existing user', async () => {
+      const verifyDto: OtpVerifyDto = {
+        challengeId: 'challenge-123',
+        otp: '123456',
+      };
+
+      const expectedResult = {
+        success: true,
+        isNewUser: false,
+        user: mockUser,
+        accessToken: mockTokens.accessToken,
+        refreshToken: mockTokens.refreshToken,
+      };
+
+      (authService.verifyOtpChallenge as jest.Mock).mockResolvedValue(expectedResult);
+
+      const result = await controller.verifyOtpChallenge(verifyDto);
+
+      expect(authService.verifyOtpChallenge).toHaveBeenCalledWith({
+        challengeId: verifyDto.challengeId,
+        otp: verifyDto.otp,
+      });
+      expect(result).toEqual({
+        success: true,
+        data: {
+          user: {
+            id: mockUser.id,
+            email: mockUser.email.value,
+            firstName: mockUser.firstName,
+            lastName: mockUser.lastName,
+            role: mockUser.role.value,
+            phone: mockUser.phone.value,
+            isEmailVerified: mockUser.isEmailVerified,
+            isPhoneVerified: mockUser.isPhoneVerified,
+            lastLoginAt: mockUser.lastLoginAt,
+            createdAt: mockUser.createdAt,
+            updatedAt: mockUser.updatedAt,
+          },
+          tokens: {
+            accessToken: mockTokens.accessToken,
+            refreshToken: mockTokens.refreshToken,
+          },
         },
       });
     });
 
-    it('should throw BadRequestException for invalid OTP during registration', async () => {
-      const completeRegistrationDto: CompleteRegistrationDto = {
-        phoneNumber: '+1234567890',
-        otp: '000000',
-        requestId: 'req-123',
-        firstName: 'John',
-        lastName: 'Doe',
-        password: 'Password123!',
-      };
-
-      authService.completeRegistration.mockRejectedValue(new BadRequestException('Invalid OTP'));
-
-      await expect(controller.completeRegistration(completeRegistrationDto)).rejects.toThrow(BadRequestException);
-    });
-  });
-
-  describe('loginWithOtp', () => {
-    it('should initiate OTP login successfully when no OTP provided', async () => {
-      const loginOtpDto: LoginOtpDto = {
-        phoneNumber: '+1234567890',
-        email: 'test@example.com',
-        deviceId: 'device-123',
-        deviceType: 'mobile',
+    it('should return registration token for a new user', async () => {
+      const verifyDto: OtpVerifyDto = {
+        challengeId: 'challenge-123',
+        otp: '123456',
       };
 
       const expectedResult = {
         success: true,
-        requestId: 'req-123',
-        message: 'OTP sent successfully',
+        isNewUser: true,
+        registrationToken: 'otp-token',
       };
 
-      authService.loginOtp.mockResolvedValue(expectedResult);
+      (authService.verifyOtpChallenge as jest.Mock).mockResolvedValue(expectedResult);
 
-      const result = await controller.loginWithOtp(loginOtpDto);
+      const result = await controller.verifyOtpChallenge(verifyDto);
 
-      expect(authService.loginOtp).toHaveBeenCalledWith(loginOtpDto);
-      expect(result).toEqual(expectedResult);
-    });
-
-    it('should complete login successfully when OTP provided', async () => {
-      const loginOtpDto: LoginOtpDto = {
-        phoneNumber: '+1234567890',
-        email: 'test@example.com',
-        otp: '123456',
-        deviceId: 'device-123',
-        deviceType: 'mobile',
-      };
-
-      const expectedResult = {
-        user: mockUser,
-        tokens: mockTokens,
-      };
-
-      authService.loginOtp.mockResolvedValue(expectedResult);
-
-      const result = await controller.loginWithOtp(loginOtpDto);
-
-      expect(authService.loginOtp).toHaveBeenCalledWith(loginOtpDto);
       expect(result).toEqual({
         success: true,
-        data: {
-          user: expectedResult.user,
-          accessToken: expectedResult.tokens.accessToken,
-          refreshToken: expectedResult.tokens.refreshToken,
-        },
+        data: { registrationToken: 'otp-token', expiresIn: 600 },
       });
     });
-
-    it('should throw UnauthorizedException for invalid OTP during login', async () => {
-      const loginOtpDto: LoginOtpDto = {
-        phoneNumber: '+1234567890',
-        otp: '000000',
-      };
-
-      authService.loginOtp.mockRejectedValue(new UnauthorizedException('Invalid OTP'));
-
-      await expect(controller.loginWithOtp(loginOtpDto)).rejects.toThrow(UnauthorizedException);
-    });
-
-    it('should throw UnauthorizedException for non-existent user', async () => {
-      const loginOtpDto: LoginOtpDto = {
-        phoneNumber: '+9999999999',
-      };
-
-      authService.loginOtp.mockRejectedValue(new UnauthorizedException('User not found'));
-
-      await expect(controller.loginWithOtp(loginOtpDto)).rejects.toThrow(UnauthorizedException);
-    });
   });
+
 });

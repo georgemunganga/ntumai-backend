@@ -22,6 +22,11 @@ import {
   RegistrationResult,
   LoginResult,
   PasswordResetResult,
+  RequestOtpChallengeCommand,
+  OtpChallengeResult,
+  VerifyOtpChallengeCommand,
+  OtpChallengeVerificationResult,
+  CompleteRegistrationWithTokenCommand,
 } from '../use-cases';
 import { UserRepository } from '../../domain/repositories';
 import { UserManagementDomainService } from '../../domain/services';
@@ -313,6 +318,18 @@ export class AuthenticationService extends AuthenticationUseCase {
 
   async completeLogin(command: VerifyOtpCommand): Promise<LoginResult> {
     return this.otpSecurityAdapter.completeLogin(command);
+  }
+
+  async requestOtpChallenge(command: RequestOtpChallengeCommand): Promise<OtpChallengeResult> {
+    return this.otpSecurityAdapter.requestOtpChallenge(command);
+  }
+
+  async verifyOtpChallenge(command: VerifyOtpChallengeCommand): Promise<OtpChallengeVerificationResult> {
+    return this.otpSecurityAdapter.verifyOtpChallenge(command);
+  }
+
+  async completeRegistrationWithToken(command: CompleteRegistrationWithTokenCommand): Promise<RegistrationResult> {
+    return this.otpSecurityAdapter.completeRegistrationWithToken(command);
   }
 
   async generatePasswordResetOtp(command: GeneratePasswordResetOtpCommand): Promise<OtpGenerationResult> {

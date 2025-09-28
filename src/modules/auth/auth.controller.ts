@@ -8,6 +8,7 @@ import {
   Request,
   Get,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,35 +27,26 @@ import {
   RefreshTokenDto,
   ForgotPasswordDto,
   ResetPasswordDto,
-  RegisterOtpDto,
-  VerifyOtpDto,
-  CompleteRegistrationDto,
-  LoginOtpDto,
   LogoutDto,
+  OtpRequestDto,
+  OtpVerifyDto,
 } from './dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthResponse, TokenResponse } from './interfaces';
-// Removed unused individual use case imports - using consolidated application services
-import { AuthenticationService, PasswordManagementService } from './application/services';
-// Comment out OtpSecurityAdapter import
-// import { OtpSecurityAdapter } from './application/services/otp-security.adapter';
+import { AuthenticationService } from './application/services';
+import { User } from './domain/entities';
 
 @ApiTags('Authentication')
 @Controller('auth')
 @ApiProduces('application/json')
 @ApiConsumes('application/json')
 export class AuthController {
-  constructor(
-    private readonly authenticationService: AuthenticationService,
-    private readonly passwordManagementService: PasswordManagementService,
-    // Comment out OtpSecurityAdapter dependency
-    // private readonly otpSecurityAdapter: OtpSecurityAdapter,
-  ) {}
+  constructor(private readonly authenticationService: AuthenticationService) {}
 
   @Post('register')
-  @ApiOperation({ 
-    summary: 'Register a new user with email/password',
-    description: 'Creates a new user account using email and password. Returns user data and authentication tokens upon successful registration.'
+  @ApiOperation({
+    summary: 'Register a new user',
+    description: 'Creates a new user account using email/password or completes OTP-based signup when a registration token is provided.'
   })
   @ApiResponse({
     status: 201,
@@ -138,9 +130,9 @@ export class AuthController {
       }
     }
   })
-  @ApiBody({ 
+  @ApiBody({
     type: RegisterDto,
-    description: 'User registration data',
+    description: 'User registration payload or OTP completion data',
     examples: {
       customer: {
         summary: 'Customer Registration',
@@ -165,10 +157,40 @@ export class AuthController {
           phone: '+260977123456',
           role: 'DRIVER'
         }
+      },
+      otpCompletion: {
+        summary: 'Complete OTP registration',
+        description: 'Finalize registration using the registration token returned by /auth/otp/verify',
+        value: {
+          registrationToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+          firstName: 'Amina',
+          lastName: 'Tembo',
+          password: 'SecurePass123!',
+          role: 'CUSTOMER'
+        }
       }
     }
   })
   async register(@Body() registerDto: RegisterDto) {
+    if (registerDto.registrationToken) {
+      const result = await this.authenticationService.completeRegistrationWithToken({
+        registrationToken: registerDto.registrationToken,
+        firstName: registerDto.firstName,
+        lastName: registerDto.lastName,
+        password: registerDto.password,
+        role: registerDto.role,
+      });
+
+      return {
+        success: true,
+        data: result,
+      };
+    }
+
+    if (!registerDto.email || !registerDto.password || !registerDto.phone) {
+      throw new BadRequestException('Email, password, and phone are required for direct registration');
+    }
+
     const result = await this.authenticationService.registerUser({
       email: registerDto.email,
       password: registerDto.password,
@@ -727,240 +749,15 @@ export class AuthController {
   }
 
   // OTP-based Authentication Endpoints
-  @Post('register-otp')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
-    summary: 'Initiate OTP-based user registration',
-    description: 'Start the registration process by sending an OTP to the provided phone number or email. This is the first step in passwordless registration.'
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'OTP sent successfully to phone/email',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: true },
-        message: { type: 'string', example: 'OTP sent successfully to +260972827372' },
-        requestId: { type: 'string', example: 'otp_req_clh7x9k2l0000qh8v4g2m1n3p' },
-        expiresAt: { type: 'string', format: 'date-time', example: '2024-01-15T10:35:00Z' },
-        resendAfter: { type: 'number', example: 60, description: 'Seconds before OTP can be resent' }
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Invalid phone number or email format',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: false },
-        error: {
-          type: 'object',
-          properties: {
-            code: { type: 'string', example: 'INVALID_PHONE_NUMBER' },
-            message: { type: 'string', example: 'Phone number must include country code (start with +)' }
-          }
-        }
-      }
-    }
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'Conflict - User already exists with this phone/email',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: false },
-        error: {
-          type: 'object',
-          properties: {
-            code: { type: 'string', example: 'USER_ALREADY_EXISTS' },
-            message: { type: 'string', example: 'User already exists with this phone number' }
-          }
-        }
-      }
-    }
-  })
-  @ApiResponse({
-    status: 429,
-    description: 'Too Many Requests - OTP rate limit exceeded',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: false },
-        error: {
-          type: 'object',
-          properties: {
-            code: { type: 'string', example: 'RATE_LIMIT_EXCEEDED' },
-            message: { type: 'string', example: 'Too many OTP requests. Please try again later.' },
-            retryAfter: { type: 'number', example: 300, description: 'Seconds until next OTP can be requested' }
-          }
-        }
-      }
-    }
-  })
-  @ApiBody({
-    type: RegisterOtpDto,
-    description: 'OTP registration request data',
-    examples: {
-      phoneRegistration: {
-        summary: 'Register with Phone Number',
-        description: 'Start registration using phone number (E.164 format preferred)',
-        value: {
-          phoneNumber: '+260972827372',
-          deviceId: 'device_android_123456',
-          deviceType: 'mobile'
-        }
-      },
-      emailRegistration: {
-        summary: 'Register with Email',
-        description: 'Start registration using email address',
-        value: {
-          email: 'john.doe@example.com',
-          countryCode: 'ZM',
-          deviceId: 'device_web_789012',
-          deviceType: 'web'
-        }
-      }
-    }
-  })
-  async registerWithOtp(@Body() registerOtpDto: RegisterOtpDto) {
-    const result = await this.authenticationService.registerOtp(registerOtpDto);
-
-    return {
-      success: result.success || true,
-      message: result.message || 'OTP sent successfully',
-      requestId: result.requestId || 'req-123',
-    };
-  }
-
-  @Post('verify-otp')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
-    summary: 'Verify OTP code',
-    description: 'Verify the OTP code sent to phone/email. Returns verification status and temporary token for new users to complete registration.'
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'OTP verified successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: true },
-        message: { type: 'string', example: 'OTP verified successfully' },
-        isNewUser: { type: 'boolean', example: true, description: 'True if this is a new user registration' },
-        verified: { type: 'boolean', example: true },
-        token: { type: 'string', example: 'temp_token_clh7x9k2l0000qh8v4g2m1n3p', description: 'Temporary token for completing registration (new users only)' },
-        user: {
-          type: 'object',
-          description: 'User data (existing users only)',
-          properties: {
-            id: { type: 'string', example: 'clh7x9k2l0000qh8v4g2m1n3p' },
-            email: { type: 'string', example: 'john.doe@example.com' },
-            firstName: { type: 'string', example: 'John' },
-            lastName: { type: 'string', example: 'Doe' },
-            role: { type: 'string', example: 'CUSTOMER' }
-          }
-        }
-      },
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Invalid OTP or request data',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: false },
-        error: {
-          type: 'object',
-          properties: {
-            code: { type: 'string', example: 'INVALID_OTP' },
-            message: { type: 'string', example: 'Invalid OTP code' },
-            attemptsRemaining: { type: 'number', example: 2, description: 'Number of verification attempts remaining' }
-          }
-        }
-      }
-    }
-  })
-  @ApiResponse({
-    status: 410,
-    description: 'Gone - OTP has expired',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: false },
-        error: {
-          type: 'object',
-          properties: {
-            code: { type: 'string', example: 'OTP_EXPIRED' },
-            message: { type: 'string', example: 'OTP has expired. Please request a new one.' }
-          }
-        }
-      }
-    }
-  })
-  @ApiResponse({
-    status: 423,
-    description: 'Locked - Too many failed verification attempts',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: false },
-        error: {
-          type: 'object',
-          properties: {
-            code: { type: 'string', example: 'OTP_ATTEMPTS_EXCEEDED' },
-            message: { type: 'string', example: 'Too many failed attempts. Please request a new OTP.' },
-            retryAfter: { type: 'number', example: 300, description: 'Seconds until new OTP can be requested' }
-          }
-        }
-      }
-    }
-  })
-  @ApiBody({
-    type: VerifyOtpDto,
-    description: 'OTP verification data',
-    examples: {
-      phoneVerification: {
-        summary: 'Verify Phone OTP',
-        description: 'Verify OTP sent to phone number',
-        value: {
-          phoneNumber: '+260972827372',
-          otp: '123456',
-          requestId: 'otp_req_clh7x9k2l0000qh8v4g2m1n3p'
-        }
-      },
-      emailVerification: {
-        summary: 'Verify Email OTP',
-        description: 'Verify OTP sent to email address',
-        value: {
-          email: 'john.doe@example.com',
-          otp: '654321',
-          requestId: 'otp_req_clh7x9k2l0000qh8v4g2m1n3p'
-        }
-      }
-    }
-  })
-  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
-    const result = await this.authenticationService.verifyOtp(verifyOtpDto);
-
-    return {
-      success: result.success || true,
-      message: result.message || 'OTP verified successfully',
-      verified: result.isValid !== undefined ? result.isValid : true,
-    };
-  }
-
-  @Post('complete-registration')
-  @HttpCode(HttpStatus.CREATED)
+  @Post('otp/request')
+  @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
-    summary: 'Complete passwordless registration after OTP verification',
-    description: 'Completes the registration process by providing personal details after successful OTP verification. No password is required—once verified, the account is created and authentication tokens are returned.'
+    summary: 'Request an OTP challenge',
+    description: 'Issues a neutral OTP challenge for login or registration without disclosing whether the identifier exists.'
   })
   @ApiResponse({
-    status: 201,
-    description: 'Registration completed successfully',
+    status: 202,
+    description: 'OTP challenge issued',
     schema: {
       type: 'object',
       properties: {
@@ -968,273 +765,141 @@ export class AuthController {
         data: {
           type: 'object',
           properties: {
-            user: {
-              type: 'object',
-              properties: {
-                id: { type: 'string', example: 'clh7x9k2l0000qh8v4g2m1n3p' },
-                firstName: { type: 'string', example: 'John' },
-                lastName: { type: 'string', example: 'Doe' },
-                email: { type: 'string', example: 'john.doe@example.com' },
-                phone: { type: 'string', example: '+260972827372' },
-                role: { type: 'string', example: 'CUSTOMER' },
-                isEmailVerified: { type: 'boolean', example: true },
-                isPhoneVerified: { type: 'boolean', example: true },
-                profileComplete: { type: 'boolean', example: true },
-                createdAt: { type: 'string', format: 'date-time', example: '2024-01-15T10:30:00Z' },
-                updatedAt: { type: 'string', format: 'date-time', example: '2024-01-15T10:30:00Z' }
-              }
-            },
-            tokens: {
-              type: 'object',
-              properties: {
-                accessToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-                refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-                expiresIn: { type: 'number', example: 3600 }
-              }
-            }
+            challengeId: { type: 'string', example: 'a5c1d19e-0f4b-4c26-91d5-2f25b1d83c2e' },
+            expiresAt: { type: 'string', format: 'date-time', example: '2024-01-15T10:35:00Z' },
+            resendAvailableAt: { type: 'string', format: 'date-time', example: '2024-01-15T10:32:00Z' },
+            attemptsAllowed: { type: 'number', example: 5 }
           }
-        }
+        },
+        message: { type: 'string', example: 'If the identifier is registered you will receive an OTP shortly.' }
       }
     }
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad Request - Invalid registration data or token',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: false },
-        error: {
-          type: 'object',
-          properties: {
-            code: { type: 'string', example: 'INVALID_TOKEN' },
-            message: { type: 'string', example: 'Invalid or expired registration token' }
-          }
-        }
-      }
-    }
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'Conflict - User already exists',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: false },
-        error: {
-          type: 'object',
-          properties: {
-            code: { type: 'string', example: 'USER_ALREADY_EXISTS' },
-            message: { type: 'string', example: 'User with this email or phone already exists' }
-          }
-        }
-      }
-    }
+    description: 'Validation error',
   })
   @ApiBody({
-    type: CompleteRegistrationDto,
-    description: 'Complete registration data with user details and verification token',
+    type: OtpRequestDto,
+    description: 'Identifier and purpose for the OTP challenge',
     examples: {
-      customerRegistration: {
-        summary: 'Complete Customer Registration',
-        description: 'Complete registration for a customer account',
+      phoneLogin: {
+        summary: 'Login via phone',
         value: {
-          requestId: 'otp_req_clh7x9k2l0000qh8v4g2m1n3p',
-          otp: '123456',
-          firstName: 'John',
-          lastName: 'Doe',
-          email: 'john.doe@example.com',
-          userType: 'CUSTOMER',
-          acceptTerms: true
+          phone: '972827372',
+          countryCode: '+260',
+          purpose: 'login'
         }
       },
-      driverRegistration: {
-        summary: 'Complete Driver Registration',
-        description: 'Complete registration for a driver account',
+      emailRegister: {
+        summary: 'Register via email',
         value: {
-          requestId: 'otp_req_driver_clh7x9k2l0000qh8v4g2m1n3p',
-          otp: '654321',
-          firstName: 'Mike',
-          lastName: 'Johnson',
-          phoneNumber: '+260977123456',
-          userType: 'DRIVER',
-          licenseNumber: 'DL123456789',
-          vehicleType: 'motorcycle',
-          acceptTerms: true
-        }
-      },
-      vendorRegistration: {
-        summary: 'Complete Vendor Registration',
-        description: 'Complete registration for a vendor account',
-        value: {
-          requestId: 'otp_req_vendor_clh7x9k2l0000qh8v4g2m1n3p',
-          otp: '789123',
-          firstName: 'Sarah',
-          lastName: 'Wilson',
-          email: 'sarah.vendor@example.com',
-          userType: 'VENDOR',
-          businessName: 'Sarah\'s Kitchen',
-          businessType: 'restaurant',
-          acceptTerms: true
+          email: 'new.user@example.com',
+          purpose: 'register'
         }
       }
     }
   })
-  async completeRegistration(@Body() completeRegistrationDto: CompleteRegistrationDto) {
-    const result = await this.authenticationService.completeRegistration(completeRegistrationDto);
+  async requestOtp(@Body() otpRequestDto: OtpRequestDto) {
+    const result = await this.authenticationService.requestOtpChallenge({
+      purpose: otpRequestDto.purpose,
+      email: otpRequestDto.email,
+      phone: otpRequestDto.phone,
+      countryCode: otpRequestDto.countryCode,
+      deviceId: otpRequestDto.deviceId,
+      deviceType: otpRequestDto.deviceType,
+    });
 
     return {
       success: true,
       data: {
-        user: result.user,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
+        challengeId: result.challengeId,
+        expiresAt: result.expiresAt,
+        resendAvailableAt: result.resendAvailableAt,
+        attemptsAllowed: result.attemptsAllowed,
       },
+      message: 'If the identifier is registered you will receive an OTP shortly.',
     };
   }
 
-  @Post('login-otp')
+  @Post('otp/verify')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ 
-    summary: 'Passwordless login with OTP',
-    description: 'Login using OTP verification. If no OTP is provided, sends OTP to phone/email. If OTP is provided, completes the login process.'
+  @ApiOperation({
+    summary: 'Verify an OTP challenge',
+    description: 'Validates the OTP code. Existing users receive tokens, while new users receive a temporary registration token.'
   })
   @ApiResponse({
     status: 200,
-    description: 'OTP sent successfully (when no OTP provided) or Login successful (when OTP provided)',
+    description: 'OTP verified',
     schema: {
       oneOf: [
         {
-          title: 'OTP Sent Response',
-          type: 'object',
-          properties: {
-            success: { type: 'boolean', example: true },
-            message: { type: 'string', example: 'OTP sent successfully to +260972827372' },
-            requestId: { type: 'string', example: 'login_otp_clh7x9k2l0000qh8v4g2m1n3p' },
-            expiresAt: { type: 'string', format: 'date-time', example: '2024-01-15T10:35:00Z' }
-          }
-        },
-        {
-          title: 'Login Success Response',
+          title: 'Existing user',
           type: 'object',
           properties: {
             success: { type: 'boolean', example: true },
             data: {
               type: 'object',
               properties: {
-                user: {
+                user: { type: 'object' },
+                tokens: {
                   type: 'object',
                   properties: {
-                    id: { type: 'string', example: 'clh7x9k2l0000qh8v4g2m1n3p' },
-                    firstName: { type: 'string', example: 'John' },
-                    lastName: { type: 'string', example: 'Doe' },
-                    email: { type: 'string', example: 'john.doe@example.com' },
-                    phone: { type: 'string', example: '+260972827372' },
-                    role: { type: 'string', example: 'CUSTOMER' },
-                    isEmailVerified: { type: 'boolean', example: true },
-                    isPhoneVerified: { type: 'boolean', example: true },
-                    lastLoginAt: { type: 'string', format: 'date-time', example: '2024-01-15T10:30:00Z' }
+                    accessToken: { type: 'string' },
+                    refreshToken: { type: 'string' }
                   }
-                },
-                accessToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-                refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-                expiresIn: { type: 'number', example: 3600 }
+                }
+              }
+            }
+          }
+        },
+        {
+          title: 'New user',
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: true },
+            data: {
+              type: 'object',
+              properties: {
+                registrationToken: { type: 'string' },
+                expiresIn: { type: 'number', example: 600 }
               }
             }
           }
         }
       ]
-    },
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request - Invalid phone/email or OTP',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: false },
-        error: {
-          type: 'object',
-          properties: {
-            code: { type: 'string', example: 'INVALID_OTP' },
-            message: { type: 'string', example: 'Invalid OTP code' }
-          }
-        }
-      }
     }
   })
-  @ApiResponse({
-    status: 404,
-    description: 'Not Found - User not found with provided phone/email',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: false },
-        error: {
-          type: 'object',
-          properties: {
-            code: { type: 'string', example: 'USER_NOT_FOUND' },
-            message: { type: 'string', example: 'User not found with this email or phone number' }
-          }
-        }
-      }
-    }
-  })
+  @ApiResponse({ status: 400, description: 'Invalid or expired OTP' })
+  @ApiResponse({ status: 423, description: 'Challenge locked after too many attempts' })
   @ApiBody({
-    type: LoginOtpDto,
-    description: 'OTP login data - omit OTP to request new OTP, include OTP to complete login',
-    examples: {
-      requestOtp: {
-        summary: 'Request OTP for Login',
-        description: 'Send OTP to phone number for login',
-        value: {
-          phoneNumber: '+260972827372',
-          deviceId: 'device_android_123456',
-          deviceType: 'mobile'
-        }
-      },
-      completeLogin: {
-        summary: 'Complete Login with OTP',
-        description: 'Complete login using received OTP',
-        value: {
-          phoneNumber: '+260972827372',
-          otp: '123456',
-          deviceId: 'device_android_123456',
-          deviceType: 'mobile'
-        }
-      },
-      emailLogin: {
-        summary: 'Email OTP Login',
-        description: 'Login using email with OTP',
-        value: {
-          email: 'john.doe@example.com',
-          otp: '654321'
-        }
-      }
-    }
+    type: OtpVerifyDto,
+    description: 'Challenge identifier and OTP code',
   })
-  async loginWithOtp(@Body() loginOtpDto: LoginOtpDto) {
-    // If no OTP provided, generate and send OTP
-    if (!loginOtpDto.otp) {
-      const result = await this.authenticationService.loginOtp(loginOtpDto);
-      return result;
+  async verifyOtpChallenge(@Body() verifyDto: OtpVerifyDto) {
+    const result = await this.authenticationService.verifyOtpChallenge({
+      challengeId: verifyDto.challengeId,
+      otp: verifyDto.otp,
+    });
+
+    if (result.isNewUser) {
+      return {
+        success: true,
+        data: {
+          registrationToken: result.registrationToken,
+          expiresIn: 600,
+        },
+      };
     }
 
-    // If OTP provided, complete login
-    const result = await this.authenticationService.completeLogin({
-      otp: loginOtpDto.otp!,
-      phoneNumber: loginOtpDto.phoneNumber,
-      email: loginOtpDto.email,
-      countryCode: loginOtpDto.countryCode,
-      deviceId: loginOtpDto.deviceId,
-      deviceType: loginOtpDto.deviceType,
-    });
     return {
       success: true,
       data: {
-        user: result.user,
-        accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
+        user: this.mapUserResponse(result.user as User),
+        tokens: {
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+        },
       },
     };
   }
@@ -1319,6 +984,22 @@ export class AuthController {
     return {
       success: result.success,
       message: result.message,
+    };
+  }
+
+  private mapUserResponse(user: User) {
+    return {
+      id: user.id,
+      email: user.email.value,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role.value,
+      phone: user.phone ? user.phone.value : null,
+      isEmailVerified: user.isEmailVerified,
+      isPhoneVerified: user.isPhoneVerified,
+      lastLoginAt: user.lastLoginAt ?? null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
   }
 }

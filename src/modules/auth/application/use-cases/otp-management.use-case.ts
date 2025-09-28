@@ -39,6 +39,46 @@ export interface CompletePasswordResetCommand extends VerifyOtpCommand {
   requestId: string; // Required for password reset
 }
 
+export interface RequestOtpChallengeCommand {
+  purpose: 'login' | 'register';
+  email?: string;
+  phone?: string;
+  countryCode?: string;
+  deviceId?: string;
+  deviceType?: string;
+}
+
+export interface OtpChallengeResult {
+  success: boolean;
+  challengeId: string;
+  expiresAt: Date;
+  resendAvailableAt: Date;
+  attemptsAllowed: number;
+  destination: string;
+}
+
+export interface VerifyOtpChallengeCommand {
+  challengeId: string;
+  otp: string;
+}
+
+export interface OtpChallengeVerificationResult {
+  success: boolean;
+  isNewUser: boolean;
+  registrationToken?: string;
+  user?: User;
+  accessToken?: string;
+  refreshToken?: string;
+}
+
+export interface CompleteRegistrationWithTokenCommand {
+  registrationToken: string;
+  firstName: string;
+  lastName: string;
+  password?: string;
+  role?: string;
+}
+
 // Results
 export interface OtpGenerationResult {
   success: boolean;
@@ -81,12 +121,16 @@ export abstract class OtpManagementUseCase {
   abstract generateRegistrationOtp(command: GenerateRegistrationOtpCommand): Promise<OtpGenerationResult>;
   abstract generateLoginOtp(command: GenerateLoginOtpCommand): Promise<OtpGenerationResult>;
   abstract generatePasswordResetOtp(command: GeneratePasswordResetOtpCommand): Promise<OtpGenerationResult>;
-  
+
+  abstract requestOtpChallenge(command: RequestOtpChallengeCommand): Promise<OtpChallengeResult>;
+
   // OTP Verification
   abstract verifyOtp(command: VerifyOtpCommand): Promise<OtpVerificationResult>;
-  
+  abstract verifyOtpChallenge(command: VerifyOtpChallengeCommand): Promise<OtpChallengeVerificationResult>;
+
   // Complete Operations
   abstract completeRegistration(command: CompleteRegistrationCommand): Promise<RegistrationResult>;
   abstract completeLogin(command: VerifyOtpCommand): Promise<LoginResult>;
   abstract completePasswordReset(command: CompletePasswordResetCommand): Promise<PasswordResetResult>;
+  abstract completeRegistrationWithToken(command: CompleteRegistrationWithTokenCommand): Promise<RegistrationResult>;
 }
