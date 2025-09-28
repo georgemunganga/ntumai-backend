@@ -18,8 +18,6 @@ import {
   ApiBody,
   ApiConsumes,
   ApiProduces,
-  ApiExtraModels,
-  getSchemaPath,
 } from '@nestjs/swagger';
 import {
   LoginDto,
@@ -32,7 +30,6 @@ import {
   OtpVerifyDto,
 } from './dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { AuthResponse, TokenResponse } from './interfaces';
 import { AuthenticationService } from './application/services';
 import { User } from './domain/entities';
 
@@ -750,7 +747,8 @@ export class AuthController {
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: 'Request an OTP challenge',
-    description: 'Issues a neutral OTP challenge for login or registration without disclosing whether the identifier exists.'
+    description:
+      'Issues a neutral OTP challenge for login or registration without disclosing whether the identifier exists. Submit either email or a split phone (phone + countryCode).'
   })
   @ApiResponse({
     status: 202,
@@ -774,7 +772,11 @@ export class AuthController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Validation error',
+    description: 'Validation error - request is missing a valid identifier or purpose',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests for the same identifier or device',
   })
   @ApiBody({
     type: OtpRequestDto,
@@ -868,10 +870,29 @@ export class AuthController {
     }
   })
   @ApiResponse({ status: 400, description: 'Invalid or expired OTP' })
+  @ApiResponse({ status: 401, description: 'Registration token expired for new user flow' })
   @ApiResponse({ status: 423, description: 'Challenge locked after too many attempts' })
   @ApiBody({
     type: OtpVerifyDto,
     description: 'Challenge identifier and OTP code',
+    examples: {
+      loginCompletion: {
+        summary: 'Verify OTP for login',
+        description: 'Existing user completes login challenge and receives JWT tokens',
+        value: {
+          challengeId: 'a5c1d19e-0f4b-4c26-91d5-2f25b1d83c2e',
+          otp: '123456',
+        },
+      },
+      registrationContinuation: {
+        summary: 'Verify OTP for new user registration',
+        description: 'New user validates challenge and receives a temporary registration token',
+        value: {
+          challengeId: 'af3c6714-908d-4f36-9f5d-9ef1e5ed2f1b',
+          otp: '654321',
+        },
+      },
+    },
   })
   async verifyOtpChallenge(@Body() verifyDto: OtpVerifyDto) {
     const result = await this.authenticationService.verifyOtpChallenge({
