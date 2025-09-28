@@ -72,11 +72,18 @@ export class AuthenticationService extends AuthenticationUseCase {
       let phoneValue: Phone | undefined = undefined;
 
       if (command.phone) {
-        if (!command.countryCode) {
+        const phoneInput = command.phone.trim();
+        const countryInput = (command.countryCode ?? '').trim();
+
+        if (!countryInput) {
           throw new BadRequestException('Country code is required when providing a phone number');
         }
 
-        const phoneVo = Phone.fromParts(command.countryCode, command.phone);
+        if (!phoneInput) {
+          throw new BadRequestException('Phone number cannot be empty');
+        }
+
+        const phoneVo = Phone.fromParts(countryInput, phoneInput);
         phoneValue = phoneVo;
 
         const existingUserByPhone = await this.userRepository.findByPhone(
@@ -139,7 +146,10 @@ export class AuthenticationService extends AuthenticationUseCase {
   async loginUser(command: LoginUserCommand): Promise<AuthenticationResult> {
     try {
       // Validate that either email or phone is provided
-      if (!command.email && !(command.phone && command.countryCode)) {
+      const trimmedPhone = (command.phone ?? '').trim();
+      const trimmedCountry = (command.countryCode ?? '').trim();
+
+      if (!command.email && !(trimmedPhone && trimmedCountry)) {
         throw new BadRequestException('Either email or both phone and country code are required');
       }
 
@@ -148,12 +158,19 @@ export class AuthenticationService extends AuthenticationUseCase {
       if (command.email) {
         user = await this.userRepository.findByEmail(Email.create(command.email), { includeUnverified: true });
       } else {
-        // Handle phone number - support both E.164 format and legacy phone/countryCode
-        if (!command.countryCode) {
+        // Handle phone number - require both the national number and accompanying country code
+        const countryInput = trimmedCountry;
+        const phoneInput = trimmedPhone;
+
+        if (!countryInput) {
           throw new BadRequestException('Country code is required when using phone login');
         }
 
-        const phone = Phone.fromParts(command.countryCode, command.phone);
+        if (!phoneInput) {
+          throw new BadRequestException('Phone number cannot be empty');
+        }
+
+        const phone = Phone.fromParts(countryInput, phoneInput);
 
         user = await this.userRepository.findByPhone(phone.value);
       }
