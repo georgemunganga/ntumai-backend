@@ -314,6 +314,7 @@ export class AuthenticationService extends AuthenticationUseCase {
   async completeLogin(command: VerifyOtpCommand): Promise<LoginResult> {
     return this.otpSecurityAdapter.completeLogin(command);
   }
+<<<<<<< HEAD
 
   async generatePasswordResetOtp(command: GeneratePasswordResetOtpCommand): Promise<OtpGenerationResult> {
     return this.otpSecurityAdapter.generatePasswordResetOtp(command);
@@ -322,4 +323,6 @@ export class AuthenticationService extends AuthenticationUseCase {
   async completePasswordReset(command: CompletePasswordResetCommand): Promise<PasswordResetResult> {
     return this.otpSecurityAdapter.completePasswordReset(command);
   }
+=======
+>>>>>>> main
 }

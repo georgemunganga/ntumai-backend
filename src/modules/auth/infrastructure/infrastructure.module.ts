@@ -5,7 +5,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 
 // Database
 import { AuthDatabaseModule } from './database';
-import { PrismaService } from '../../../modules/common/prisma/prisma.service';
+import { PrismaService } from '@common/prisma/prisma.service';
 
 // Repositories
 import { UserCacheService, OptimizedPrismaUserRepository } from './repositories';
@@ -67,7 +67,10 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
 
     // Service Adapters
     JwtAdapter,
+<<<<<<< HEAD
     NotificationAdapter,
+=======
+>>>>>>> main
     JWT_SERVICE_TOKEN,
     NOTIFICATION_SERVICE_TOKEN,
 

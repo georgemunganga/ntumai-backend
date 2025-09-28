@@ -103,8 +103,11 @@ async function bootstrap() {
     .addTag('System', 'System health checks and application status')
     .addTag('Search', 'Search functionality and filters')
     .addTag('Scheduling', 'Task scheduling and automation')
-    .addServer(process.env.API_BASE_URL || 'http://192.168.100.147')
-    .addServer('http://localhost:3000', 'Local Development')
+    .addServer(
+      process.env.API_BASE_URL || 'http://localhost:3000',
+      'Development server',
+    )
+    .addServer('http://192.168.100.147', 'Local network')
     .addServer('https://api.ntumai.com', 'Production Server')
     .build();
   

@@ -1,4 +1,18 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts",
+    "src/modules/users/application",
+    "src/modules/users/domain",
+    "src/modules/users/infrastructure",
+    "src/modules/users/presentation",
+    "src/modules/communication",
+    "src/modules/drivers",
+    "src/modules/errands",
+    "src/modules/marketplace",
+    "src/modules/security"
+  ]
 }
