@@ -1,5 +1,5 @@
 export interface ForgotPasswordCommand {
-  phoneNumber?: string;
+  phone?: string;
   email?: string;
   countryCode?: string;
 }

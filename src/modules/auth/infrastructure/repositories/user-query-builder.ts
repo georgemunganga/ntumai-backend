@@ -70,8 +70,17 @@ export class UserQueryBuilder {
   /**
    * Add phone filter
    */
-  withPhone(phone: string): UserQueryBuilder {
-    this.whereClause.phone = phone;
+  withPhone(phone: string, countryCode?: string): UserQueryBuilder {
+    if (countryCode) {
+      const existingAnd = Array.isArray(this.whereClause.AND)
+        ? [...this.whereClause.AND]
+        : [];
+      existingAnd.push({ phone });
+      existingAnd.push({ countryCode });
+      this.whereClause.AND = existingAnd;
+    } else {
+      this.whereClause.phone = phone;
+    }
     return this;
   }
 

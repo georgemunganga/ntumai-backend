@@ -16,13 +16,13 @@ export interface RegisterUserCommand extends BaseAuthCommand {
   firstName: string;
   lastName: string;
   phone?: string;
+  countryCode?: string;
   role?: string;
 }
 
 export interface LoginUserCommand {
   email?: string;
   phone?: string;
-  phoneNumber?: string;
   countryCode?: string;
   password: string;
 }

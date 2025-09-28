@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@common/prisma/prisma.service';
 import { User } from '../../domain/entities/user.entity';
-import { Email } from '../../domain/value-objects';
+import { Email, Phone } from '../../domain/value-objects';
 import {
   UserRepository,
   FindUserOptions,
@@ -141,8 +141,23 @@ export class OptimizedPrismaUserRepository extends UserRepository {
   }
 
   async findByPhone(phone: string, options: FindUserOptions = {}): Promise<User | null> {
+    let normalizedPhone = phone;
+    let countryCode: string | undefined;
+    let cacheLookupKey = phone;
+
+    if (phone && phone.startsWith('+')) {
+      try {
+        const phoneVo = Phone.create(phone);
+        normalizedPhone = phoneVo.nationalNumber;
+        countryCode = phoneVo.countryCode;
+        cacheLookupKey = phoneVo.value;
+      } catch (error) {
+        normalizedPhone = phone;
+      }
+    }
+
     // Check cache first
-    const cachedUser = this.cacheService.getUserByPhone(phone);
+    const cachedUser = this.cacheService.getUserByPhone(cacheLookupKey);
     if (cachedUser && this.matchesFindOptions(cachedUser, options)) {
       return cachedUser;
     }
@@ -150,19 +165,21 @@ export class OptimizedPrismaUserRepository extends UserRepository {
     // Build query using query builder
     const query = this.queryBuilder
       .reset()
-      .withPhone(phone)
+      .withPhone(normalizedPhone, countryCode)
       .withFindOptions(options)
       .buildFindQuery();
 
     const userData = await this.prisma.user.findFirst(query);
-    
+
     if (userData) {
       const domainUser = User.fromPersistence(userData);
-      this.cacheService.setUserByPhone(phone, domainUser);
+      if (domainUser.phone) {
+        this.cacheService.setUserByPhone(domainUser.phone.value, domainUser);
+      }
       this.cacheService.setUserById(domainUser.id, domainUser);
       return domainUser;
     }
-    
+
     return null;
   }
 

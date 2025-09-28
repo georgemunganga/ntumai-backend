@@ -63,83 +63,311 @@ Authorization: Bearer <jwt_token>
 
 ### Authentication Endpoints
 
-#### POST /auth/register
-Register a new user account.
+All authentication endpoints return data inside the standard response envelope described in the [Overview](#overview).
 
-**Request Body:**
+#### POST /auth/register
+Create a new account using email/password credentials or finalize an OTP-based registration by providing the `registrationToken` returned from `/auth/otp/verify`.
+
+**Request Body**
 ```json
 {
   "email": "user@example.com",
-  "password": "securePassword123",
+  "password": "SecurePass123!",
   "firstName": "John",
   "lastName": "Doe",
-  "phone": "+1234567890",
+  "phone": "972827372",
+  "countryCode": "+260",
   "role": "CUSTOMER"
 }
 ```
 
-**Response:**
+**Request Body (OTP completion)**
+```json
+{
+  "registrationToken": "<short-lived-jwt>",
+  "firstName": "Amina",
+  "lastName": "Tembo",
+  "password": "SecurePass123!",
+  "role": "CUSTOMER"
+}
+```
+
+**201 Created**
 ```json
 {
   "success": true,
   "data": {
     "user": {
-      "id": "uuid",
+      "id": "clh7x9k2l0000qh8v4g2m1n3p",
       "email": "user@example.com",
       "firstName": "John",
       "lastName": "Doe",
-      "role": "CUSTOMER"
+      "role": "CUSTOMER",
+      "phone": "+260972827372",
+      "isEmailVerified": false,
+      "isPhoneVerified": false
     },
-    "token": "jwt_token_here"
+    "tokens": {
+      "accessToken": "<jwt>",
+      "refreshToken": "<jwt>",
+      "expiresIn": 3600
+    }
   }
 }
 ```
 
 #### POST /auth/login
-Authenticate user and receive JWT token.
+Authenticate a user with either email or phone + password.
 
-**Request Body:**
+**Request Body (email login)**
 ```json
 {
   "email": "user@example.com",
-  "password": "securePassword123"
+  "password": "SecurePass123!"
 }
 ```
 
-**Response:**
+**Request Body (phone login)**
+```json
+{
+  "phone": "972827372",
+  "countryCode": "+260",
+  "password": "SecurePass123!"
+}
+```
+
+**200 OK**
 ```json
 {
   "success": true,
   "data": {
     "user": {
-      "id": "uuid",
+      "id": "clh7x9k2l0000qh8v4g2m1n3p",
       "email": "user@example.com",
       "firstName": "John",
       "lastName": "Doe",
-      "role": "CUSTOMER"
+      "role": "CUSTOMER",
+      "phone": "+260972827372",
+      "isEmailVerified": true,
+      "isPhoneVerified": true
     },
-    "token": "jwt_token_here",
-    "expiresIn": "7d"
+    "tokens": {
+      "accessToken": "<jwt>",
+      "refreshToken": "<jwt>",
+      "expiresIn": 3600
+    }
   }
 }
 ```
 
 #### POST /auth/refresh
-Refresh JWT token.
+Exchange a refresh token for a new access token pair.
 
-**Headers:**
-```http
-Authorization: Bearer <current_token>
+**Request Body**
+```json
+{
+  "refreshToken": "<jwt>"
+}
 ```
 
-**Response:**
+**200 OK**
 ```json
 {
   "success": true,
   "data": {
-    "token": "new_jwt_token_here",
-    "expiresIn": "7d"
+    "accessToken": "<jwt>",
+    "refreshToken": "<jwt>",
+    "expiresIn": 3600,
+    "tokenType": "Bearer"
   }
+}
+```
+
+#### POST /auth/forgot-password
+Request a password reset OTP via email or SMS. Always returns 200 to avoid account enumeration.
+
+**Request Body (email)**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Request Body (phone)**
+```json
+{
+  "phone": "972827372",
+  "countryCode": "+260"
+}
+```
+
+**200 OK**
+```json
+{
+  "success": true,
+  "message": "If the email/phone exists, a reset OTP has been sent",
+  "requestId": "pwd_reset_clh7x9k2l0000qh8v4g2m1n3p",
+  "expiresAt": "2024-01-15T10:35:00Z"
+}
+```
+
+#### POST /auth/reset-password
+Complete a password reset by supplying the OTP and new password.
+
+**Request Body**
+```json
+{
+  "otp": "123456",
+  "requestId": "pwd_reset_clh7x9k2l0000qh8v4g2m1n3p",
+  "newPassword": "NewSecure123!",
+  "email": "user@example.com"
+}
+```
+
+**200 OK**
+```json
+{
+  "success": true,
+  "message": "Password has been reset successfully"
+}
+```
+
+#### POST /auth/logout-all
+Invalidate every refresh token issued to the authenticated user.
+
+**Headers**
+```http
+Authorization: Bearer <access_token>
+```
+
+**200 OK**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Logged out from all devices successfully"
+  }
+}
+```
+
+#### GET /auth/profile
+Return the currently authenticated user profile.
+
+**Headers**
+```http
+Authorization: Bearer <access_token>
+```
+
+**200 OK**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "clh7x9k2l0000qh8v4g2m1n3p",
+    "email": "user@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "phone": "+260972827372",
+    "role": "CUSTOMER",
+    "isEmailVerified": true,
+    "isPhoneVerified": true,
+    "profileComplete": true,
+    "createdAt": "2024-01-10T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+#### POST /auth/otp/request
+Request a neutral OTP challenge for login or registration. The response is identical regardless of whether the identifier exists.
+
+**Request Body**
+```json
+{
+  "phone": "972827372",
+  "countryCode": "+260",
+  "purpose": "login"
+}
+```
+
+**202 Accepted**
+```json
+{
+  "success": true,
+  "message": "If the identifier is registered you will receive an OTP shortly.",
+  "data": {
+    "challengeId": "a5c1d19e-0f4b-4c26-91d5-2f25b1d83c2e",
+    "expiresAt": "2024-01-15T10:35:00Z",
+    "resendAvailableAt": "2024-01-15T10:31:00Z",
+    "attemptsAllowed": 5
+  }
+}
+```
+
+#### POST /auth/otp/verify
+Validate the OTP code. Existing users receive access credentials, while unknown identifiers return a short-lived registration token.
+
+**Request Body**
+```json
+{
+  "challengeId": "a5c1d19e-0f4b-4c26-91d5-2f25b1d83c2e",
+  "otp": "123456"
+}
+```
+
+**200 OK (existing user)**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "clh7x9k2l0000qh8v4g2m1n3p",
+      "email": "user@example.com",
+      "firstName": "John",
+      "lastName": "Doe",
+      "role": "CUSTOMER",
+      "phone": "+260972827372",
+      "isEmailVerified": true,
+      "isPhoneVerified": true
+    },
+    "tokens": {
+      "accessToken": "<jwt>",
+      "refreshToken": "<jwt>"
+    }
+  }
+}
+```
+
+**200 OK (new user)**
+```json
+{
+  "success": true,
+  "data": {
+    "registrationToken": "<short-lived-jwt>",
+    "expiresIn": 600
+  }
+}
+```
+
+Use the returned `registrationToken` with `POST /auth/register` to create the account.
+
+#### POST /auth/logout
+Invalidate a specific refresh token (or all tokens tied to a device) for the provided user ID.
+
+**Request Body**
+```json
+{
+  "userId": "clh7x9k2l0000qh8v4g2m1n3p",
+  "refreshToken": "<jwt>",
+  "deviceId": "device_android_123456"
+}
+```
+
+**200 OK**
+```json
+{
+  "success": true,
+  "message": "Logged out successfully"
 }
 ```
 
