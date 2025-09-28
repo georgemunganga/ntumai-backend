@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { PrismaService } from '@common/prisma/prisma.service';
 import { User } from '../../domain/entities/user.entity';
 import { Email, Phone } from '../../domain/value-objects';
@@ -286,9 +287,11 @@ export class OptimizedPrismaUserRepository extends UserRepository {
 
   async findByResetToken(token: string): Promise<User | null> {
     // Find user by OTP verification record for password reset
+    const hashedToken = this.hashToken(token);
+
     const otpRecord = await this.prisma.oTPVerification.findFirst({
       where: {
-        otp: token,
+        otpHash: hashedToken,
         type: 'PASSWORD_RESET',
         expiresAt: {
           gt: new Date(),
@@ -327,20 +330,26 @@ export class OptimizedPrismaUserRepository extends UserRepository {
     });
 
     // Create new OTP verification record for password reset
+    const hashedToken = this.hashToken(token);
+
     await this.prisma.oTPVerification.create({
       data: {
+        requestId: hashedToken,
         identifier: userId,
-        otp: token,
+        otpHash: hashedToken,
         type: 'PASSWORD_RESET',
         expiresAt,
+        maxAttempts: 1,
       },
     });
   }
 
   async deletePasswordResetToken(token: string): Promise<void> {
+    const hashedToken = this.hashToken(token);
+
     await this.prisma.oTPVerification.deleteMany({
-      where: { 
-        otp: token,
+      where: {
+        otpHash: hashedToken,
         type: 'PASSWORD_RESET'
       }
     });
@@ -423,5 +432,9 @@ export class OptimizedPrismaUserRepository extends UserRepository {
    */
   clearCache(): void {
     this.cacheService.clearAll();
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 }

@@ -18,8 +18,6 @@ import {
   ApiBody,
   ApiConsumes,
   ApiProduces,
-  ApiExtraModels,
-  getSchemaPath,
 } from '@nestjs/swagger';
 import {
   LoginDto,
