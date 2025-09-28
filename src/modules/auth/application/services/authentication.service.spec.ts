@@ -118,6 +118,8 @@ describe('AuthenticationService', () => {
       phone: '1234567890',
       countryCode: '+1',
       password: 'Password123!',
+      firstName: 'Test',
+      lastName: 'User',
       name: 'Test User',
       role: 'CUSTOMER',
     };
@@ -243,7 +245,7 @@ describe('AuthenticationService', () => {
 
     it('should refresh token successfully', async () => {
       userRepository.findByRefreshToken.mockResolvedValue(mockUser);
-      userManagementService.validateTokenRefreshEligibility.mockResolvedValue(true);
+      userManagementService.validateTokenRefreshEligibility.mockImplementation(() => undefined);
       jwtService.sign.mockReturnValueOnce(mockTokens.accessToken).mockReturnValueOnce(mockTokens.refreshToken);
       userRepository.save.mockResolvedValue(mockUser);
       mockUser.addRefreshToken = jest.fn();
