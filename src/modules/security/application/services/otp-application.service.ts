@@ -18,15 +18,16 @@ export class OtpApplicationService {
   constructor(private readonly prisma: PrismaService) {}
 
   async generateOtp(options: GenerateOtpOptions): Promise<GenerateOtpResult> {
+    const normalizedIdentifier = options.identifier.trim().toLowerCase();
     const purpose = this.mapPurpose(options.purpose);
-    const channel = this.detectChannel(options.identifier);
+    const channel = this.detectChannel(normalizedIdentifier);
     const otp = this.generateCode(options.codeLength ?? 6, options.alphanumeric ?? false);
     const expiresAt = new Date(Date.now() + (options.expiryMinutes ?? 5) * 60_000);
     const requestId = randomUUID();
 
     await this.prisma.oTPVerification.deleteMany({
       where: {
-        phoneNumber: options.identifier,
+        identifier: normalizedIdentifier,
         type: purpose,
       },
     });
@@ -34,12 +35,10 @@ export class OtpApplicationService {
     await this.prisma.oTPVerification.create({
       data: {
         requestId,
-        phoneNumber: options.identifier,
-        countryCode: options.countryCode ?? (channel === 'email' ? 'EMAIL' : 'INTL'),
+        identifier: normalizedIdentifier,
         otp,
         type: purpose,
         expiresAt,
-        maxAttempts: 5,
       },
     });
 
@@ -48,68 +47,13 @@ export class OtpApplicationService {
       channel,
     };
 
-    this.logger.debug(`Generated OTP for ${options.identifier}`, {
+    this.logger.debug(`Generated OTP for ${normalizedIdentifier}`, {
       purpose: options.purpose,
       requestId,
       expiresAt,
     });
 
     return {
-      otpId,
-      code,
-      expiresAt,
-      deliveryStatus: {
-        sent: true,
-        channel: identifier.includes('@') ? 'email' : 'sms',
-        error: undefined,
-      },
-    };
-  }
-
-  async validateOtp(options: ValidateOtpOptions) {
-    const { identifier, code, purpose, otpId } = options;
-    const normalizedIdentifier = identifier.toLowerCase();
-
-    const matchingEntry = otpId
-      ? this.lookupById(otpId)
-      : this.lookupByIdentifier(normalizedIdentifier, purpose);
-
-    if (!matchingEntry) {
-      return { isValid: false };
-    }
-
-    const [id, record] = matchingEntry;
-
-    if (record.identifier !== normalizedIdentifier || record.purpose !== purpose) {
-      return { isValid: false };
-    }
-
-    if (record.expiresAt.getTime() < Date.now()) {
-      this.otpStore.delete(id);
-      return { isValid: false };
-    }
-
-    if (record.code !== code) {
-      return { isValid: false };
-    }
-
-    this.otpStore.delete(id);
-    return { isValid: true };
-  }
-
-  private lookupById(otpId: string): [string, OtpRecord] | undefined {
-    const record = this.otpStore.get(otpId);
-    return record ? [otpId, record] : undefined;
-  }
-
-  private lookupByIdentifier(identifier: string, purpose: string): [string, OtpRecord] | undefined {
-    for (const entry of this.otpStore.entries()) {
-      const [, record] = entry;
-      if (record.identifier === identifier && record.purpose === purpose) {
-        return entry;
-      }
-    }
-    return undefined;
       otpId: requestId,
       expiresAt,
       deliveryStatus,
@@ -117,11 +61,12 @@ export class OtpApplicationService {
   }
 
   async validateOtp(options: ValidateOtpOptions): Promise<ValidateOtpResult> {
+    const normalizedIdentifier = options.identifier.trim().toLowerCase();
     const purpose = options.purpose ? this.mapPurpose(options.purpose) : undefined;
 
     const otpRecord = await this.prisma.oTPVerification.findFirst({
       where: {
-        ...(options.requestId ? { requestId: options.requestId } : { phoneNumber: options.identifier }),
+        ...(options.requestId ? { requestId: options.requestId } : { identifier: normalizedIdentifier }),
         ...(purpose ? { type: purpose } : {}),
       },
       orderBy: { createdAt: 'desc' },
@@ -132,58 +77,36 @@ export class OtpApplicationService {
     }
 
     const now = new Date();
-    const isExpired = otpRecord.expiresAt < now;
+    const isExpired = otpRecord.expiresAt <= now;
 
     if (isExpired) {
       return { isValid: false, attemptsRemaining: 0, isExpired: true };
     }
 
-    if (otpRecord.attempts >= otpRecord.maxAttempts) {
+    const isValid = otpRecord.otp === options.code;
+
+    if (!isValid) {
       return { isValid: false, attemptsRemaining: 0, isExpired: false };
     }
 
-    const isValid = otpRecord.otp === options.code;
-
-    if (isValid) {
-      await this.prisma.oTPVerification.update({
-        where: { id: otpRecord.id },
-        data: {
-          isVerified: true,
-          verifiedAt: now,
-        },
-      });
-
-      return {
-        isValid: true,
-        attemptsRemaining: otpRecord.maxAttempts - otpRecord.attempts,
-        isExpired: false,
-      };
-    }
-
-    const updated = await this.prisma.oTPVerification.update({
+    await this.prisma.oTPVerification.update({
       where: { id: otpRecord.id },
-      data: {
-        attempts: otpRecord.attempts + 1,
-      },
+      data: { isVerified: true },
     });
 
-    return {
-      isValid: false,
-      attemptsRemaining: Math.max(updated.maxAttempts - updated.attempts, 0),
-      isExpired: false,
-    };
+    return { isValid: true, attemptsRemaining: 0, isExpired: false };
   }
 
   private mapPurpose(purpose: OtpPurpose): OTPType {
     switch (purpose) {
       case 'registration':
-        return OTPType.registration;
+        return OTPType.REGISTRATION;
       case 'login':
-        return OTPType.login;
+        return OTPType.LOGIN;
       case 'password_reset':
-        return OTPType.password_reset;
+        return OTPType.PASSWORD_RESET;
       default:
-        return OTPType.registration;
+        return OTPType.REGISTRATION;
     }
   }
 

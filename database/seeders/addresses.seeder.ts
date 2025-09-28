@@ -97,24 +97,13 @@ export async function seedAddresses() {
         userId: vendorUser.id,
         type: AddressType.OTHER, // Changed from BUSINESS to OTHER since BUSINESS doesn't exist in schema
         address: '321 Commerce Street',
-        addressLine2: 'Ground Floor',
         city: 'Manhattan',
         state: 'NY',
         postalCode: '10003',
         country: 'United States',
         latitude: 40.7282,
         longitude: -73.9942,
-        landmark: 'Corner of Commerce and Main',
-        contactName: 'Sarah Johnson',
-        contactPhone: '+1444555666',
-        deliveryInstructions: 'Business hours: 8 AM - 8 PM. Use rear entrance for deliveries.',
-        accessCode: 'VENDOR2024',
         isDefault: true,
-        isActive: true,
-        lastUsedAt: new Date(),
-        usageCount: 25,
-        createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000), // 40 days ago
-        updatedAt: new Date(),
       },
     });
 
