@@ -51,11 +51,11 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
     NotificationAdapter,
     {
       provide: JWT_SERVICE_TOKEN,
-      useClass: JwtAdapter,
+      useExisting: JwtAdapter,
     },
     {
       provide: NOTIFICATION_SERVICE_TOKEN,
-      useClass: NotificationAdapter,
+      useExisting: NotificationAdapter,
     },
   ],
   exports: [
@@ -67,6 +67,10 @@ export const NOTIFICATION_SERVICE_TOKEN = 'NOTIFICATION_SERVICE';
 
     // Service Adapters
     JwtAdapter,
+<<<<<<< HEAD
+    NotificationAdapter,
+=======
+>>>>>>> main
     JWT_SERVICE_TOKEN,
     NOTIFICATION_SERVICE_TOKEN,
 

@@ -1,40 +1,32 @@
-import {
-  Controller,
-  Get,
-  Put,
-  Post,
-  Body,
-  HttpCode,
-  HttpStatus,
-  UseGuards,
-  Request,
-  UploadedFile,
-  UseInterceptors,
-} from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
-  ApiConsumes,
-} from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import {
-  UpdateProfileDto,
-  ChangePasswordDto,
-  AddAddressDto,
-} from '../auth/dto';
+import { Body, Controller, Get, Post, Request } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SwitchRoleDto } from './dto';
 import { UsersService } from './users.service';
 
 @ApiTags('Users')
 @Controller('users')
-@UseGuards(JwtAuthGuard)
-@ApiBearerAuth('JWT-auth')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
   @Get('profile')
+<<<<<<< HEAD
+  @ApiOperation({ summary: 'Get current user profile (placeholder response)' })
+  @ApiResponse({ status: 200, description: 'Returns a mock user profile for now.' })
+  getProfile(@Request() req) {
+    const userId = req.user?.id ?? 'demo-user-id';
+    return {
+      id: userId,
+      name: 'Demo User',
+      email: 'user@example.com',
+      phoneNumber: '+1234567890',
+      currentRole: 'customer',
+      availableRoles: ['customer'],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+=======
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({
     status: 200,
@@ -175,89 +167,36 @@ export class UsersController {
     return await this.usersService.addAddress(req.user.id, addAddressDto);
   }
 
+>>>>>>> main
   @Post('switch-role')
-  @ApiOperation({ summary: 'Switch user role (rider/vendor to consumer or vice versa)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Role switched successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: true },
-        message: { type: 'string', example: 'Role switched successfully' },
-        user: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', example: 'user-id' },
-            name: { type: 'string', example: 'John Doe' },
-            phoneNumber: { type: 'string', example: '+1234567890' },
-            email: { type: 'string', example: 'user@example.com' },
-            userType: { type: 'string', example: 'customer' },
-            availableRoles: {
-              type: 'array',
-              items: { type: 'string' },
-              example: ['customer', 'rider', 'vendor']
-            },
-            currentRole: { type: 'string', example: 'customer' },
-            updatedAt: { type: 'string', example: '2023-01-01T00:00:00Z' },
-          },
-        },
-      },
-    },
-  })
+  @ApiOperation({ summary: 'Switch an existing role for the authenticated user' })
   async switchRole(@Body() switchRoleDto: SwitchRoleDto, @Request() req) {
-    const userId = req.user.id;
-    return await this.usersService.switchRole(userId, switchRoleDto);
+    const userId = req.user?.id ?? switchRoleDto.email ?? 'demo-user-id';
+    return this.usersService.switchRole(userId, switchRoleDto);
   }
 
   @Post('register-role')
-  @ApiOperation({ summary: 'Register for a new role (driver/vendor)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Role registration successful',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: true },
-        message: { type: 'string', example: 'Successfully registered for driver role' },
-        role: { type: 'string', example: 'driver' },
-      },
-    },
-  })
+  @ApiOperation({ summary: 'Register for a new role' })
   async registerRole(@Body() switchRoleDto: SwitchRoleDto, @Request() req) {
+<<<<<<< HEAD
+    const userId = req.user?.id ?? switchRoleDto.email ?? 'demo-user-id';
+    return this.usersService.registerForRole(
+      userId,
+      switchRoleDto.targetRole,
+      switchRoleDto.otpCode,
+      switchRoleDto.phoneNumber,
+      switchRoleDto.email,
+    );
+=======
     const userId = req.user.id;
     return await this.usersService.registerForRole(userId, switchRoleDto);
+>>>>>>> main
   }
 
   @Get('roles')
-  @ApiOperation({ summary: 'Get user available roles' })
-  @ApiResponse({
-    status: 200,
-    description: 'User roles retrieved successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: true },
-        user: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', example: 'user-id' },
-            name: { type: 'string', example: 'John Doe' },
-            phoneNumber: { type: 'string', example: '+1234567890' },
-            email: { type: 'string', example: 'user@example.com' },
-            currentRole: { type: 'string', example: 'customer' },
-            availableRoles: {
-              type: 'array',
-              items: { type: 'string' },
-              example: ['customer', 'rider', 'vendor']
-            },
-          },
-        },
-      },
-    },
-  })
+  @ApiOperation({ summary: 'Get roles available to the authenticated user' })
   async getUserRoles(@Request() req) {
-    const userId = req.user.id;
-    return await this.usersService.getUserRoles(userId);
+    const userId = req.user?.id ?? 'demo-user-id';
+    return this.usersService.getUserRoles(userId);
   }
 }

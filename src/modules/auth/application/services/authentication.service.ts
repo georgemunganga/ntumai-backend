@@ -13,12 +13,15 @@ import {
   GetUserProfileResult,
   GenerateRegistrationOtpCommand,
   GenerateLoginOtpCommand,
+  GeneratePasswordResetOtpCommand,
   VerifyOtpCommand,
   CompleteRegistrationCommand,
+  CompletePasswordResetCommand,
   OtpGenerationResult,
   OtpVerificationResult,
   RegistrationResult,
   LoginResult,
+  PasswordResetResult,
 } from '../use-cases';
 import { UserRepository } from '../../domain/repositories';
 import { UserManagementDomainService } from '../../domain/services';
@@ -311,4 +314,15 @@ export class AuthenticationService extends AuthenticationUseCase {
   async completeLogin(command: VerifyOtpCommand): Promise<LoginResult> {
     return this.otpSecurityAdapter.completeLogin(command);
   }
+<<<<<<< HEAD
+
+  async generatePasswordResetOtp(command: GeneratePasswordResetOtpCommand): Promise<OtpGenerationResult> {
+    return this.otpSecurityAdapter.generatePasswordResetOtp(command);
+  }
+
+  async completePasswordReset(command: CompletePasswordResetCommand): Promise<PasswordResetResult> {
+    return this.otpSecurityAdapter.completePasswordReset(command);
+  }
+=======
+>>>>>>> main
 }

@@ -1,9 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+<<<<<<< HEAD
+import { SwitchRoleDto } from './dto';
+=======
 import { JwtAuthGuard } from '../auth/guards';
 import { SwitchRoleDto } from './dto';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+>>>>>>> main
 
 describe('UsersController', () => {
   let controller: UsersController;
@@ -14,11 +18,6 @@ describe('UsersController', () => {
     email: 'test@example.com',
     name: 'Test User',
     role: 'CUSTOMER',
-  };
-
-  const mockTokens = {
-    accessToken: 'mock-access-token',
-    refreshToken: 'mock-refresh-token',
   };
 
   const mockUsersService = {
@@ -41,10 +40,7 @@ describe('UsersController', () => {
           useValue: mockUsersService,
         },
       ],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: jest.fn(() => true) })
-      .compile();
+    }).compile();
 
     controller = module.get<UsersController>(UsersController);
     usersService = module.get<UsersService>(UsersService);
@@ -61,8 +57,12 @@ describe('UsersController', () => {
         otpCode: '123456',
         phoneNumber: '+1234567890',
         email: 'test@example.com',
+<<<<<<< HEAD
+      } as unknown as SwitchRoleDto;
+=======
         requestId: 'otp-request-id',
       };
+>>>>>>> main
 
       const mockRequest = { user: mockUser };
 
@@ -89,11 +89,15 @@ describe('UsersController', () => {
   describe('registerRole', () => {
     it('should register user for a new role', async () => {
       const switchRoleDto: SwitchRoleDto = {
-        targetRole: 'driver',
+        targetRole: 'DRIVER',
         otpCode: '123456',
         phoneNumber: '+1234567890',
+<<<<<<< HEAD
+      } as unknown as SwitchRoleDto;
+=======
         requestId: 'otp-request-id',
       };
+>>>>>>> main
       const mockRequest = { user: mockUser };
       const expectedResult = {
         success: true,
@@ -107,7 +111,14 @@ describe('UsersController', () => {
 
       expect(usersService.registerForRole).toHaveBeenCalledWith(
         '123e4567-e89b-12d3-a456-426614174000',
+<<<<<<< HEAD
+        'DRIVER',
+        '123456',
+        '+1234567890',
+        undefined,
+=======
         switchRoleDto,
+>>>>>>> main
       );
       expect(result).toEqual(expectedResult);
     });
