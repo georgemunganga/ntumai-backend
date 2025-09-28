@@ -75,8 +75,7 @@ Create a new account using email/password credentials or finalize an OTP-based r
   "password": "SecurePass123!",
   "firstName": "John",
   "lastName": "Doe",
-  "phone": "972827372",
-  "countryCode": "+260",
+  "phoneNumber": "+260972827372",
   "role": "CUSTOMER"
 }
 ```
@@ -130,8 +129,7 @@ Authenticate a user with either email or phone + password.
 **Request Body (phone login)**
 ```json
 {
-  "phone": "972827372",
-  "countryCode": "+260",
+  "phoneNumber": "+260972827372",
   "password": "SecurePass123!"
 }
 ```
@@ -196,8 +194,8 @@ Request a password reset OTP via email or SMS. Always returns 200 to avoid accou
 **Request Body (phone)**
 ```json
 {
-  "phone": "972827372",
-  "countryCode": "+260"
+  "phoneNumber": "+260972827372",
+  "countryCode": "ZM"
 }
 ```
 

@@ -72,14 +72,11 @@ export class AuthenticationService extends AuthenticationUseCase {
       let phoneValue: Phone | undefined = undefined;
 
       if (command.phone) {
-        const phoneInput = command.phone;
-        const countryCode = command.countryCode;
-
-        if (!countryCode) {
+        if (!command.countryCode) {
           throw new BadRequestException('Country code is required when providing a phone number');
         }
 
-        const phoneVo = Phone.fromParts(countryCode, phoneInput);
+        const phoneVo = Phone.fromParts(command.countryCode, command.phone);
         phoneValue = phoneVo;
 
         const existingUserByPhone = await this.userRepository.findByPhone(
@@ -152,18 +149,11 @@ export class AuthenticationService extends AuthenticationUseCase {
         user = await this.userRepository.findByEmail(Email.create(command.email), { includeUnverified: true });
       } else {
         // Handle phone number - support both E.164 format and legacy phone/countryCode
-        const countryCode = command.countryCode;
-        const phoneInput = command.phone;
-
-        if (!countryCode) {
+        if (!command.countryCode) {
           throw new BadRequestException('Country code is required when using phone login');
         }
 
-        if (!phoneInput) {
-          throw new BadRequestException('Phone number is required when using phone login');
-        }
-
-        const phone = Phone.fromParts(countryCode, phoneInput);
+        const phone = Phone.fromParts(command.countryCode, command.phone);
 
         user = await this.userRepository.findByPhone(phone.value);
       }

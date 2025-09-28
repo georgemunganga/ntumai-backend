@@ -48,9 +48,10 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
   async generateRegistrationOtp(command: GenerateRegistrationOtpCommand): Promise<OtpGenerationResult> {
     try {
       const { identifier, channel } = this.resolveContact({
-        phone: command.phone,
-        countryCode: command.countryCode,
+        phoneNumber: command.phoneNumber,
         email: command.email,
+        phone: command.phoneNumber,
+        countryCode: command.countryCode,
       });
 
       const otpResult = await this.otpService.generateOtp({
@@ -86,9 +87,10 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
   async generateLoginOtp(command: GenerateLoginOtpCommand): Promise<OtpGenerationResult> {
     try {
       const { identifier, channel } = this.resolveContact({
-        phone: command.phone,
-        countryCode: command.countryCode,
+        phoneNumber: command.phoneNumber,
         email: command.email,
+        phone: command.phoneNumber,
+        countryCode: command.countryCode,
       });
 
       const user = await this.findUserByIdentifier(identifier, channel === 'sms');
@@ -126,9 +128,10 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
   async generatePasswordResetOtp(command: GeneratePasswordResetOtpCommand): Promise<OtpGenerationResult> {
     try {
       const { identifier, channel } = this.resolveContact({
-        phone: command.phone,
-        countryCode: command.countryCode,
+        phoneNumber: command.phoneNumber,
         email: command.email,
+        phone: command.phoneNumber,
+        countryCode: command.countryCode,
       });
 
       const user = await this.findUserByIdentifier(identifier, channel === 'sms');
@@ -169,14 +172,8 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
 
   async verifyOtp(command: VerifyOtpCommand): Promise<OtpVerificationResult> {
     try {
-      const { identifier } = this.resolveContact({
-        phone: command.phone,
-        countryCode: command.countryCode,
-        email: command.email,
-      });
-
       const validationResult = await this.otpService.validateOtp({
-        identifier,
+        identifier: command.phoneNumber ?? command.email,
         code: command.otp,
         requestId: command.requestId,
         challengeId: command.requestId,
@@ -217,6 +214,7 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
     try {
       const { identifier, channel } = this.resolveContact({
         phone: command.phone,
+        phoneNumber: command.phone,
         countryCode: command.countryCode,
         email: command.email,
       });
@@ -455,14 +453,13 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
         throw new UnauthorizedException('Invalid or expired OTP');
       }
 
-      const phoneVo = phone && countryCode ? Phone.fromParts(countryCode, phone) : undefined;
-      const identifier = phoneVo?.value ?? email;
+      const identifier = phoneNumber ?? email;
 
       if (!identifier) {
         throw new UnauthorizedException('Missing identifier for login completion');
       }
 
-      const user = await this.findUserByIdentifier(identifier, !!phoneVo && !email);
+      const user = await this.findUserByIdentifier(identifier, !!phoneNumber && !email);
 
       if (!user) {
         throw new UnauthorizedException('User not found');
@@ -526,10 +523,12 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
   }
 
   private resolveContact({
+    phoneNumber,
     phone,
     countryCode,
     email,
   }: {
+    phoneNumber?: string;
     phone?: string;
     countryCode?: string;
     email?: string;
@@ -539,12 +538,19 @@ export class OtpSecurityAdapter extends OtpManagementUseCase {
       return { identifier: emailVo.value, channel: 'email' };
     }
 
-    if (phone && countryCode) {
-      const phoneVo = Phone.fromParts(countryCode, phone);
+    const rawPhone = phoneNumber ?? phone;
+
+    if (rawPhone && rawPhone.startsWith('+')) {
+      const phoneVo = Phone.create(rawPhone);
       return { identifier: phoneVo.value, channel: 'sms' };
     }
 
-    throw new BadRequestException('Either email or both phone and country code are required');
+    if (rawPhone && countryCode) {
+      const phoneVo = Phone.fromParts(countryCode, rawPhone);
+      return { identifier: phoneVo.value, channel: 'sms' };
+    }
+
+    throw new BadRequestException('Either email or phone and country code are required');
   }
 
   private maskIdentifier(identifier: string, channel: 'sms' | 'email'): string {

@@ -56,29 +56,8 @@ export class RegisterDto {
   })
   @ValidateIf((dto) => !dto.registrationToken)
   @IsEmail({}, { message: 'Please provide a valid email address' })
-  @IsNotEmpty({ message: 'Email is required when registrationToken is not provided' })
+  @IsNotEmpty({ message: 'Email is required' })
   email?: string;
-
-  @ApiPropertyOptional({
-    description: 'Phone number without country code for SMS verification',
-    example: '972827372',
-    pattern: '^\\d{5,15}$',
-    uniqueItems: true,
-  })
-  @ValidateIf((dto) => !dto.registrationToken && (!!dto.phone || !dto.email))
-  @IsNotEmpty({ message: 'Phone number is required when email is not provided' })
-  @Matches(/^\d{5,15}$/, { message: 'Phone number must be between 5 and 15 digits' })
-  phone?: string;
-
-  @ApiPropertyOptional({
-    description: 'International dialling code prefixed with +',
-    example: '+260',
-    pattern: '^\\+?\\d{1,4}$',
-  })
-  @ValidateIf((dto) => !dto.registrationToken && (!!dto.phone || !dto.email))
-  @IsNotEmpty({ message: 'Country code is required when registering with phone' })
-  @Matches(/^\+?\d{1,4}$/, { message: 'Country code must include digits and may start with +' })
-  countryCode?: string;
 
   @ApiProperty({
     description: 'Strong password with minimum 8 characters, including uppercase, lowercase, number and special character',
@@ -99,6 +78,17 @@ export class RegisterDto {
     message: 'Password must contain at least one uppercase letter, one lowercase letter, one number and one special character',
   })
   password?: string;
+
+  @ApiProperty({
+    description: 'International phone number in E.164 format for SMS verification and communication',
+    example: '+260972827372',
+    pattern: '^\\+[1-9]\\d{1,14}$',
+    uniqueItems: true
+  })
+  @ValidateIf((dto) => !dto.registrationToken)
+  @IsPhoneNumber(undefined, { message: 'Please provide a valid phone number in international format' })
+  @IsNotEmpty({ message: 'Phone number is required' })
+  phone?: string;
 
   @ApiPropertyOptional({
     description: 'User role determining access permissions and features available',
