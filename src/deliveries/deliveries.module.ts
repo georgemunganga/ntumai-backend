@@ -1,0 +1,25 @@
+import { Module } from '@nestjs/common';
+import {
+  DeliveryController,
+  RiderDeliveryController,
+} from './presentation/controllers/delivery.controller';
+import { DeliveryService } from './application/services/delivery.service';
+import { InMemoryDeliveryRepository } from './infrastructure/repositories/in-memory-delivery.repository';
+import { DeliveriesGateway } from './infrastructure/websocket/deliveries.gateway';
+import { DELIVERY_REPOSITORY } from './domain/repositories/delivery.repository.interface';
+import { PricingModule } from '../pricing/pricing.module';
+
+@Module({
+  imports: [PricingModule],
+  controllers: [DeliveryController, RiderDeliveryController],
+  providers: [
+    DeliveryService,
+    DeliveriesGateway,
+    {
+      provide: DELIVERY_REPOSITORY,
+      useClass: InMemoryDeliveryRepository,
+    },
+  ],
+  exports: [DeliveryService],
+})
+export class DeliveriesModule {}
