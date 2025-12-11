@@ -22,6 +22,10 @@ export class TransactionRepository {
   }
 
   private toDomain(raw: PrismaTransaction): TransactionEntity {
-    return new TransactionEntity({ ...raw, amount: raw.amount.toNumber() });
+    return new TransactionEntity({
+      ...raw,
+      referenceId: raw.referenceId ?? undefined,
+      amount: raw.amount.toNumber(),
+    });
   }
 }

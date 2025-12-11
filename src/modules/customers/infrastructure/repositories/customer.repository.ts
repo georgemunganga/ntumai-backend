@@ -40,7 +40,7 @@ export class CustomerRepository {
     return new CustomerEntity({
       id: raw.id,
       userId: raw.userId,
-      defaultAddress: raw.defaultAddress,
+      defaultAddress: raw.defaultAddress ?? undefined,
       preferences: raw.preferences,
       addresses: raw.addresses,
     });

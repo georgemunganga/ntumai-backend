@@ -1,1 +1,4 @@
-import { Module } from '@nestjs/common';\n\n@Module({})\nexport class PricingModule {}
+import { Module } from '@nestjs/common';
+
+@Module({})
+export class PricingModule {}

@@ -12,8 +12,8 @@ export class OrderRepository {
     return order ? this.toDomain(order) : null;
   }
 
-  async findByUserId(userId: string): Promise<OrderEntity[]> {
-    const orders = await this.prisma.order.findMany({ where: { userId }, include: { items: true } });
+  async findByCustomerId(customerId: string): Promise<OrderEntity[]> {
+    const orders = await this.prisma.order.findMany({ where: { customerId }, include: { items: true } });
     return orders.map(this.toDomain);
   }
 
@@ -21,10 +21,18 @@ export class OrderRepository {
     const saved = await this.prisma.order.upsert({
       where: { id: order.id || 'non-existent-id' },
       update: { status: order.status, totalAmount: order.totalAmount, deliveryFee: order.deliveryFee },
-      create: { id: order.id, userId: order.userId, vendorId: order.vendorId, status: order.status, totalAmount: order.totalAmount, deliveryFee: order.deliveryFee },
+      create: {
+        id: order.id,
+        customerId: order.customerId,
+        vendorId: order.vendorId,
+        taskId: order.taskId,
+        status: order.status,
+        totalAmount: order.totalAmount,
+        deliveryFee: order.deliveryFee,
+      },
       include: { items: true },
     });
-    return this.toDomain(saved);
+    return this.toDomain(saved as PrismaOrder & { items: PrismaOrderItem[] });
   }
 
   private toDomain(raw: PrismaOrder & { items: PrismaOrderItem[] }): OrderEntity {

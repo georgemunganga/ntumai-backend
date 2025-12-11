@@ -20,13 +20,35 @@ export class TaskerRepository {
   async save(tasker: TaskerEntity): Promise<TaskerEntity> {
     const saved = await this.prisma.tasker.upsert({
       where: { id: tasker.id || 'non-existent-id' },
-      update: { status: tasker.status, availability: tasker.availability, vehicleType: tasker.vehicleType as any, rating: tasker.rating },
-      create: { id: tasker.id, userId: tasker.userId, status: tasker.status, availability: tasker.availability, vehicleType: tasker.vehicleType as any, rating: tasker.rating },
+      update: {
+        vehicleType: tasker.vehicleType as any,
+        isOnline: tasker.isOnline ?? false,
+        rating: tasker.rating ?? 5,
+        completedTasks: tasker.completedTasks ?? 0,
+        cancellationRate: tasker.cancellationRate ?? 0,
+        kycStatus: tasker.kycStatus as any,
+        lastLocationLat: tasker.lastLocationLat ?? null,
+        lastLocationLng: tasker.lastLocationLng ?? null,
+      },
+      create: {
+        id: tasker.id,
+        userId: tasker.userId,
+        vehicleType: tasker.vehicleType as any,
+        isOnline: tasker.isOnline ?? false,
+        rating: tasker.rating ?? 5,
+        completedTasks: tasker.completedTasks ?? 0,
+        cancellationRate: tasker.cancellationRate ?? 0,
+        kycStatus: tasker.kycStatus as any,
+      },
     });
     return this.toDomain(saved);
   }
 
   private toDomain(raw: PrismaTasker): TaskerEntity {
-    return new TaskerEntity(raw);
+    return new TaskerEntity({
+      ...raw,
+      lastLocationLat: raw.lastLocationLat ?? undefined,
+      lastLocationLng: raw.lastLocationLng ?? undefined,
+    });
   }
 }

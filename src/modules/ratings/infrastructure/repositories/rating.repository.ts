@@ -22,6 +22,11 @@ export class RatingRepository {
   }
 
   private toDomain(raw: PrismaRating): RatingEntity {
-    return new RatingEntity(raw);
+    return new RatingEntity({
+      ...raw,
+      taskerId: raw.taskerId ?? undefined,
+      vendorId: raw.vendorId ?? undefined,
+      comment: raw.comment ?? undefined,
+    });
   }
 }

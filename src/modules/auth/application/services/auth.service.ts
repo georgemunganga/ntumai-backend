@@ -42,7 +42,7 @@ export class AuthService {
     await this.otpService.requestOtp(identifier);
   }
 
-  async verifyOtp(phoneNumber?: string, email?: string, otp: string): Promise<JwtToken> {
+  async verifyOtp(otp: string, phoneNumber?: string, email?: string): Promise<JwtToken> {
     if (!phoneNumber && !email) {
       throw new BadRequestException('Phone number or email must be provided.');
     }

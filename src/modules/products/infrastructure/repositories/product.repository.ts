@@ -15,13 +15,35 @@ export class ProductRepository {
   async save(product: ProductEntity): Promise<ProductEntity> {
     const saved = await this.prisma.product.upsert({
       where: { id: product.id || 'non-existent-id' },
-      update: { name: product.name, description: product.description, price: product.price, stock: product.stock },
-      create: { id: product.id, name: product.name, description: product.description, price: product.price, stock: product.stock, vendorId: product.vendorId },
+      update: {
+        name: product.name,
+        description: product.description ?? null,
+        price: product.price,
+        stock: product.stock ?? 0,
+      },
+      create: {
+        id: product.id,
+        name: product.name,
+        description: product.description ?? null,
+        price: product.price,
+        stock: product.stock ?? 0,
+        vendorId: product.vendorId,
+        category: product.category ?? null,
+        imageUrl: product.imageUrl ?? null,
+        isAvailable: product.isAvailable ?? true,
+      },
     });
     return this.toDomain(saved);
   }
 
   private toDomain(raw: PrismaProduct): ProductEntity {
-    return new ProductEntity({ ...raw, price: raw.price.toNumber() });
+    return new ProductEntity({
+      ...raw,
+      description: raw.description ?? undefined,
+      category: raw.category ?? undefined,
+      imageUrl: raw.imageUrl ?? undefined,
+      stock: raw.stock ?? undefined,
+      price: raw.price.toNumber(),
+    });
   }
 }

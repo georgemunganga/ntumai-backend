@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 import { KycEntity } from '../../domain/entities/kyc.entity';
-import { Kyc as PrismaKyc } from '@prisma/client';
 
 @Injectable()
 export class KycRepository {

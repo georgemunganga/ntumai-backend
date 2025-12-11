@@ -66,9 +66,10 @@ export class UserRepository {
     return new UserEntity({
       id: raw.id,
       phoneNumber: raw.phoneNumber,
-      email: raw.email,
-      firstName: raw.firstName,
-      lastName: raw.lastName,
+      email: raw.email ?? undefined,
+      firstName: raw.firstName ?? undefined,
+      lastName: raw.lastName ?? undefined,
+      status: raw.status,
       roles: raw.roles,
       isActive: raw.isActive,
       createdAt: raw.createdAt,

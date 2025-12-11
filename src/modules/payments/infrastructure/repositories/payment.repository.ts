@@ -22,6 +22,12 @@ export class PaymentRepository {
   }
 
   private toDomain(raw: PrismaPayment): PaymentEntity {
-    return new PaymentEntity({ ...raw, amount: raw.amount.toNumber() });
+    return new PaymentEntity({
+      ...raw,
+      orderId: raw.orderId ?? undefined,
+      taskId: raw.taskId ?? undefined,
+      transactionId: raw.transactionId ?? undefined,
+      amount: raw.amount.toNumber(),
+    });
   }
 }

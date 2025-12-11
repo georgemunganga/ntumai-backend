@@ -22,11 +22,7 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Login successful, returns JWT tokens.' })
   @ApiResponse({ status: 401, description: 'Invalid or expired OTP.' })
   async verifyOtp(@Body() dto: VerifyOtpDto) {
-    const tokens = await this.authService.verifyOtp(
-      dto.phoneNumber,
-      dto.email,
-      dto.otp,
-    );
+    const tokens = await this.authService.verifyOtp(dto.otp, dto.phoneNumber, dto.email);
     return tokens;
   }
 

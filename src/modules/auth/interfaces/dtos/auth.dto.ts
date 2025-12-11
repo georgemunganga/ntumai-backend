@@ -1,8 +1,8 @@
-import { IsPhoneNumber, IsString, Length, IsEnum, IsOptional, IsEmail } from 'class-validator';
+import { Matches, IsString, Length, IsEnum, IsOptional, IsEmail } from 'class-validator';
 
 export class RequestOtpDto {
   @IsOptional()
-  @IsPhoneNumber('ZZ') // 'ZZ' for any country, replace with specific country code if needed
+  @Matches(/^\+?[1-9]\d{7,14}$/, { message: 'phoneNumber must be a valid E.164 phone number' })
   phoneNumber?: string;
 
   @IsOptional()
@@ -12,7 +12,7 @@ export class RequestOtpDto {
 
 export class VerifyOtpDto {
   @IsOptional()
-  @IsPhoneNumber('ZZ')
+  @Matches(/^\+?[1-9]\d{7,14}$/, { message: 'phoneNumber must be a valid E.164 phone number' })
   phoneNumber?: string;
 
   @IsOptional()

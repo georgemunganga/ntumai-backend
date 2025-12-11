@@ -4,8 +4,17 @@ import * as dotenv from 'dotenv';
 dotenv.config(); // Load environment variables from .env file
 
 async function testConnection() {
-  console.log('Attempting to connect to the database...');
-  const prisma = new PrismaClient();
+  console.log('Attempting to connect to the database via Prisma Accelerate...');
+  const accelerateUrl = process.env.DATABASE_URL;
+
+  if (!accelerateUrl) {
+    throw new Error('DATABASE_URL is not defined in your environment.');
+  }
+
+  const prisma = new PrismaClient({
+    accelerateUrl,
+  });
+
   try {
     await prisma.$connect();
     console.log('✅ Database connection successful!');
@@ -19,4 +28,3 @@ async function testConnection() {
 }
 
 testConnection();
-

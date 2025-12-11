@@ -11,6 +11,7 @@ export class TaskEntity {
   description?: string;
   details?: any;
   price: number;
+  paymentMethod?: string;
 
   constructor(data: Partial<TaskEntity>) {
     Object.assign(this, data);

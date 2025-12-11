@@ -6,8 +6,8 @@ import { OrderEntity } from '../../domain/entities/order.entity';
 export class OrderService {
   constructor(private readonly orderRepository: OrderRepository) {}
 
-  async findUserOrders(userId: string): Promise<OrderEntity[]> {
-    return this.orderRepository.findByUserId(userId);
+  async findUserOrders(customerId: string): Promise<OrderEntity[]> {
+    return this.orderRepository.findByCustomerId(customerId);
   }
 
   async findById(id: string): Promise<OrderEntity | null> {

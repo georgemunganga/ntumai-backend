@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsDate } from 'class-validator';
+import { IsString, IsNumber, IsDate, IsOptional, IsISO8601 } from 'class-validator';
 
 export class CreateLocationDto {
   @IsString()
@@ -12,4 +12,19 @@ export class CreateLocationDto {
 
   @IsDate()
   timestamp: Date;
+}
+
+export class TaskerLocationUpdateDto {
+  @IsString()
+  taskerId: string;
+
+  @IsNumber()
+  latitude: number;
+
+  @IsNumber()
+  longitude: number;
+
+  @IsOptional()
+  @IsISO8601()
+  timestamp?: string;
 }

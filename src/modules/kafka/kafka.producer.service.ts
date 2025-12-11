@@ -1,5 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { ClientKafka } from '@nestjs/microservices';
+import { lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class KafkaProducerService {
@@ -14,7 +15,11 @@ export class KafkaProducerService {
   }
 
   async sendMessage(topic: string, message: any) {
-    return this.client.send(topic, message);
+    return lastValueFrom(this.client.send(topic, message));
+  }
+
+  async produce(topic: string, message: any) {
+    return this.sendMessage(topic, message);
   }
 
   async onModuleDestroy() {

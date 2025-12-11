@@ -41,6 +41,18 @@ enum TransactionType {
   CREDIT
 }
 
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+  WALLET
+}
+
 enum UserStatus {
   PENDING_VERIFICATION
   ACTIVE
@@ -69,6 +81,7 @@ model User {
   sessions      Session[]
   wallets       Wallet[]
   notifications Notification[]
+  payments      Payment[]
 
   @@map("users")
 }
@@ -159,8 +172,20 @@ model Tasker {
   tasks           Task[]   @relation("TaskerTasks")
   ratings         Rating[] @relation("TaskerRatings")
   metrics         TaskerMetrics?
+  currentLocation TaskerLocation?
 
   @@map("taskers")
+}
+
+model TaskerLocation {
+  taskerId  String   @id
+  latitude  Float
+  longitude Float
+  updatedAt DateTime @updatedAt
+
+  tasker Tasker @relation(fields: [taskerId], references: [id], onDelete: Cascade)
+
+  @@map("tasker_locations")
 }
 
 model TaskerMetrics {
@@ -211,6 +236,7 @@ model Product {
   category    String?
   isAvailable Boolean  @default(true)
   imageUrl    String?
+  stock       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -244,6 +270,7 @@ model Task {
   customer            Customer @relation("CustomerTasks", fields: [customerId], references: [id])
   tasker              Tasker?  @relation("TaskerTasks", fields: [taskerId], references: [id])
   order               Order?
+  payments            Payment[]
 
   @@map("tasks")
 }
@@ -263,6 +290,7 @@ model Order {
   vendor              Vendor   @relation(fields: [vendorId], references: [id])
   task                Task     @relation(fields: [taskId], references: [id])
   items               OrderItem[]
+  payments            Payment[]
 
   @@map("orders")
 }
@@ -279,6 +307,26 @@ model OrderItem {
   product     Product  @relation(fields: [productId], references: [id])
 
   @@map("order_items")
+}
+
+model Payment {
+  id            String         @id @default(uuid())
+  userId        String
+  orderId       String?
+  taskId        String?
+  amount        Decimal        @db.Decimal(10, 2)
+  currency      String         @default("ZMW")
+  status        PaymentStatus  @default(PENDING)
+  method        PaymentMethod
+  transactionId String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id])
+  task  Task?  @relation(fields: [taskId], references: [id])
+
+  @@map("payments")
 }
 
 // --- Financial Domain ---
