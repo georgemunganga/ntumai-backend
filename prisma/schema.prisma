@@ -1,0 +1,346 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  
+}
+
+// --- Enums ---
+enum RoleType {
+  CUSTOMER
+  TASKER
+  VENDOR
+}
+
+enum TaskStatus {
+  CREATED
+  PENDING_ASSIGNMENT
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum KycStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum VehicleType {
+  WALK
+  BICYCLE
+  MOTORBIKE
+  CAR
+}
+
+enum TransactionType {
+  DEBIT
+  CREDIT
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+// --- Core Models ---
+
+model User {
+  id            String    @id @default(uuid())
+  phoneNumber   String    @unique
+  email         String?   @unique
+  firstName     String?
+  lastName      String?
+  passwordHash  String?
+  isActive      Boolean   @default(true)
+  status        UserStatus @default(PENDING_VERIFICATION)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  roles         UserRole[]
+  customer      Customer?
+  tasker        Tasker?
+  vendor        Vendor?
+  sessions      Session[]
+  wallets       Wallet[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleType  RoleType
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleType])
+  @@map("user_roles")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  activeRole   RoleType
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// --- Customer Domain ---
+
+model Customer {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  defaultAddress  String?
+  preferences     Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addresses       Address[]
+  tasks           Task[]   @relation("CustomerTasks")
+  orders          Order[]
+  ratings         Rating[] @relation("CustomerRatings")
+
+  @@map("customers")
+}
+
+model Address {
+  id          String   @id @default(uuid())
+  customerId  String
+  label       String?
+  street      String
+  city        String
+  postalCode  String?
+  country     String
+  latitude    Float
+  longitude   Float
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("addresses")
+}
+
+// --- Tasker Domain ---
+
+model Tasker {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  vehicleType     VehicleType
+  isOnline        Boolean  @default(false)
+  rating          Float    @default(5.0)
+  completedTasks  Int      @default(0)
+  cancellationRate Float   @default(0.0)
+  kycStatus       KycStatus @default(PENDING)
+  kycDocuments    Json?
+  lastLocationLat Float?
+  lastLocationLng Float?
+  lastLocationAt  DateTime?
+  lastActiveAt    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks           Task[]   @relation("TaskerTasks")
+  ratings         Rating[] @relation("TaskerRatings")
+  metrics         TaskerMetrics?
+
+  @@map("taskers")
+}
+
+model TaskerMetrics {
+  id                    String   @id @default(uuid())
+  taskerId              String   @unique
+  onTimePickupRate      Float    @default(0.0)
+  onTimeDeliveryRate    Float    @default(0.0)
+  customerSatisfaction  Float    @default(0.0)
+  totalEarnings         Decimal  @default(0) @db.Decimal(10, 2)
+  weeklyEarnings        Decimal  @default(0) @db.Decimal(10, 2)
+  monthlyEarnings       Decimal  @default(0) @db.Decimal(10, 2)
+  updatedAt             DateTime @updatedAt
+
+  tasker                Tasker   @relation(fields: [taskerId], references: [id], onDelete: Cascade)
+
+  @@map("tasker_metrics")
+}
+
+// --- Vendor Domain ---
+
+model Vendor {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  businessName    String
+  businessType    String
+  kycStatus       KycStatus @default(PENDING)
+  kycDocuments    Json?
+  isOpen          Boolean  @default(true)
+  commissionRate  Float    @default(0.1)
+  subscriptionTier String  @default("FREE")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products        Product[]
+  orders          Order[]
+  ratings         Rating[] @relation("VendorRatings")
+
+  @@map("vendors")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  vendorId    String
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  category    String?
+  isAvailable Boolean  @default(true)
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+
+  @@map("products")
+}
+
+// --- Task & Order Domain ---
+
+model Task {
+  id                  String   @id @default(uuid())
+  customerId          String
+  taskerId            String?
+  taskType            String
+  status              TaskStatus @default(CREATED)
+  pickupAddress       Json
+  dropoffAddress      Json
+  description         String?
+  details             Json?
+  price               Decimal  @db.Decimal(10, 2)
+  priceBreakdown      Json?
+  paymentCommitment   Decimal? @db.Decimal(10, 2)
+  paymentMethod       String
+  estimatedDuration   Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  completedAt         DateTime?
+
+  customer            Customer @relation("CustomerTasks", fields: [customerId], references: [id])
+  tasker              Tasker?  @relation("TaskerTasks", fields: [taskerId], references: [id])
+  order               Order?
+
+  @@map("tasks")
+}
+
+model Order {
+  id                  String   @id @default(uuid())
+  customerId          String
+  vendorId            String
+  taskId              String   @unique
+  status              String
+  totalAmount         Decimal  @db.Decimal(10, 2)
+  deliveryFee         Decimal  @db.Decimal(10, 2)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  customer            Customer @relation(fields: [customerId], references: [id])
+  vendor              Vendor   @relation(fields: [vendorId], references: [id])
+  task                Task     @relation(fields: [taskId], references: [id])
+  items               OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  orderId     String
+  productId   String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+
+  order       Order    @relation(fields: [orderId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+// --- Financial Domain ---
+
+model Wallet {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  balance       Decimal  @default(0) @db.Decimal(10, 2)
+  floatBalance  Decimal  @default(0) @db.Decimal(10, 2)
+  currency      String   @default("ZMW")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id])
+  transactions  Transaction[]
+
+  @@map("wallets")
+}
+
+model Transaction {
+  id              String          @id @default(uuid())
+  walletId        String
+  amount          Decimal         @db.Decimal(10, 2)
+  transactionType TransactionType
+  description     String
+  referenceId     String?         @unique // e.g., Task ID, Payout ID
+  createdAt       DateTime        @default(now())
+
+  wallet          Wallet          @relation(fields: [walletId], references: [id])
+
+  @@map("transactions")
+}
+
+// --- Rating & Notification Domain ---
+
+model Rating {
+  id          String   @id @default(uuid())
+  customerId  String
+  taskerId    String?
+  vendorId    String?
+  rating      Int      @db.SmallInt
+  comment     String?
+  createdAt   DateTime @default(now())
+
+  customer    Customer @relation("CustomerRatings", fields: [customerId], references: [id])
+  tasker      Tasker?  @relation("TaskerRatings", fields: [taskerId], references: [id])
+  vendor      Vendor?  @relation("VendorRatings", fields: [vendorId], references: [id])
+
+  @@map("ratings")
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  type        String
+  title       String
+  body        String
+  data        Json?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
