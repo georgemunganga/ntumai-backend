@@ -29,7 +29,7 @@ export class UserEntity {
   }
 
   deactivate(): void {
-    this.status = 'INACTIVE';
+    this.status = 'DEACTIVATED';
     this.updatedAt = new Date();
   }
 }

@@ -12,6 +12,9 @@ import { AuthController } from './interfaces/controllers/auth.controller';
 import { AuthV2Controller } from './interfaces/controllers/auth-v2.controller';
 import { JwtAuthGuard } from './infrastructure/guards/jwt-auth.guard';
 import { OtpSessionRepository } from './infrastructure/repositories/otp-session.repository';
+import { TaskerOnboardingService } from './application/services/onboarding/tasker-onboarding.service';
+import { VendorOnboardingService } from './application/services/onboarding/vendor-onboarding.service';
+import { OnboardingController } from './interfaces/controllers/onboarding.controller';
 
 @Module({
   imports: [
@@ -33,10 +36,12 @@ import { OtpSessionRepository } from './infrastructure/repositories/otp-session.
     AuthServiceV2,
     OtpService,
     OtpServiceV2,
+    TaskerOnboardingService,
+    VendorOnboardingService,
     JwtAuthGuard,
     OtpSessionRepository,
   ],
-  controllers: [AuthController, AuthV2Controller],
-  exports: [AuthService, AuthServiceV2, JwtAuthGuard],
+  controllers: [AuthController, AuthV2Controller, OnboardingController],
+  exports: [AuthService, AuthServiceV2, TaskerOnboardingService, VendorOnboardingService, JwtAuthGuard],
 })
 export class AuthModule {}

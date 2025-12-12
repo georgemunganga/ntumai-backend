@@ -55,12 +55,4 @@ export class UserService {
     Object.assign(user, data);
     return this.userRepository.save(user);
   }
-
-  async getUserByPhoneNumber(phoneNumber: string): Promise<UserEntity | null> {
-    return this.userRepository.findByPhoneNumber(phoneNumber);
-  }
-
-  async getUserByEmail(email: string): Promise<UserEntity | null> {
-    return this.userRepository.findByEmail(email);
-  }
 }

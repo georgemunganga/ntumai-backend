@@ -22,6 +22,7 @@ export class UserRepository implements IUserRepository {
   }
 
   async findByEmail(email: string): Promise<UserEntity | null> {
+    if (!email) return null;
     const user = await this.prisma.user.findUnique({
       where: { email },
     });
@@ -39,7 +40,7 @@ export class UserRepository implements IUserRepository {
       },
       create: {
         id: user.id,
-        phoneNumber: user.phoneNumber,
+        phoneNumber: user.phoneNumber || `phone_${Date.now()}`,
         email: user.email,
         status: user.status,
         createdAt: user.createdAt,

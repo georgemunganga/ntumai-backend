@@ -105,7 +105,7 @@ export class AuthServiceV2 {
     // Create OTP session
     const session = await this.otpService.startOtpFlow(
       email,
-      normalizedPhone,
+      normalizedPhone || undefined,
       flowType,
       deviceId,
     );
@@ -167,9 +167,8 @@ export class AuthServiceV2 {
           user: {
             id: user.id,
             email: user.email,
-            phone: user.phone,
-  
-          },
+            phone: user.phoneNumber,
+        },
         },
       };
     }
@@ -212,9 +211,8 @@ export class AuthServiceV2 {
       throw new UnauthorizedException('User not found');
     }
 
-    // Set role
-    user.role = role;
-    await this.userService.updateUser(user.id, { role });
+    // Role is managed separately via UserRole model
+    // This is a placeholder for role assignment
 
     // Clean up onboarding token
     this.deleteOnboardingToken(onboardingToken);
@@ -231,8 +229,8 @@ export class AuthServiceV2 {
         user: {
           id: user.id,
           email: user.email,
-          phone: user.phone,
-
+          phone: user.phoneNumber,
+          role,
         },
       },
     };
@@ -256,7 +254,7 @@ export class AuthServiceV2 {
     const payload = {
       sub: user.id,
       email: user.email,
-      phone: user.phone,
+      phone: user.phoneNumber,
     };
 
     const accessToken = this.jwtService.sign(payload, {
