@@ -1,0 +1,44 @@
+import {
+  Injectable,
+  NestInterceptor,
+  ExecutionContext,
+  CallHandler,
+} from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+import { nanoid } from 'nanoid';
+
+export interface Response<T> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+  };
+  meta: {
+    timestamp: string;
+    requestId: string;
+  };
+}
+
+@Injectable()
+export class ResponseInterceptor<T> implements NestInterceptor<T, Response<T>> {
+  intercept(
+    context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<Response<T>> {
+    const request = context.switchToHttp().getRequest();
+    const requestId = request.headers['x-request-id'] || nanoid();
+
+    return next.handle().pipe(
+      map((data) => ({
+        success: true,
+        data,
+        meta: {
+          timestamp: new Date().toISOString(),
+          requestId,
+        },
+      })),
+    );
+  }
+}

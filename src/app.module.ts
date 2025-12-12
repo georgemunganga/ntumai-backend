@@ -20,6 +20,13 @@ import { LocationModule } from './modules/location/location.module';
 import { CommunicationModule } from './modules/communication/communication.module';
 import { KafkaModule } from './modules/kafka/kafka.module';
 
+// Staging modules
+import { DeliveriesModule } from './deliveries/deliveries.module';
+import { MarketplaceModule } from './marketplace/marketplace.module';
+import { MatchingModule } from './matching/matching.module';
+import { ShiftsModule } from './shifts/shifts.module';
+import { TrackingModule } from './tracking/tracking.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -28,6 +35,12 @@ import { KafkaModule } from './modules/kafka/kafka.module';
     }),
     SharedModule,
     AuthModule,
+    // Staging modules - integrated from staging branch
+    DeliveriesModule,
+    MarketplaceModule,
+    MatchingModule,
+    ShiftsModule,
+    TrackingModule,
     // UsersModule,
     // CustomersModule,
     // TaskersModule,

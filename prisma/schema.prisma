@@ -3,392 +3,750 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
-// --- Enums ---
-enum RoleType {
-  CUSTOMER
-  TASKER
-  VENDOR
+model Address {
+  id           String      @id @default(uuid())
+  userId       String
+  type         AddressType @default(HOME)
+  label        String?     // Custom label like "Home", "Office"
+  address      String
+  city         String
+  state        String
+  country      String
+  postalCode   String?
+  latitude     Float
+  longitude    Float
+  instructions String?     // Delivery instructions
+  contactName  String?     // Contact person name
+  contactPhone String?     // Contact phone number
+  isDefault    Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  User         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Order        Order[]
+
+  @@index([userId, isDefault])
+  @@map("addresses")
+}
+
+model Banner {
+  id         String     @id
+  imageUrl   String
+  title      String
+  subtitle   String?
+  actionText String?
+  actionUrl  String?
+  type       BannerType
+  isActive   Boolean    @default(true)
+  sortOrder  Int        @default(0)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime
+}
+
+model Brand {
+  id        String    @id
+  name      String
+  imageUrl  String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime
+  Product   Product[]
+}
+
+model Cart {
+  id              String        @id
+  userId          String        @unique
+  storeId         String?       // For single-store cart policy
+  discountCodeId  String?       // Applied discount code
+  discountAmount  Float         @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime
+  User            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  DiscountCode    DiscountCode? @relation(fields: [discountCodeId], references: [id])
+  CartItem        CartItem[]
+}
+
+model CartItem {
+  id             String   @id
+  cartId         String
+  productId      String
+  quantity       Int
+  price          Float    // Price at time of adding to cart
+  variantOptions Json?
+  note           String?  // Customer note for this item
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  Cart           Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  Product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+}
+
+model Category {
+  id        String    @id
+  name      String
+  imageUrl  String?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime
+  Product   Product[]
+}
+
+model Chat {
+  id        String   @id
+  userId    String
+  message   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  User      User     @relation(fields: [userId], references: [id])
+}
+
+model DeliveryAssignment {
+  id        String         @id
+  orderId   String
+  driverId  String
+  status    DeliveryStatus @default(PENDING)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime
+  User      User           @relation(fields: [driverId], references: [id])
+  Order     Order          @relation(fields: [orderId], references: [id])
+}
+
+model DeviceSession {
+  id           String   @id
+  userId       String
+  deviceId     String
+  deviceType   String
+  refreshToken String   @unique
+  isActive     Boolean  @default(true)
+  lastUsedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+}
+
+model DiscountCode {
+  id            String       @id
+  code          String       @unique
+  type          DiscountType
+  value         Float
+  minOrderValue Float?
+  maxDiscount   Float?
+  usageLimit    Int?
+  usedCount     Int          @default(0)
+  isActive      Boolean      @default(true)
+  startDate     DateTime
+  endDate       DateTime
+  expiresAt     DateTime?    // Optional expiration date
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime
+  Order         Order[]
+  Cart          Cart[]  // Carts using this discount
+}
+
+model Favorite {
+  id        String   @id
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  Product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+model LoyaltyPoint {
+  id        String   @id
+  userId    String
+  points    Int
+  reason    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String           @id
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime
+  User      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OTPVerification {
+  id         String   @id
+  identifier String
+  otp        String
+  type       OTPType
+  requestId  String?  @unique
+  isVerified Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+}
+
+// Auth Module: OTP Challenge for OTP-first authentication
+model OtpChallenge {
+  id                String         @id @default(uuid())
+  challengeId       String         @unique @default(uuid())
+  identifier        String         // email or phone
+  identifierType    IdentifierType
+  otpCodeHash       String         // hashed OTP code
+  purpose           OtpPurpose
+  attempts          Int            @default(0)
+  maxAttempts       Int            @default(5)
+  expiresAt         DateTime
+  resendAvailableAt DateTime
+  isVerified        Boolean        @default(false)
+  verifiedAt        DateTime?
+  ipAddress         String?
+  userAgent         String?
+  createdAt         DateTime       @default(now())
+
+  @@index([challengeId])
+  @@index([identifier, isVerified])
+  @@index([expiresAt])
+  @@map("otp_challenges")
+}
+
+// Auth Module: Refresh Token for JWT token management
+model RefreshToken {
+  id         String    @id @default(uuid())
+  tokenHash  String    @unique // hashed refresh token
+  userId     String
+  deviceId   String?
+  ipAddress  String?
+  userAgent  String?
+  expiresAt  DateTime
+  isRevoked  Boolean   @default(false)
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRevoked])
+  @@index([tokenHash])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// User Module: Multi-role support for users
+model UserRoleAssignment {
+  id        String   @id @default(uuid())
+  userId    String
+  role      UserRole
+  active    Boolean  @default(true)
+  metadata  Json?    // Store role-specific data like storeName for VENDOR
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@index([userId, active])
+  @@map("user_role_assignments")
+}
+
+// User Module: Push tokens for notifications
+model PushToken {
+  id         String   @id @default(uuid())
+  userId     String
+  deviceId   String
+  platform   String   // android, ios, web
+  pushToken  String
+  isActive   Boolean  @default(true)
+  lastSeen   DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId, isActive])
+  @@map("push_tokens")
+}
+
+// User Module: User preferences
+model UserPreference {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  preferences  Json     // Store all preferences as JSON
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model Order {
+  id                 String               @id
+  trackingId         String               @unique
+  userId             String
+  addressId          String
+  status             OrderStatus          @default(PENDING)
+  subtotal           Float
+  discountAmount     Float                @default(0)
+  discountCodeId     String?
+  deliveryFee        Float                @default(0)
+  tax                Float                @default(0)
+  totalAmount        Float
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime
+  DeliveryAssignment DeliveryAssignment[]
+  Address            Address              @relation(fields: [addressId], references: [id])
+  DiscountCode       DiscountCode?        @relation(fields: [discountCodeId], references: [id])
+  User               User                 @relation(fields: [userId], references: [id])
+  OrderItem          OrderItem[]
+  Payment            Payment[]
+  Review             Review[]
+}
+
+model OrderItem {
+  id        String   @id
+  orderId   String
+  productId String
+  quantity  Int
+  price     Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  Product   Product  @relation(fields: [productId], references: [id])
+}
+
+model Payment {
+  id        String        @id
+  orderId   String
+  amount    Float
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  reference String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime
+  Order     Order         @relation(fields: [orderId], references: [id])
+}
+
+model Product {
+  id                 String           @id
+  name               String
+  description        String?
+  price              Float
+  discountedPrice    Float?
+  discountPercentage Float?
+  stock              Int              @default(0)
+  minStock           Int              @default(0)
+  imageUrl           String?
+  tags               String[]
+  isActive           Boolean          @default(true)
+  averageRating      Float?
+  reviewCount        Int              @default(0)
+  categoryId         String?
+  brandId            String?
+  storeId            String
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime
+  CartItem           CartItem[]
+  Favorite           Favorite[]
+  OrderItem          OrderItem[]
+  Brand              Brand?           @relation(fields: [brandId], references: [id])
+  Category           Category?        @relation(fields: [categoryId], references: [id])
+  Store              Store            @relation(fields: [storeId], references: [id])
+  ProductVariant     ProductVariant[]
+  Review             Review[]
+  Wishlist           Wishlist[]       // Marketplace Module relation
+}
+
+model ProductVariant {
+  id        String   @id
+  productId String
+  name      String
+  value     String
+  price     Float?
+  stock     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  Product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Promotion {
+  id          String        @id
+  title       String
+  description String
+  type        PromotionType
+  value       Float
+  isActive    Boolean       @default(true)
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime
+}
+
+model Review {
+  id                         String           @id
+  userId                     String
+  entityType                 ReviewEntityType
+  entityId                   String
+  productId                  String?          // For product reviews
+  storeId                    String?          // For store reviews
+  orderId                    String?          // For order reviews
+  rating                     Int
+  comment                    String?
+  images                     String[]         @default([]) // Review images
+  helpfulCount               Int              @default(0)  // Helpful votes
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime
+  User_Review_entityIdToUser User             @relation("Review_entityIdToUser", fields: [entityId], references: [id], map: "Review_Driver_fkey")
+  Order                      Order            @relation(fields: [entityId], references: [id], map: "Review_Order_fkey")
+  Product                    Product          @relation(fields: [entityId], references: [id], map: "Review_Product_fkey")
+  Store                      Store            @relation(fields: [entityId], references: [id], map: "Review_Store_fkey")
+  User_Review_userIdToUser   User             @relation("Review_userIdToUser", fields: [userId], references: [id])
+}
+
+model Reward {
+  id          String     @id
+  userId      String
+  type        RewardType
+  value       Float
+  description String
+  isRedeemed  Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  User        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Store {
+  id            String    @id
+  name          String
+  description   String?
+  imageUrl      String?
+  vendorId      String
+  isActive      Boolean   @default(true)
+  averageRating Float?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime
+  Product       Product[]
+  Review        Review[]
+  User          User      @relation(fields: [vendorId], references: [id])
+}
+
+model Task {
+  id          String     @id
+  title       String
+  description String?
+  type        TaskType
+  status      TaskStatus @default(PENDING)
+  assignedTo  String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  User        User?      @relation(fields: [assignedTo], references: [id])
+}
+
+model User {
+  id                           String               @id
+  email                        String?              @unique
+  phone                        String?              @unique
+  countryCode                  String?
+  password                     String
+  firstName                    String
+  lastName                     String
+  profileImage                 String?
+  role                         UserRole             @default(CUSTOMER)
+  isEmailVerified              Boolean              @default(false)
+  isPhoneVerified              Boolean              @default(false)
+  lastLoginAt                  DateTime?
+  createdAt                    DateTime             @default(now())
+  updatedAt                    DateTime
+  Address                      Address[]
+  Cart                         Cart?
+  Chat                         Chat[]
+  DeliveryAssignment           DeliveryAssignment[]
+  DeviceSession                DeviceSession[]
+  Favorite                     Favorite[]
+  LoyaltyPoint                 LoyaltyPoint[]
+  Notification                 Notification[]
+  Order                        Order[]
+  Review_Review_entityIdToUser Review[]             @relation("Review_entityIdToUser")
+  Review_Review_userIdToUser   Review[]             @relation("Review_userIdToUser")
+  Reward                       Reward[]
+  Store                        Store[]
+  Task                         Task[]
+  RefreshToken                 RefreshToken[]       // Auth Module relation
+  UserRoleAssignment           UserRoleAssignment[] // User Module relation
+  PushToken                    PushToken[]          // User Module relation
+  UserPreference               UserPreference?      // User Module relation
+  GiftCard                     GiftCard[]           // Marketplace Module relation
+  GiftCardSent                 GiftCard[]           @relation("GiftCardSender") // Marketplace Module relation
+  Wishlist                     Wishlist[]           // Marketplace Module relation
+}
+
+// Marketplace Module: Gift Cards
+model GiftCard {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  amount        Float
+  balance       Float
+  senderUserId  String?
+  recipientUserId String?
+  recipientEmail String?
+  recipientPhone String?
+  message       String?
+  designId      String?
+  isRedeemed    Boolean  @default(false)
+  redeemedAt    DateTime?
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  sender        User?    @relation("GiftCardSender", fields: [senderUserId], references: [id])
+  recipient     User?    @relation(fields: [recipientUserId], references: [id])
+
+  @@index([code])
+  @@index([recipientEmail])
+  @@index([recipientPhone])
+  @@map("gift_cards")
+}
+
+// Marketplace Module: Wishlist
+model Wishlist {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@map("wishlist")
+}
+
+enum AddressType {
+  HOME
+  WORK
+  OTHER
+}
+
+enum BannerType {
+  PROMOTIONAL
+  CATEGORY
+  PRODUCT
+}
+
+enum DeliveryStatus {
+  PENDING
+  ASSIGNED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+// Auth Module: Identifier Type for OTP
+enum IdentifierType {
+  EMAIL
+  PHONE
+}
+
+enum NotificationType {
+  ORDER_UPDATE
+  DELIVERY_UPDATE
+  PROMOTION
+  SYSTEM
+  CHAT
+}
+
+enum OTPType {
+  REGISTRATION
+  LOGIN
+  PASSWORD_RESET
+}
+
+// Auth Module: OTP Purpose
+enum OtpPurpose {
+  LOGIN
+  REGISTER
+  PASSWORD_RESET
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  PREPARING
+  PACKING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  MOBILE_MONEY
+  CASH_ON_DELIVERY
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+enum PromotionType {
+  DISCOUNT
+  CASHBACK
+  FREE_DELIVERY
+  BUY_ONE_GET_ONE
+  OTHER
+}
+
+enum ReviewEntityType {
+  PRODUCT
+  STORE
+  DRIVER
+  ORDER
+}
+
+enum RewardType {
+  POINTS
+  DISCOUNT
+  FREE_DELIVERY
+  OTHER
 }
 
 enum TaskStatus {
-  CREATED
-  PENDING_ASSIGNMENT
+  PENDING
   ASSIGNED
   IN_PROGRESS
   COMPLETED
   CANCELLED
 }
 
-enum KycStatus {
-  PENDING
-  APPROVED
-  REJECTED
+enum TaskType {
+  DELIVERY
+  PICKUP
+  ERRAND
+  OTHER
 }
 
-enum VehicleType {
-  WALK
-  BICYCLE
-  MOTORBIKE
-  CAR
+enum UserRole {
+  CUSTOMER
+  DRIVER
+  VENDOR
+  ADMIN
 }
 
-enum TransactionType {
-  DEBIT
-  CREDIT
+
+
+// Shifts Module: Rider shift management
+model Shift {
+  id                       String    @id
+  rider_user_id            String
+  status                   String    // active, paused, ended
+  vehicle_type             String
+  start_time               DateTime
+  end_time                 DateTime?
+  pause_time               DateTime?
+  resume_time              DateTime?
+  total_pause_duration_sec Int       @default(0)
+  current_location         Json?
+  last_location_update     DateTime?
+  total_deliveries         Int       @default(0)
+  total_earnings           Float     @default(0)
+  total_distance_km        Float     @default(0)
+  metadata                 Json      @default("{}")
+  created_at               DateTime  @default(now())
+  updated_at               DateTime  @updatedAt
+
+  @@index([rider_user_id, status])
+  @@index([status, start_time])
+  @@map("shifts")
 }
 
-enum PaymentStatus {
-  PENDING
-  COMPLETED
-  FAILED
+// Matching Module: Booking orchestration
+model Booking {
+  booking_id         String    @id
+  delivery_id        String
+  status             String    // pending, searching, offered, accepted, en_route, arrived_pickup, picked_up, en_route_dropoff, delivered, cancelled
+  vehicle_type       String
+  pickup             Json
+  dropoffs           Json
+  rider              Json?
+  offer              Json
+  wait_times         Json
+  can_user_edit      Boolean   @default(true)
+  customer_user_id   String
+  customer_name      String
+  customer_phone     String
+  metadata           Json      @default("{}")
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  pickup_wait_start  DateTime?
+  dropoff_wait_start DateTime?
+
+  @@index([booking_id])
+  @@index([delivery_id])
+  @@index([customer_user_id])
+  @@index([status])
+  @@map("bookings")
 }
 
-enum PaymentMethod {
-  CARD
-  CASH
-  WALLET
+// Tracking Module: Real-time tracking events
+model TrackingEvent {
+  id             String    @id
+  booking_id     String
+  delivery_id    String
+  event_type     String    // booking_created, rider_assigned, en_route_to_pickup, etc.
+  location       Json?
+  rider_user_id  String?
+  metadata       Json      @default("{}")
+  timestamp      DateTime  @default(now())
+
+  @@index([booking_id, timestamp])
+  @@index([delivery_id, timestamp])
+  @@map("tracking_events")
 }
 
-enum UserStatus {
-  PENDING_VERIFICATION
-  ACTIVE
-  SUSPENDED
-  DEACTIVATED
+// Orders Module: Unified order history (marketplace + deliveries)
+model UnifiedOrder {
+  id                    String    @id
+  user_id               String
+  type                  String    // marketplace, delivery
+  status                String    // pending, confirmed, in_progress, completed, cancelled
+  marketplace_order_id  String?
+  delivery_id           String?
+  booking_id            String?
+  total_amount          Float
+  currency              String
+  items_summary         String
+  delivery_address      String?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+  completed_at          DateTime?
+
+  @@index([user_id, created_at])
+  @@index([type, status])
+  @@index([marketplace_order_id])
+  @@index([delivery_id])
+  @@map("unified_orders")
 }
 
-// --- Core Models ---
-
-model User {
-  id            String    @id @default(uuid())
-  phoneNumber   String    @unique
-  email         String?   @unique
-  firstName     String?
-  lastName      String?
-  passwordHash  String?
-  isActive      Boolean   @default(true)
-  status        UserStatus @default(PENDING_VERIFICATION)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  roles         UserRole[]
-  customer      Customer?
-  tasker        Tasker?
-  vendor        Vendor?
-  sessions      Session[]
-  wallets       Wallet[]
-  notifications Notification[]
-  payments      Payment[]
-
-  @@map("users")
-}
-
-model UserRole {
-  id        String   @id @default(uuid())
-  userId    String
-  roleType  RoleType
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, roleType])
-  @@map("user_roles")
-}
-
-model Session {
-  id           String   @id @default(uuid())
-  userId       String
-  activeRole   RoleType
-  refreshToken String   @unique
-  expiresAt    DateTime
-  createdAt    DateTime @default(now())
-
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
-
-// --- Customer Domain ---
-
-model Customer {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  defaultAddress  String?
-  preferences     Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  addresses       Address[]
-  tasks           Task[]   @relation("CustomerTasks")
-  orders          Order[]
-  ratings         Rating[] @relation("CustomerRatings")
-
-  @@map("customers")
-}
-
-model Address {
-  id          String   @id @default(uuid())
-  customerId  String
-  label       String?
-  street      String
-  city        String
-  postalCode  String?
-  country     String
-  latitude    Float
-  longitude   Float
-  isDefault   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-
-  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-
-  @@map("addresses")
-}
-
-// --- Tasker Domain ---
-
-model Tasker {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  vehicleType     VehicleType
-  isOnline        Boolean  @default(false)
-  rating          Float    @default(5.0)
-  completedTasks  Int      @default(0)
-  cancellationRate Float   @default(0.0)
-  kycStatus       KycStatus @default(PENDING)
-  kycDocuments    Json?
-  lastLocationLat Float?
-  lastLocationLng Float?
-  lastLocationAt  DateTime?
-  lastActiveAt    DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tasks           Task[]   @relation("TaskerTasks")
-  ratings         Rating[] @relation("TaskerRatings")
-  metrics         TaskerMetrics?
-  currentLocation TaskerLocation?
-
-  @@map("taskers")
-}
-
-model TaskerLocation {
-  taskerId  String   @id
-  latitude  Float
-  longitude Float
-  updatedAt DateTime @updatedAt
-
-  tasker Tasker @relation(fields: [taskerId], references: [id], onDelete: Cascade)
-
-  @@map("tasker_locations")
-}
-
-model TaskerMetrics {
-  id                    String   @id @default(uuid())
-  taskerId              String   @unique
-  onTimePickupRate      Float    @default(0.0)
-  onTimeDeliveryRate    Float    @default(0.0)
-  customerSatisfaction  Float    @default(0.0)
-  totalEarnings         Decimal  @default(0) @db.Decimal(10, 2)
-  weeklyEarnings        Decimal  @default(0) @db.Decimal(10, 2)
-  monthlyEarnings       Decimal  @default(0) @db.Decimal(10, 2)
-  updatedAt             DateTime @updatedAt
-
-  tasker                Tasker   @relation(fields: [taskerId], references: [id], onDelete: Cascade)
-
-  @@map("tasker_metrics")
-}
-
-// --- Vendor Domain ---
-
-model Vendor {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  businessName    String
-  businessType    String
-  kycStatus       KycStatus @default(PENDING)
-  kycDocuments    Json?
-  isOpen          Boolean  @default(true)
-  commissionRate  Float    @default(0.1)
-  subscriptionTier String  @default("FREE")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  products        Product[]
-  orders          Order[]
-  ratings         Rating[] @relation("VendorRatings")
-
-  @@map("vendors")
-}
-
-model Product {
-  id          String   @id @default(uuid())
-  vendorId    String
-  name        String
-  description String?
-  price       Decimal  @db.Decimal(10, 2)
-  category    String?
-  isAvailable Boolean  @default(true)
-  imageUrl    String?
-  stock       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  orderItems  OrderItem[]
-
-  @@map("products")
-}
-
-// --- Task & Order Domain ---
-
-model Task {
-  id                  String   @id @default(uuid())
-  customerId          String
-  taskerId            String?
-  taskType            String
-  status              TaskStatus @default(CREATED)
-  pickupAddress       Json
-  dropoffAddress      Json
-  description         String?
-  details             Json?
-  price               Decimal  @db.Decimal(10, 2)
-  priceBreakdown      Json?
-  paymentCommitment   Decimal? @db.Decimal(10, 2)
-  paymentMethod       String
-  estimatedDuration   Int?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  completedAt         DateTime?
-
-  customer            Customer @relation("CustomerTasks", fields: [customerId], references: [id])
-  tasker              Tasker?  @relation("TaskerTasks", fields: [taskerId], references: [id])
-  order               Order?
-  payments            Payment[]
-
-  @@map("tasks")
-}
-
-model Order {
-  id                  String   @id @default(uuid())
-  customerId          String
-  vendorId            String
-  taskId              String   @unique
-  status              String
-  totalAmount         Decimal  @db.Decimal(10, 2)
-  deliveryFee         Decimal  @db.Decimal(10, 2)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  customer            Customer @relation(fields: [customerId], references: [id])
-  vendor              Vendor   @relation(fields: [vendorId], references: [id])
-  task                Task     @relation(fields: [taskId], references: [id])
-  items               OrderItem[]
-  payments            Payment[]
-
-  @@map("orders")
-}
-
-model OrderItem {
-  id          String   @id @default(uuid())
-  orderId     String
-  productId   String
-  quantity    Int
-  unitPrice   Decimal  @db.Decimal(10, 2)
-  createdAt   DateTime @default(now())
-
-  order       Order    @relation(fields: [orderId], references: [id])
-  product     Product  @relation(fields: [productId], references: [id])
-
-  @@map("order_items")
-}
-
-model Payment {
-  id            String         @id @default(uuid())
-  userId        String
-  orderId       String?
-  taskId        String?
-  amount        Decimal        @db.Decimal(10, 2)
-  currency      String         @default("ZMW")
-  status        PaymentStatus  @default(PENDING)
-  method        PaymentMethod
-  transactionId String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  order Order? @relation(fields: [orderId], references: [id])
-  task  Task?  @relation(fields: [taskId], references: [id])
-
-  @@map("payments")
-}
-
-// --- Financial Domain ---
-
-model Wallet {
-  id            String   @id @default(uuid())
-  userId        String   @unique
-  balance       Decimal  @default(0) @db.Decimal(10, 2)
-  floatBalance  Decimal  @default(0) @db.Decimal(10, 2)
-  currency      String   @default("ZMW")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  user          User     @relation(fields: [userId], references: [id])
-  transactions  Transaction[]
-
-  @@map("wallets")
-}
-
-model Transaction {
-  id              String          @id @default(uuid())
-  walletId        String
-  amount          Decimal         @db.Decimal(10, 2)
-  transactionType TransactionType
-  description     String
-  referenceId     String?         @unique // e.g., Task ID, Payout ID
-  createdAt       DateTime        @default(now())
-
-  wallet          Wallet          @relation(fields: [walletId], references: [id])
-
-  @@map("transactions")
-}
-
-// --- Rating & Notification Domain ---
-
-model Rating {
-  id          String   @id @default(uuid())
-  customerId  String
-  taskerId    String?
-  vendorId    String?
-  rating      Int      @db.SmallInt
-  comment     String?
-  createdAt   DateTime @default(now())
-
-  customer    Customer @relation("CustomerRatings", fields: [customerId], references: [id])
-  tasker      Tasker?  @relation("TaskerRatings", fields: [taskerId], references: [id])
-  vendor      Vendor?  @relation("VendorRatings", fields: [vendorId], references: [id])
-
-  @@map("ratings")
-}
-
-model Notification {
-  id          String   @id @default(uuid())
-  userId      String
-  type        String
-  title       String
-  body        String
-  data        Json?
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
-
-  user        User     @relation(fields: [userId], references: [id])
-
-  @@map("notifications")
-}

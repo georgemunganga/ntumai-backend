@@ -1,86 +1,102 @@
 import { PrismaClient } from '@prisma/client';
-import { hash } from 'bcrypt';
-import * as dotenv from 'dotenv';
-
-dotenv.config(); // Load environment variables from .env file
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Start seeding ...');
+  console.log('🌱 Starting database seeding...');
 
-  // --- Clean up existing data ---
-  await prisma.userRole.deleteMany({});
-  await prisma.user.deleteMany({});
-  await prisma.tasker.deleteMany({});
-  await prisma.task.deleteMany({});
+  try {
+    // Seed user roles
+    console.log('📝 Seeding user roles...');
+    
+    // Note: User roles are typically managed through the auth module
+    // This is a placeholder for initial data seeding
 
-  // --- Seed Users ---
-  const password = await hash('password123', 10);
-  const user1 = await prisma.user.create({
-    data: {
-      phoneNumber: '+10000000001',
-      email: 'customer1@example.com',
-      firstName: 'John',
-      lastName: 'Doe',
-      passwordHash: password,
-      isActive: true,
-      roles: {
-        create: [{ roleType: 'CUSTOMER', isActive: true }],
+    // Seed categories
+    console.log('📁 Seeding categories...');
+    const categories = [
+      {
+        id: 'cat-1',
+        name: 'Electronics',
+        imageUrl: 'https://via.placeholder.com/300?text=Electronics',
+        isActive: true,
       },
-    },
-  });
-
-  const user2 = await prisma.user.create({
-    data: {
-      phoneNumber: '+10000000002',
-      email: 'tasker1@example.com',
-      firstName: 'Jane',
-      lastName: 'Smith',
-      passwordHash: password,
-      isActive: true,
-      roles: {
-        create: [{ roleType: 'TASKER', isActive: true }],
+      {
+        id: 'cat-2',
+        name: 'Clothing',
+        imageUrl: 'https://via.placeholder.com/300?text=Clothing',
+        isActive: true,
       },
-    },
-  });
+      {
+        id: 'cat-3',
+        name: 'Food & Beverages',
+        imageUrl: 'https://via.placeholder.com/300?text=Food',
+        isActive: true,
+      },
+      {
+        id: 'cat-4',
+        name: 'Home & Garden',
+        imageUrl: 'https://via.placeholder.com/300?text=Home',
+        isActive: true,
+      },
+    ];
 
-  // --- Seed Taskers ---
-  await prisma.tasker.create({
-    data: {
-      userId: user2.id,
-      vehicleType: 'CAR',
-      isOnline: true,
-      rating: 4.8,
-      completedTasks: 120,
-      cancellationRate: 0.05,
-      kycStatus: 'APPROVED',
-      lastLocationLat: 34.0522, // Los Angeles
-      lastLocationLng: -118.2437,
-    },
-  });
+    for (const category of categories) {
+      await prisma.category.upsert({
+        where: { id: category.id },
+        update: {},
+        create: category,
+      });
+    }
+    console.log('✅ Categories seeded');
 
-  // --- Seed Tasks ---
-  await prisma.task.create({
-    data: {
-      customerId: user1.id,
-      taskType: 'DELIVERY',
-      status: 'CREATED',
-      pickupAddress: { address: '123 Main St, Los Angeles, CA' },
-      dropoffAddress: { address: '456 Oak Ave, Los Angeles, CA' },
-      price: 25.50,
-      paymentMethod: 'CARD',
-    },
-  });
+    // Seed brands
+    console.log('🏢 Seeding brands...');
+    const brands = [
+      {
+        id: 'brand-1',
+        name: 'TechPro',
+        imageUrl: 'https://via.placeholder.com/300?text=TechPro',
+        isActive: true,
+      },
+      {
+        id: 'brand-2',
+        name: 'StyleMax',
+        imageUrl: 'https://via.placeholder.com/300?text=StyleMax',
+        isActive: true,
+      },
+      {
+        id: 'brand-3',
+        name: 'FreshFoods',
+        imageUrl: 'https://via.placeholder.com/300?text=FreshFoods',
+        isActive: true,
+      },
+    ];
 
-  console.log('Seeding finished.');
+    for (const brand of brands) {
+      await prisma.brand.upsert({
+        where: { id: brand.id },
+        update: {},
+        create: brand,
+      });
+    }
+    console.log('✅ Brands seeded');
+
+    // Seed delivery statuses (if needed)
+    console.log('🚚 Seeding delivery data...');
+    // This would depend on your specific delivery model structure
+
+    console.log('✅ Database seeding completed successfully!');
+  } catch (error) {
+    console.error('❌ Error during seeding:', error);
+    throw error;
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 main()
   .catch((e) => {
     console.error(e);
     process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
   });
