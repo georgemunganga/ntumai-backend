@@ -12,7 +12,6 @@ export class OtpService {
   ) {}
 
   private generateOtp(): string {
-    // Generate a 6-digit random number
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
@@ -27,7 +26,7 @@ export class OtpService {
     // Store OTP in Redis with a 5-minute expiry
     await this.redisService.set(key, otp, this.OTP_TTL_SECONDS);
 
-    // Send OTP via communication service (simulated as email for now)
+    // Send OTP via communication service
     await this.communicationService.sendOtp(identifier, otp);
   }
 

@@ -1,15 +1,19 @@
-import { Injectable, UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UserRepository } from 'src/modules/auth/infrastructure/repositories/user.repository';
-import { UserEntity } from 'src/modules/auth/domain/entities/user.entity';
-import { JwtToken } from 'src/modules/auth/domain/value-objects/jwt-token.vo';
-import { OtpService } from 'src/modules/auth/application/services/otp.service';
 import { ConfigService } from '@nestjs/config';
+import { UserService } from 'src/modules/users/application/services/user.service';
+import { UserEntity } from 'src/modules/users/domain/entities/user.entity';
+import { JwtToken } from '../../domain/value-objects/jwt-token.vo';
+import { OtpService } from './otp.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly userRepository: UserRepository,
+    private readonly userService: UserService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly otpService: OtpService,
@@ -17,100 +21,81 @@ export class AuthService {
 
   async requestOtp(phoneNumber?: string, email?: string): Promise<void> {
     if (!phoneNumber && !email) {
-      throw new BadRequestException('Phone number or email must be provided.');
+      throw new BadRequestException(
+        'Phone number or email must be provided.',
+      );
     }
 
-    let user: UserEntity | null = null;
-    let identifier: string;
+    const identifier = phoneNumber || email;
 
-    if (phoneNumber) {
-      user = await this.userRepository.findByPhoneNumber(phoneNumber);
-      identifier = phoneNumber;
-    } else if (email) {
-      user = await this.userRepository.findByEmail(email);
-      identifier = email;
-    } else {
-      throw new BadRequestException('Invalid request: Missing phone number or email.');
-    }
+    // Create or get user
+    await this.userService.createOrUpdateUser(phoneNumber, email);
 
-    if (!user) {
-      // If user does not exist, create a new user with a temporary status
-      user = await this.userRepository.save(new UserEntity({ phoneNumber, email, status: 'PENDING_VERIFICATION' }));
-    }
-
-    // 2. Request OTP
-    await this.otpService.requestOtp(identifier);
+    // Request OTP
+    await this.otpService.requestOtp(identifier!);
   }
 
-  async verifyOtp(otp: string, phoneNumber?: string, email?: string): Promise<JwtToken> {
+  async verifyOtp(
+    otp: string,
+    phoneNumber?: string,
+    email?: string,
+  ): Promise<JwtToken> {
     if (!phoneNumber && !email) {
-      throw new BadRequestException('Phone number or email must be provided.');
+      throw new BadRequestException(
+        'Phone number or email must be provided.',
+      );
     }
 
-    let user: UserEntity | null = null;
-    let identifier: string;
+    const identifier = phoneNumber || email;
 
-    if (phoneNumber) {
-      user = await this.userRepository.findByPhoneNumber(phoneNumber);
-      identifier = phoneNumber;
-    } else if (email) {
-      user = await this.userRepository.findByEmail(email);
-      identifier = email;
-    } else {
-      throw new BadRequestException('Invalid request: Missing phone number or email.');
-    }
-
-    // 1. Verify OTP
-    const isValid = await this.otpService.verifyOtp(identifier, otp);
+    // Verify OTP
+    const isValid = await this.otpService.verifyOtp(identifier!, otp);
     if (!isValid) {
       throw new UnauthorizedException('Invalid or expired OTP');
     }
 
-    // 2. Find user
+    // Get or create user
+    let user: UserEntity | null = null;
+    if (phoneNumber) {
+      user = await this.userService.getUserByPhoneNumber(phoneNumber);
+    } else if (email) {
+      user = await this.userService.getUserByEmail(email);
+    }
+
     if (!user) {
-      // Should not happen if requestOtp was called, but as a safeguard
       throw new UnauthorizedException('User not found');
     }
 
-    // 3. Update user status to active (onboarding complete)
+    // Activate user if pending
     if (user.status === 'PENDING_VERIFICATION') {
-      user.status = 'ACTIVE';
-      user = await this.userRepository.save(user);
+      user = await this.userService.activateUser(user);
     }
 
     return this.generateTokens(user);
-  }
-
-  async switchRole(userId: string, roleType: string): Promise<JwtToken> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    // if (!user.canSwitchRole(roleType)) { // Assuming canSwitchRole method on UserEntity
-    //   throw new ForbiddenException(`Cannot switch to role ${roleType}`);
-    // }
-
-    return this.generateTokens(user, roleType);
   }
 
   private generateTokens(user: UserEntity, activeRole?: string): JwtToken {
     const payload = {
       sub: user.id,
       phoneNumber: user.phoneNumber,
-      activeRole: activeRole || 'CUSTOMER', // Placeholder for initial role
+      email: user.email,
+      activeRole: activeRole || 'CUSTOMER',
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      expiresIn: this.configService.get('JWT_EXPIRATION'),
+      expiresIn: this.configService.get('JWT_EXPIRATION') || '1h',
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: this.configService.get('JWT_REFRESH_EXPIRATION'),
-      secret: this.configService.get('JWT_REFRESH_SECRET'),
+      expiresIn:
+        this.configService.get('JWT_REFRESH_EXPIRATION') || '7d',
+      secret: this.configService.get('JWT_REFRESH_SECRET') || 'refresh-secret',
     });
 
-    // NOTE: The expiration time should be calculated based on the actual JWT_EXPIRATION setting
-    return new JwtToken(accessToken, refreshToken, Date.now() + 15 * 60 * 1000);
+    return new JwtToken(
+      accessToken,
+      refreshToken,
+      Date.now() + 15 * 60 * 1000,
+    );
   }
 }

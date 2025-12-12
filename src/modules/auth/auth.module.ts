@@ -1,52 +1,42 @@
 import { Module } from '@nestjs/common';
-import { AuthController } from './interfaces/controllers/auth.controller';
+import { JwtModule } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { UsersModule } from '../users/users.module';
 import { CommunicationModule } from '../communication/communication.module';
+import { SharedModule } from 'src/shared/shared.module';
 import { AuthService } from './application/services/auth.service';
+import { AuthServiceV2 } from './application/services/auth-v2.service';
 import { OtpService } from './application/services/otp.service';
-import { UserRepository } from './infrastructure/repositories/user.repository';
-import { PrismaService } from '../../shared/infrastructure/prisma.service';
-import { JwtModule, JwtSignOptions } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { JwtStrategy } from './jwt.strategy';
-import { PassportModule } from '@nestjs/passport';
+import { OtpServiceV2 } from './application/services/otp-v2.service';
+import { AuthController } from './interfaces/controllers/auth.controller';
+import { AuthV2Controller } from './interfaces/controllers/auth-v2.controller';
+import { JwtAuthGuard } from './infrastructure/guards/jwt-auth.guard';
+import { OtpSessionRepository } from './infrastructure/repositories/otp-session.repository';
 
 @Module({
   imports: [
+    UsersModule,
+    CommunicationModule,
+    SharedModule,
     JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => {
-        const secret = configService.get<string>('JWT_SECRET');
-        const expiresIn = configService.get<string>('JWT_EXPIRATION');
-
-        if (!secret) {
-          throw new Error('JWT_SECRET is not defined');
-        }
-
-        if (!expiresIn) {
-          throw new Error('JWT_EXPIRATION is not defined');
-        }
-
-        const signOptions: JwtSignOptions = { expiresIn: expiresIn as JwtSignOptions['expiresIn'] };
-
-        return {
-          secret,
-          signOptions,
-        };
-      },
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get('JWT_SECRET') || 'your-secret-key',
+        signOptions: {
+          expiresIn: configService.get('JWT_EXPIRATION') || '1h',
+        },
+      }),
       inject: [ConfigService],
     }),
-    PassportModule,
-    CommunicationModule,
   ],
-  controllers: [AuthController],
   providers: [
-    JwtStrategy,
     AuthService,
+    AuthServiceV2,
     OtpService,
-    UserRepository,
-    PrismaService,
-    // Add other services like OtpService, HashService here
+    OtpServiceV2,
+    JwtAuthGuard,
+    OtpSessionRepository,
   ],
-  exports: [AuthService, UserRepository],
+  controllers: [AuthController, AuthV2Controller],
+  exports: [AuthService, AuthServiceV2, JwtAuthGuard],
 })
 export class AuthModule {}
