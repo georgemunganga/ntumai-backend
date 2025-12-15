@@ -5,9 +5,10 @@ import { PrismaTrackingRepository } from './infrastructure/repositories/prisma-t
 import { TrackingGateway } from './infrastructure/websocket/tracking.gateway';
 import { TRACKING_REPOSITORY } from './domain/repositories/tracking.repository.interface';
 import { DatabaseModule } from '../shared/database/database.module';
+import { AuthModule } from '../modules/auth/auth.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, AuthModule],
   controllers: [TrackingController],
   providers: [
     TrackingService,

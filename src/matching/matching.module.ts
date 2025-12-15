@@ -6,9 +6,10 @@ import { MockMatchingEngineAdapter } from './infrastructure/adapters/mock-matchi
 import { MatchingGateway } from './infrastructure/websocket/matching.gateway';
 import { BOOKING_REPOSITORY } from './domain/repositories/booking.repository.interface';
 import { DatabaseModule } from '../shared/database/database.module';
+import { AuthModule } from '../modules/auth/auth.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, AuthModule],
   controllers: [MatchingController],
   providers: [
     MatchingService,

@@ -5,9 +5,10 @@ import { PrismaShiftRepository } from './infrastructure/repositories/prisma-shif
 import { ShiftsGateway } from './infrastructure/websocket/shifts.gateway';
 import { SHIFT_REPOSITORY } from './domain/repositories/shift.repository.interface';
 import { DatabaseModule } from '../shared/database/database.module';
+import { AuthModule } from '../modules/auth/auth.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, AuthModule],
   controllers: [ShiftController],
   providers: [
     ShiftService,

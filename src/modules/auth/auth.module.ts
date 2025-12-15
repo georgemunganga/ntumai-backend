@@ -42,6 +42,6 @@ import { OtpSessionRepository } from './infrastructure/repositories/otp-session.
     OtpSessionRepository,
   ],
   controllers: [AuthController, AuthV2Controller],
-  exports: [AuthService, AuthServiceV2, JwtAuthGuard],
+  exports: [AuthService, AuthServiceV2, JwtAuthGuard, JwtModule],
 })
 export class AuthModule {}

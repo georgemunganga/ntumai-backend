@@ -25,6 +25,8 @@ export class PrismaService
         { emit: 'event', level: 'warn' },
       ],
       errorFormat: 'pretty',
+      // FIX: Pass accelerateUrl to the constructor to satisfy validation
+      accelerateUrl: process.env.DATABASE_URL,
     });
 
     // Extend with Accelerate for connection pooling and caching
