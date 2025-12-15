@@ -31,7 +31,7 @@ import {
   HeatmapDataPointDto,
   ShiftStatisticsDto,
 } from '../../application/dtos/shift.dto';
-import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../../modules/auth/infrastructure/guards/jwt-auth.guard';
 
 @ApiTags('Shifts')
 @Controller('shifts')

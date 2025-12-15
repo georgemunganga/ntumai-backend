@@ -20,24 +20,28 @@ async function main() {
         name: 'Electronics',
         imageUrl: 'https://via.placeholder.com/300?text=Electronics',
         isActive: true,
+        updatedAt: new Date(),
       },
       {
         id: 'cat-2',
         name: 'Clothing',
         imageUrl: 'https://via.placeholder.com/300?text=Clothing',
         isActive: true,
+        updatedAt: new Date(),
       },
       {
         id: 'cat-3',
         name: 'Food & Beverages',
         imageUrl: 'https://via.placeholder.com/300?text=Food',
         isActive: true,
+        updatedAt: new Date(),
       },
       {
         id: 'cat-4',
         name: 'Home & Garden',
         imageUrl: 'https://via.placeholder.com/300?text=Home',
         isActive: true,
+        updatedAt: new Date(),
       },
     ];
 
@@ -58,18 +62,21 @@ async function main() {
         name: 'TechPro',
         imageUrl: 'https://via.placeholder.com/300?text=TechPro',
         isActive: true,
+        updatedAt: new Date(),
       },
       {
         id: 'brand-2',
         name: 'StyleMax',
         imageUrl: 'https://via.placeholder.com/300?text=StyleMax',
         isActive: true,
+        updatedAt: new Date(),
       },
       {
         id: 'brand-3',
         name: 'FreshFoods',
         imageUrl: 'https://via.placeholder.com/300?text=FreshFoods',
         isActive: true,
+        updatedAt: new Date(),
       },
     ];
 

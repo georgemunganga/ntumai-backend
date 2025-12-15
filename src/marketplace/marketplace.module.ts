@@ -7,10 +7,10 @@ import { VendorService } from './vendor/application/services/vendor.service';
 import { PromotionService } from './promotions/application/services/promotion.service';
 import { ReviewService } from './reviews/application/services/review.service';
 import { DatabaseModule } from '../shared/database/database.module';
-import { AuthModule } from '../auth/auth.module';
+// import { AuthModule } from '../auth/auth.module'; // AuthModule is imported in app.module, no need here
 
 @Module({
-  imports: [DatabaseModule, AuthModule],
+  imports: [DatabaseModule],
   controllers: [MarketplaceController],
   providers: [
     CatalogService,

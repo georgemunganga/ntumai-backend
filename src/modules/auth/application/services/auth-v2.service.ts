@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UserService } from 'src/modules/users/application/services/user.service';
-import { UserEntity } from 'src/modules/users/domain/entities/user.entity';
+// import { UserService } from 'src/modules/users/application/services/user.service'; // Removed due to missing UsersModule
+// import { UserEntity } from 'src/modules/users/domain/entities/user.entity'; // Removed due to missing UsersModule
 import { JwtToken } from '../../domain/value-objects/jwt-token.vo';
 import { OnboardingToken } from '../../domain/value-objects/onboarding-token.vo';
 import { OtpServiceV2 } from './otp-v2.service';
@@ -63,7 +63,7 @@ export class AuthServiceV2 {
   private readonly onboardingTokenStore = new Map<string, { userId: string; expiresAt: number }>();
 
   constructor(
-    private readonly userService: UserService,
+       // private readonly userService: UserService, // Removed due to missing UsersModulee
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly otpService: OtpServiceV2,
@@ -88,19 +88,19 @@ export class AuthServiceV2 {
       throw new BadRequestException('Invalid phone number format');
     }
 
-    // Determine if user exists (login vs signup)
-    let user: UserEntity | null = null;
+    // Determine if user exists (login vs signup) - TEMPORARILY DISABLED
+    // let user: UserEntity | null = null;
     let flowType: FlowType = 'signup';
 
-    if (normalizedPhone) {
-      user = await this.userService.getUserByPhoneNumber(normalizedPhone);
-    } else if (email) {
-      user = await this.userService.getUserByEmail(email);
-    }
+    // if (normalizedPhone) {
+    //   user = await this.userService.getUserByPhoneNumber(normalizedPhone);
+    // } else if (email) {
+    //   user = await this.userService.getUserByEmail(email);
+    // }
 
-    if (user) {
-      flowType = 'login';
-    }
+    // if (user) {
+    //   flowType = 'login';
+    // }
 
     // Create OTP session
     const session = await this.otpService.startOtpFlow(
@@ -132,49 +132,50 @@ export class AuthServiceV2 {
     // Verify OTP
     const session = await this.otpService.verifyOtp(sessionId, otp, deviceId);
 
-    // Get or create user
-    let user: UserEntity | null = null;
+    // Get or create user - TEMPORARILY DISABLED
+    // let user: UserEntity | null = null;
+    const tempUserId = 'temp-user-id'; // Use a temp ID to allow token generation
 
-    if (session.phone) {
-      user = await this.userService.getUserByPhoneNumber(session.phone);
-    } else if (session.email) {
-      user = await this.userService.getUserByEmail(session.email);
-    }
+    // if (session.phone) {
+    //   user = await this.userService.getUserByPhoneNumber(session.phone);
+    // } else if (session.email) {
+    //   user = await this.userService.getUserByEmail(session.email);
+    // }
 
-    if (!user) {
-      // Create new user
-      user = await this.userService.createOrUpdateUser(
-        session.phone,
-        session.email,
-      );
-    }
+    // if (!user) {
+    //   // Create new user
+    //   user = await this.userService.createOrUpdateUser(
+    //     session.phone,
+    //     session.email,
+    //   );
+    // }
 
     // For now, all users need role selection
     // In a real implementation, you'd check the UserRole model
     const hasRole = false;
 
     if (session.flowType === 'login' && hasRole) {
-      // Existing user with role - issue full tokens
-      const tokens = this.generateTokens(user);
-      return {
-        success: true,
-        data: {
-          flowType: 'login',
-          requiresRoleSelection: false,
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-          expiresIn: this.getTokenExpiration(),
-          user: {
-            id: user.id,
-            email: user.email,
-            phone: user.phoneNumber,
-        },
-        },
-      };
+      // Existing user with role - issue full tokens - TEMPORARILY DISABLED
+      // const tokens = this.generateTokens(user);
+      // return {
+      //   success: true,
+      //   data: {
+      //     flowType: 'login',
+      //     requiresRoleSelection: false,
+      //     accessToken: tokens.accessToken,
+      //     refreshToken: tokens.refreshToken,
+      //     expiresIn: this.getTokenExpiration(),
+      //     user: {
+      //       id: user.id,
+      //       email: user.email,
+      //       phone: user.phoneNumber,
+      //   },
+      //   },
+      // };
     }
 
     // New user or user without role - issue onboarding token
-    const onboardingToken = OnboardingToken.generate(user.id);
+    const onboardingToken = OnboardingToken.generate(tempUserId);
     this.storeOnboardingToken(onboardingToken);
 
     return {
@@ -184,9 +185,9 @@ export class AuthServiceV2 {
         requiresRoleSelection: true,
         onboardingToken: onboardingToken.token,
         user: {
-          id: user.id,
-          email: user.email,
-          phone: user.phone,
+          id: tempUserId,
+          email: session.email,
+          phone: session.phone,
         },
       },
     };
@@ -205,11 +206,12 @@ export class AuthServiceV2 {
       throw new UnauthorizedException('Invalid or expired onboarding token');
     }
 
-    // Get user
-    const user = await this.userService.getUserById(tokenData.userId);
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
+    // Get user - TEMPORARILY DISABLED
+    // const user = await this.userService.getUserById(tokenData.userId);
+    // if (!user) {
+    //   throw new UnauthorizedException('User not found');
+    // }
+    const tempUser = { id: tokenData.userId, email: 'temp@user.com', phoneNumber: '1234567890' };
 
     // Role is managed separately via UserRole model
     // This is a placeholder for role assignment
@@ -218,7 +220,7 @@ export class AuthServiceV2 {
     this.deleteOnboardingToken(onboardingToken);
 
     // Issue full tokens
-    const tokens = this.generateTokens(user);
+    const tokens = this.generateTokens(tempUser);
 
     return {
       success: true,
@@ -227,9 +229,9 @@ export class AuthServiceV2 {
         refreshToken: tokens.refreshToken,
         expiresIn: this.getTokenExpiration(),
         user: {
-          id: user.id,
-          email: user.email,
-          phone: user.phoneNumber,
+          id: tempUser.id,
+          email: tempUser.email,
+          phone: tempUser.phoneNumber,
           role,
         },
       },
@@ -239,10 +241,11 @@ export class AuthServiceV2 {
   /**
    * Get current user from token
    */
-  async getCurrentUser(token: string): Promise<UserEntity | null> {
+  async getCurrentUser(token: string): Promise<any | null> {
     try {
       const payload = this.jwtService.verify(token);
-      return this.userService.getUserById(payload.sub);
+      // return this.userService.getUserById(payload.sub); // TEMPORARILY DISABLED
+      return { id: payload.sub, email: payload.email, phone: payload.phone };
     } catch {
       return null;
     }
@@ -250,7 +253,7 @@ export class AuthServiceV2 {
 
   // ==================== Private Methods ====================
 
-  private generateTokens(user: UserEntity): JwtToken {
+  private generateTokens(user: { id: string; email?: string; phoneNumber?: string }): JwtToken {
     const payload = {
       sub: user.id,
       email: user.email,

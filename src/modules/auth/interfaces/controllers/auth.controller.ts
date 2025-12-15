@@ -34,7 +34,8 @@ export class AuthController {
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      expiresIn: tokens.expiresIn,
+      expiresAt: Date.now() + 3600000, // Placeholder for 1 hour expiry
+
     };
   }
 }

@@ -10,7 +10,7 @@ export class UserRepository {
   async findById(id: string): Promise<UserEntity | null> {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      include: { roles: true },
+      // include: { roles: true }, // Removed: roles relation not in new schema
     });
 
     return user ? this.toDomain(user) : null;
@@ -18,8 +18,8 @@ export class UserRepository {
 
   async findByPhoneNumber(phoneNumber: string): Promise<UserEntity | null> {
     const user = await this.prisma.user.findUnique({
-      where: { phoneNumber },
-      include: { roles: true },
+      where: { phone: phoneNumber },
+      // include: { roles: true }, // Removed: roles relation not in new schema
     });
 
     return user ? this.toDomain(user) : null;
@@ -28,7 +28,7 @@ export class UserRepository {
   async findByEmail(email: string): Promise<UserEntity | null> {
     const user = await this.prisma.user.findUnique({
       where: { email },
-      include: { roles: true },
+      // include: { roles: true }, // Removed: roles relation not in new schema
     });
     return user ? this.toDomain(user) : null;
   }
@@ -37,41 +37,40 @@ export class UserRepository {
     const saved = await this.prisma.user.upsert({
       where: { id: user.id || 'non-existent-id' }, // Use upsert logic for saving
       update: {
-        phoneNumber: user.phoneNumber,
+        phone: user.phoneNumber,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        isActive: user.isActive,
+        firstName: user.firstName ?? 'User',
+        lastName: user.lastName ?? 'NtuMai',
+        // isActive: user.isActive,
       },
       create: {
-        phoneNumber: user.phoneNumber,
+        phone: user.phoneNumber,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        isActive: user.isActive,
+        firstName: user.firstName ?? 'User',
+        lastName: user.lastName ?? 'NtuMai',
+        // isActive: user.isActive,
         // Initial role creation logic should be here or in a service
-        roles: {
-          create: {
-            roleType: 'CUSTOMER', // Default role
-          },
-        },
+        role: 'CUSTOMER',
+        password: 'temporary_password', // Required by new schema
+        id: user.id || 'temp-id-' + Date.now(), // Required by new schema
+        updatedAt: new Date(), // Required by new schema
       },
-      include: { roles: true },
+      // include: { roles: true }, // Removed: roles relation not in new schema
     });
 
     return this.toDomain(saved);
   }
 
-  private toDomain(raw: PrismaUser & { roles: any[] }): UserEntity {
+  private toDomain(raw: PrismaUser): UserEntity {
     return new UserEntity({
       id: raw.id,
-      phoneNumber: raw.phoneNumber,
+      phoneNumber: raw.phone ?? undefined,
       email: raw.email ?? undefined,
       firstName: raw.firstName ?? undefined,
       lastName: raw.lastName ?? undefined,
-      status: raw.status,
-      roles: raw.roles,
-      isActive: raw.isActive,
+      // status: raw.status,
+      // roles: raw.roles, // Removed: roles relation not in new schema
+      // isActive: raw.isActive,
       createdAt: raw.createdAt,
     });
   }

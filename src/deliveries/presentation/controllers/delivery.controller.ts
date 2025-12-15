@@ -28,7 +28,7 @@ import {
   CancelDeliveryDto,
   AcceptDeliveryDto,
 } from '../../application/dtos/create-delivery.dto';
-import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../../modules/auth/infrastructure/guards/jwt-auth.guard';
 import { Public } from '../../../shared/common/decorators/public.decorator';
 
 @ApiTags('Deliveries')

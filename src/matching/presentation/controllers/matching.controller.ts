@@ -23,7 +23,7 @@ import {
   BookingResponseDto,
   CreateBookingResponseDto,
 } from '../../application/dtos/booking.dto';
-import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../../modules/auth/infrastructure/guards/jwt-auth.guard';
 import { Public } from '../../../shared/common/decorators/public.decorator';
 
 @ApiTags('Matching & Booking')

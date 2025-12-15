@@ -6,17 +6,15 @@ export class UserEntity {
   email?: string;
   firstName?: string;
   lastName?: string;
-  status: string;
-  roles: PrismaUserRole[];
-  isActive: boolean;
+  role: PrismaUserRole;
   createdAt: Date;
 
   constructor(data: Partial<UserEntity>) {
     Object.assign(this, data);
-    this.roles = data.roles || [];
+    this.role = data.role || PrismaUserRole.CUSTOMER;
   }
 
   canSwitchRole(roleType: string): boolean {
-    return this.roles.some(r => r.roleType === roleType && r.isActive);
+    return this.role === roleType;
   }
 }

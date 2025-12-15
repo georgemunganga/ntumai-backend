@@ -2,7 +2,7 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
-  TooManyRequestsException,
+
 } from '@nestjs/common';
 import { OtpSessionRepository } from '../../infrastructure/repositories/otp-session.repository';
 import { OtpSessionEntity, FlowType, OtpChannel } from '../../domain/entities/otp-session.entity';
@@ -38,7 +38,7 @@ export class OtpServiceV2 {
     // Normalize phone if provided
     let normalizedPhone: string | undefined;
     if (phone) {
-      normalizedPhone = PhoneNormalizer.normalize(phone);
+      normalizedPhone = PhoneNormalizer.normalize(phone) ?? undefined;
       if (!normalizedPhone) {
         throw new BadRequestException('Invalid phone number format');
       }
@@ -101,7 +101,7 @@ export class OtpServiceV2 {
 
     // Check if session is locked
     if (session.isLocked()) {
-      throw new TooManyRequestsException('Too many failed attempts. Please request a new OTP.');
+      throw new UnauthorizedException('Too many failed attempts. Please request a new OTP.');
     }
 
     // Check device consistency (optional security measure)
@@ -206,7 +206,7 @@ export class OtpServiceV2 {
     if (recentSession && !recentSession.isExpired()) {
       const timeSinceCreation = Date.now() - recentSession.createdAt.getTime();
       if (timeSinceCreation < 60 * 1000) { // Less than 1 minute
-        throw new TooManyRequestsException(
+        throw new BadRequestException(
           'Please wait before requesting a new OTP',
         );
       }
@@ -220,7 +220,7 @@ export class OtpServiceV2 {
     if (recentSession && !recentSession.isExpired()) {
       const timeSinceCreation = Date.now() - recentSession.createdAt.getTime();
       if (timeSinceCreation < 60 * 1000) { // Less than 1 minute
-        throw new TooManyRequestsException(
+        throw new BadRequestException(
           'Please wait before requesting a new OTP',
         );
       }
