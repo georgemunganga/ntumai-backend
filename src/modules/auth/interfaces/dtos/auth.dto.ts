@@ -1,8 +1,17 @@
-import { Matches, IsString, Length, IsEnum, IsOptional, IsEmail } from 'class-validator';
+import {
+  Matches,
+  IsString,
+  Length,
+  IsEnum,
+  IsOptional,
+  IsEmail,
+} from 'class-validator';
 
 export class RequestOtpDto {
   @IsOptional()
-  @Matches(/^\+?[1-9]\d{7,14}$/, { message: 'phoneNumber must be a valid E.164 phone number' })
+  @Matches(/^\+?[1-9]\d{7,14}$/, {
+    message: 'phoneNumber must be a valid E.164 phone number',
+  })
   phoneNumber?: string;
 
   @IsOptional()
@@ -12,7 +21,9 @@ export class RequestOtpDto {
 
 export class VerifyOtpDto {
   @IsOptional()
-  @Matches(/^\+?[1-9]\d{7,14}$/, { message: 'phoneNumber must be a valid E.164 phone number' })
+  @Matches(/^\+?[1-9]\d{7,14}$/, {
+    message: 'phoneNumber must be a valid E.164 phone number',
+  })
   phoneNumber?: string;
 
   @IsOptional()

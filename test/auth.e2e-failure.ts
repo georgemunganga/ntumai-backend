@@ -27,22 +27,36 @@ describe('Auth E2E Failure & Security Cases (e2e)', () => {
     otpService = app.get(OtpService);
 
     // Mock the OTP service to return a fixed OTP for testing
-    jest.spyOn(otpService, 'requestOtp').mockImplementation(async (identifier: string) => {
-      // Manually set the fixed OTP in Redis for the identifier
-      await otpService['redisService'].set(`otp:${identifier}`, validOtp, 300);
-    });
-    jest.spyOn(otpService, 'verifyOtp').mockImplementation(async (identifier: string, otp: string) => {
-      const storedOtp = await otpService['redisService'].get(`otp:${identifier}`);
-      return storedOtp === otp;
-    });
+    jest
+      .spyOn(otpService, 'requestOtp')
+      .mockImplementation(async (identifier: string) => {
+        // Manually set the fixed OTP in Redis for the identifier
+        await otpService['redisService'].set(
+          `otp:${identifier}`,
+          validOtp,
+          300,
+        );
+      });
+    jest
+      .spyOn(otpService, 'verifyOtp')
+      .mockImplementation(async (identifier: string, otp: string) => {
+        const storedOtp = await otpService['redisService'].get(
+          `otp:${identifier}`,
+        );
+        return storedOtp === otp;
+      });
 
     // Clean up database before tests
-    await prisma.user.deleteMany({ where: { OR: [{ phoneNumber: testPhoneNumber }, { email: testEmail }] } });
+    await prisma.user.deleteMany({
+      where: { OR: [{ phoneNumber: testPhoneNumber }, { email: testEmail }] },
+    });
   });
 
   afterAll(async () => {
     // Clean up database after tests
-    await prisma.user.deleteMany({ where: { OR: [{ phoneNumber: testPhoneNumber }, { email: testEmail }] } });
+    await prisma.user.deleteMany({
+      where: { OR: [{ phoneNumber: testPhoneNumber }, { email: testEmail }] },
+    });
     await app.close();
   });
 

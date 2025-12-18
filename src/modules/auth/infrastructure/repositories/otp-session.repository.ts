@@ -18,20 +18,24 @@ export class OtpSessionRepository implements IOtpSessionRepository {
   }
 
   async findByEmail(email: string): Promise<OtpSessionEntity | null> {
-    const sessionId = await this.redisService.get(`${this.EMAIL_INDEX}${email}`);
+    const sessionId = await this.redisService.get(
+      `${this.EMAIL_INDEX}${email}`,
+    );
     if (!sessionId) return null;
     return this.findById(sessionId);
   }
 
   async findByPhone(phone: string): Promise<OtpSessionEntity | null> {
-    const sessionId = await this.redisService.get(`${this.PHONE_INDEX}${phone}`);
+    const sessionId = await this.redisService.get(
+      `${this.PHONE_INDEX}${phone}`,
+    );
     if (!sessionId) return null;
     return this.findById(sessionId);
   }
 
   async save(session: OtpSessionEntity): Promise<OtpSessionEntity> {
     const ttl = Math.ceil((session.expiresAt.getTime() - Date.now()) / 1000);
-    
+
     // Save main session
     await this.redisService.set(
       `${this.PREFIX}${session.id}`,
@@ -65,11 +69,11 @@ export class OtpSessionRepository implements IOtpSessionRepository {
     if (!session) return false;
 
     await this.redisService.del(`${this.PREFIX}${id}`);
-    
+
     if (session.email) {
       await this.redisService.del(`${this.EMAIL_INDEX}${session.email}`);
     }
-    
+
     if (session.phone) {
       await this.redisService.del(`${this.PHONE_INDEX}${session.phone}`);
     }

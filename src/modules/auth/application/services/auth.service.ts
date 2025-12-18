@@ -21,9 +21,7 @@ export class AuthService {
 
   async requestOtp(phoneNumber?: string, email?: string): Promise<void> {
     if (!phoneNumber && !email) {
-      throw new BadRequestException(
-        'Phone number or email must be provided.',
-      );
+      throw new BadRequestException('Phone number or email must be provided.');
     }
 
     const identifier = phoneNumber || email;
@@ -41,9 +39,7 @@ export class AuthService {
     email?: string,
   ): Promise<JwtToken> {
     if (!phoneNumber && !email) {
-      throw new BadRequestException(
-        'Phone number or email must be provided.',
-      );
+      throw new BadRequestException('Phone number or email must be provided.');
     }
 
     const identifier = phoneNumber || email;
@@ -56,7 +52,11 @@ export class AuthService {
 
     // Get or create user - TEMPORARILY DISABLED
     // let user: UserEntity | null = null;
-    const tempUser = { id: 'temp-user-id', phoneNumber: phoneNumber, email: email };
+    const tempUser = {
+      id: 'temp-user-id',
+      phoneNumber: phoneNumber,
+      email: email,
+    };
 
     // if (phoneNumber) {
     //   user = await this.userService.getUserByPhoneNumber(phoneNumber);
@@ -76,7 +76,10 @@ export class AuthService {
     return this.generateTokens(tempUser);
   }
 
-  private generateTokens(user: { id: string; phoneNumber?: string; email?: string }, activeRole?: string): JwtToken {
+  private generateTokens(
+    user: { id: string; phoneNumber?: string; email?: string },
+    activeRole?: string,
+  ): JwtToken {
     const payload = {
       sub: user.id,
       phoneNumber: user.phoneNumber,
@@ -89,15 +92,10 @@ export class AuthService {
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      expiresIn:
-        this.configService.get('JWT_REFRESH_EXPIRATION') || '7d',
+      expiresIn: this.configService.get('JWT_REFRESH_EXPIRATION') || '7d',
       secret: this.configService.get('JWT_REFRESH_SECRET') || 'refresh-secret',
     });
 
-    return new JwtToken(
-      accessToken,
-      refreshToken,
-      Date.now() + 15 * 60 * 1000,
-    );
+    return new JwtToken(accessToken, refreshToken, Date.now() + 15 * 60 * 1000);
   }
 }

@@ -28,11 +28,7 @@ export class CommunicationService {
   }
 
   private initializeTemplates(): void {
-    const templateDir = path.join(
-      __dirname,
-      'infrastructure',
-      'templates',
-    );
+    const templateDir = path.join(__dirname, 'infrastructure', 'templates');
     if (fs.existsSync(templateDir)) {
       const templates = fs.readdirSync(templateDir);
       this.logger.log(`Found ${templates.length} email templates`);
@@ -70,10 +66,7 @@ export class CommunicationService {
     try {
       const from =
         options.from ||
-        this.configService.get<string>(
-          'MAIL_FROM',
-          'ntumai@greenwebb.tech',
-        );
+        this.configService.get<string>('MAIL_FROM', 'ntumai@greenwebb.tech');
 
       let html = options.html;
 
@@ -107,7 +100,11 @@ export class CommunicationService {
     }
   }
 
-  async sendOtp(to: string, otp: string, purpose: string = 'verify'): Promise<void> {
+  async sendOtp(
+    to: string,
+    otp: string,
+    purpose: string = 'verify',
+  ): Promise<void> {
     const otpTtl = this.configService.get<number>('OTP_TTL', 600);
     const expiryMinutes = Math.ceil(otpTtl / 60);
 
@@ -149,7 +146,11 @@ export class CommunicationService {
     });
   }
 
-  async sendNotification(to: string, title: string, body: string): Promise<void> {
+  async sendNotification(
+    to: string,
+    title: string,
+    body: string,
+  ): Promise<void> {
     // In a real application, this would use a service like Firebase Cloud Messaging (FCM)
     // For now, we simulate by sending an email
     const subject = `Ntumai Notification: ${title}`;

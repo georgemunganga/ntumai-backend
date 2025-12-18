@@ -5,9 +5,7 @@ import {
   IsOptional,
   IsNumber,
 } from 'class-validator';
-import type {
-  LocationData,
-} from 'src/modules/auth/domain/entities/onboarding/vendor-onboarding.entity';
+import type { LocationData } from 'src/modules/auth/domain/entities/onboarding/vendor-onboarding.entity';
 import {
   VendorOnboardingStatus,
   BusinessType,

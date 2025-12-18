@@ -177,7 +177,9 @@ export class VendorOnboardingEntity {
    */
   areAllDocumentsApproved(): boolean {
     if (this.documents.length === 0) return false;
-    return this.documents.every((doc) => doc.status === DocumentStatus.APPROVED);
+    return this.documents.every(
+      (doc) => doc.status === DocumentStatus.APPROVED,
+    );
   }
 
   /**

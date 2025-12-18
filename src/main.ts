@@ -29,8 +29,12 @@ async function bootstrap() {
       transport: Transport.KAFKA,
       options: {
         client: {
-          clientId: configService.get('KAFKA_CLIENT_ID') || 'ntumai-consumer-server',
-          brokers: kafkaBrokers.split(',').map(broker => broker.trim()).filter(Boolean),
+          clientId:
+            configService.get('KAFKA_CLIENT_ID') || 'ntumai-consumer-server',
+          brokers: kafkaBrokers
+            .split(',')
+            .map((broker) => broker.trim())
+            .filter(Boolean),
         },
         consumer: {
           groupId: 'ntumai-consumer',
@@ -40,10 +44,14 @@ async function bootstrap() {
     try {
       await app.startAllMicroservices();
     } catch (error) {
-      logger.error(`Failed to start Kafka microservice: ${error instanceof Error ? error.message : error}`);
+      logger.error(
+        `Failed to start Kafka microservice: ${error instanceof Error ? error.message : error}`,
+      );
     }
   } else {
-    logger.warn('Kafka microservice disabled. Set ENABLE_KAFKA=true and provide KAFKA_BROKERS to enable it.');
+    logger.warn(
+      'Kafka microservice disabled. Set ENABLE_KAFKA=true and provide KAFKA_BROKERS to enable it.',
+    );
   }
 
   // Enable WebSockets (Socket.io)

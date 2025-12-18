@@ -108,7 +108,9 @@ export class AuthV2Controller {
   ): Promise<void> {
     try {
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new UnauthorizedException('Missing or invalid authorization header');
+        throw new UnauthorizedException(
+          'Missing or invalid authorization header',
+        );
       }
 
       const token = authHeader.substring(7);
@@ -163,7 +165,8 @@ export class AuthV2Controller {
         success: false,
         error: {
           code: 'TOO_MANY_REQUESTS',
-          message: error.message || 'Too many requests. Please try again later.',
+          message:
+            error.message || 'Too many requests. Please try again later.',
         },
       });
     } else {

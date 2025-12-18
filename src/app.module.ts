@@ -27,7 +27,6 @@ import { TrackingModule } from './tracking/tracking.module';
     MatchingModule,
     ShiftsModule,
     TrackingModule,
-
   ],
   controllers: [AppController],
   providers: [AppService],

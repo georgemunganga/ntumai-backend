@@ -26,22 +26,32 @@ describe('Auth E2E Success Cases (e2e)', () => {
     otpService = app.get(OtpService);
 
     // Mock the OTP service to return a fixed OTP for testing
-    jest.spyOn(otpService, 'requestOtp').mockImplementation(async (identifier: string) => {
-      // Manually set the fixed OTP in Redis for the identifier
-      await otpService['redisService'].set(`otp:${identifier}`, testOtp, 300);
-    });
-    jest.spyOn(otpService, 'verifyOtp').mockImplementation(async (identifier: string, otp: string) => {
-      const storedOtp = await otpService['redisService'].get(`otp:${identifier}`);
-      return storedOtp === otp;
-    });
+    jest
+      .spyOn(otpService, 'requestOtp')
+      .mockImplementation(async (identifier: string) => {
+        // Manually set the fixed OTP in Redis for the identifier
+        await otpService['redisService'].set(`otp:${identifier}`, testOtp, 300);
+      });
+    jest
+      .spyOn(otpService, 'verifyOtp')
+      .mockImplementation(async (identifier: string, otp: string) => {
+        const storedOtp = await otpService['redisService'].get(
+          `otp:${identifier}`,
+        );
+        return storedOtp === otp;
+      });
 
     // Clean up database before tests
-    await prisma.user.deleteMany({ where: { OR: [{ phoneNumber: testPhoneNumber }, { email: testEmail }] } });
+    await prisma.user.deleteMany({
+      where: { OR: [{ phoneNumber: testPhoneNumber }, { email: testEmail }] },
+    });
   });
 
   afterAll(async () => {
     // Clean up database after tests
-    await prisma.user.deleteMany({ where: { OR: [{ phoneNumber: testPhoneNumber }, { email: testEmail }] } });
+    await prisma.user.deleteMany({
+      where: { OR: [{ phoneNumber: testPhoneNumber }, { email: testEmail }] },
+    });
     await app.close();
   });
 
@@ -55,7 +65,9 @@ describe('Auth E2E Success Cases (e2e)', () => {
     expect(response.body.message).toBe('OTP sent');
 
     // Check if user was created in PENDING_VERIFICATION status
-    let user = await prisma.user.findUnique({ where: { phoneNumber: testPhoneNumber } });
+    let user = await prisma.user.findUnique({
+      where: { phoneNumber: testPhoneNumber },
+    });
     expect(user).toBeDefined();
     expect(user?.status).toBe('PENDING_VERIFICATION');
 
@@ -69,7 +81,9 @@ describe('Auth E2E Success Cases (e2e)', () => {
     expect(response.body.refreshToken).toBeDefined();
 
     // Check if user status was updated to ACTIVE
-    user = await prisma.user.findUnique({ where: { phoneNumber: testPhoneNumber } });
+    user = await prisma.user.findUnique({
+      where: { phoneNumber: testPhoneNumber },
+    });
     expect(user?.status).toBe('ACTIVE');
   });
 
@@ -83,7 +97,9 @@ describe('Auth E2E Success Cases (e2e)', () => {
     expect(response.body.message).toBe('OTP sent');
 
     // Check if user status remains ACTIVE
-    let user = await prisma.user.findUnique({ where: { phoneNumber: testPhoneNumber } });
+    const user = await prisma.user.findUnique({
+      where: { phoneNumber: testPhoneNumber },
+    });
     expect(user?.status).toBe('ACTIVE');
 
     // 2. Verify OTP (Login)

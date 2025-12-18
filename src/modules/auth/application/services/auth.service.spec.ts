@@ -67,10 +67,10 @@ describe('AuthService', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    userService = module.get(UserService) as jest.Mocked<UserService>;
-    jwtService = module.get(JwtService) as jest.Mocked<JwtService>;
-    configService = module.get(ConfigService) as jest.Mocked<ConfigService>;
-    otpService = module.get(OtpService) as jest.Mocked<OtpService>;
+    userService = module.get(UserService);
+    jwtService = module.get(JwtService);
+    configService = module.get(ConfigService);
+    otpService = module.get(OtpService);
   });
 
   it('should be defined', () => {
@@ -80,14 +80,21 @@ describe('AuthService', () => {
   describe('requestOtp', () => {
     it('should request OTP for email', async () => {
       const email = 'test@example.com';
-      const user = new UserEntity({ id: 'user-123', email, status: 'PENDING_VERIFICATION' });
+      const user = new UserEntity({
+        id: 'user-123',
+        email,
+        status: 'PENDING_VERIFICATION',
+      });
 
       userService.createOrUpdateUser.mockResolvedValue(user);
       otpService.requestOtp.mockResolvedValue(undefined);
 
       await service.requestOtp(undefined, email);
 
-      expect(userService.createOrUpdateUser).toHaveBeenCalledWith(undefined, email);
+      expect(userService.createOrUpdateUser).toHaveBeenCalledWith(
+        undefined,
+        email,
+      );
       expect(otpService.requestOtp).toHaveBeenCalledWith(email);
     });
 

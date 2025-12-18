@@ -12,7 +12,10 @@ import { JwtToken } from '../../domain/value-objects/jwt-token.vo';
 import { OnboardingToken } from '../../domain/value-objects/onboarding-token.vo';
 import { OtpServiceV2 } from './otp-v2.service';
 import { OtpSessionRepository } from '../../infrastructure/repositories/otp-session.repository';
-import { OtpSessionEntity, FlowType } from '../../domain/entities/otp-session.entity';
+import {
+  OtpSessionEntity,
+  FlowType,
+} from '../../domain/entities/otp-session.entity';
 import { PhoneNormalizer } from '../utils/phone-normalizer';
 
 export interface AuthStartResponse {
@@ -60,10 +63,13 @@ export interface RoleSelectionResponse {
 
 @Injectable()
 export class AuthServiceV2 {
-  private readonly onboardingTokenStore = new Map<string, { userId: string; expiresAt: number }>();
+  private readonly onboardingTokenStore = new Map<
+    string,
+    { userId: string; expiresAt: number }
+  >();
 
   constructor(
-       // private readonly userService: UserService, // Removed due to missing UsersModulee
+    // private readonly userService: UserService, // Removed due to missing UsersModulee
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly otpService: OtpServiceV2,
@@ -83,14 +89,16 @@ export class AuthServiceV2 {
     }
 
     // Normalize phone if provided
-    const normalizedPhone = phone ? PhoneNormalizer.normalize(phone) : undefined;
+    const normalizedPhone = phone
+      ? PhoneNormalizer.normalize(phone)
+      : undefined;
     if (phone && !normalizedPhone) {
       throw new BadRequestException('Invalid phone number format');
     }
 
     // Determine if user exists (login vs signup) - TEMPORARILY DISABLED
     // let user: UserEntity | null = null;
-    let flowType: FlowType = 'signup';
+    const flowType: FlowType = 'signup';
 
     // if (normalizedPhone) {
     //   user = await this.userService.getUserByPhoneNumber(normalizedPhone);
@@ -211,7 +219,11 @@ export class AuthServiceV2 {
     // if (!user) {
     //   throw new UnauthorizedException('User not found');
     // }
-    const tempUser = { id: tokenData.userId, email: 'temp@user.com', phoneNumber: '1234567890' };
+    const tempUser = {
+      id: tokenData.userId,
+      email: 'temp@user.com',
+      phoneNumber: '1234567890',
+    };
 
     // Role is managed separately via UserRole model
     // This is a placeholder for role assignment
@@ -253,7 +265,11 @@ export class AuthServiceV2 {
 
   // ==================== Private Methods ====================
 
-  private generateTokens(user: { id: string; email?: string; phoneNumber?: string }): JwtToken {
+  private generateTokens(user: {
+    id: string;
+    email?: string;
+    phoneNumber?: string;
+  }): JwtToken {
     const payload = {
       sub: user.id,
       email: user.email,
@@ -307,7 +323,9 @@ export class AuthServiceV2 {
     });
   }
 
-  private getOnboardingToken(token: string): { userId: string; expiresAt: number } | null {
+  private getOnboardingToken(
+    token: string,
+  ): { userId: string; expiresAt: number } | null {
     const data = this.onboardingTokenStore.get(token);
     if (!data) return null;
 

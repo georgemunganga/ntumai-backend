@@ -1,7 +1,11 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from '../../application/services/auth.service';
-import { RequestOtpDto, VerifyOtpDto, AuthResponseDto } from '../../application/dtos/auth.dto';
+import {
+  RequestOtpDto,
+  VerifyOtpDto,
+  AuthResponseDto,
+} from '../../application/dtos/auth.dto';
 import { Public } from '../../infrastructure/decorators/public.decorator';
 
 @ApiTags('Authentication')
@@ -35,7 +39,6 @@ export class AuthController {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       expiresAt: Date.now() + 3600000, // Placeholder for 1 hour expiry
-
     };
   }
 }

@@ -20,11 +20,13 @@ export class RedisService implements OnModuleDestroy {
 
     if (!this.useInMemory && redisUrl) {
       this.redisClient = new Redis(redisUrl, { lazyConnect: true });
-      this.redisClient.on('error', error => {
+      this.redisClient.on('error', (error) => {
         this.logger.warn(`Redis connection issue: ${error.message}`);
       });
     } else if (!redisUrl) {
-      this.logger.warn('REDIS_URL is not configured. Falling back to in-memory cache.');
+      this.logger.warn(
+        'REDIS_URL is not configured. Falling back to in-memory cache.',
+      );
     }
   }
 

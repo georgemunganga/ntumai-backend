@@ -2,10 +2,13 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
-
 } from '@nestjs/common';
 import { OtpSessionRepository } from '../../infrastructure/repositories/otp-session.repository';
-import { OtpSessionEntity, FlowType, OtpChannel } from '../../domain/entities/otp-session.entity';
+import {
+  OtpSessionEntity,
+  FlowType,
+  OtpChannel,
+} from '../../domain/entities/otp-session.entity';
 import { CommunicationService } from 'src/modules/communication/communication.service';
 import { PhoneNormalizer } from '../utils/phone-normalizer';
 
@@ -56,7 +59,10 @@ export class OtpServiceV2 {
     const otp = this.generateOtp();
 
     // Determine channels to send OTP
-    const channels = this.determineChannels(email, normalizedPhone || undefined);
+    const channels = this.determineChannels(
+      email,
+      normalizedPhone || undefined,
+    );
 
     // Create session
     const session = new OtpSessionEntity({
@@ -73,7 +79,12 @@ export class OtpServiceV2 {
     await this.sessionRepository.save(session);
 
     // Send OTP through selected channels
-    await this.sendOtpThroughChannels(otp, email, normalizedPhone || undefined, channels);
+    await this.sendOtpThroughChannels(
+      otp,
+      email,
+      normalizedPhone || undefined,
+      channels,
+    );
 
     // Return session without OTP
     return this.sanitizeSession(session);
@@ -101,7 +112,9 @@ export class OtpServiceV2 {
 
     // Check if session is locked
     if (session.isLocked()) {
-      throw new UnauthorizedException('Too many failed attempts. Please request a new OTP.');
+      throw new UnauthorizedException(
+        'Too many failed attempts. Please request a new OTP.',
+      );
     }
 
     // Check device consistency (optional security measure)
@@ -202,10 +215,11 @@ export class OtpServiceV2 {
     // This would typically check against a rate limit store
     // For now, we'll implement a simple check
     const recentSession = await this.sessionRepository.findByPhone(phone);
-    
+
     if (recentSession && !recentSession.isExpired()) {
       const timeSinceCreation = Date.now() - recentSession.createdAt.getTime();
-      if (timeSinceCreation < 60 * 1000) { // Less than 1 minute
+      if (timeSinceCreation < 60 * 1000) {
+        // Less than 1 minute
         throw new BadRequestException(
           'Please wait before requesting a new OTP',
         );
@@ -216,10 +230,11 @@ export class OtpServiceV2 {
   private async checkEmailRateLimit(email: string): Promise<void> {
     // Similar to phone rate limit
     const recentSession = await this.sessionRepository.findByEmail(email);
-    
+
     if (recentSession && !recentSession.isExpired()) {
       const timeSinceCreation = Date.now() - recentSession.createdAt.getTime();
-      if (timeSinceCreation < 60 * 1000) { // Less than 1 minute
+      if (timeSinceCreation < 60 * 1000) {
+        // Less than 1 minute
         throw new BadRequestException(
           'Please wait before requesting a new OTP',
         );

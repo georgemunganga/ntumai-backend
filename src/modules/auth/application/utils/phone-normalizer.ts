@@ -10,7 +10,10 @@ export class PhoneNormalizer {
    * @param defaultCountryCode Default country code if not provided (e.g., '+260' for Zambia)
    * @returns Normalized phone in E.164 format or null if invalid
    */
-  static normalize(phone: string, defaultCountryCode: string = '+260'): string | null {
+  static normalize(
+    phone: string,
+    defaultCountryCode: string = '+260',
+  ): string | null {
     if (!phone) return null;
 
     // Remove all non-digit characters except leading +
@@ -50,7 +53,7 @@ export class PhoneNormalizer {
    */
   static getCountryCode(phone: string): string | null {
     if (!phone.startsWith('+')) return null;
-    
+
     // Most country codes are 1-3 digits
     const match = phone.match(/^\+(\d{1,3})/);
     return match ? match[1] : null;
@@ -61,7 +64,7 @@ export class PhoneNormalizer {
    */
   static getNumberOnly(phone: string): string | null {
     if (!phone.startsWith('+')) return null;
-    
+
     const match = phone.match(/^\+\d{1,3}(.+)$/);
     return match ? match[1] : null;
   }

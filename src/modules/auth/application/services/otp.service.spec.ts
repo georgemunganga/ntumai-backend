@@ -29,7 +29,8 @@ describe('OtpService', () => {
 
     service = module.get<OtpService>(OtpService);
     redisService = module.get<RedisService>(RedisService);
-    communicationService = module.get<CommunicationService>(CommunicationService);
+    communicationService =
+      module.get<CommunicationService>(CommunicationService);
   });
 
   it('should be defined', () => {
@@ -39,7 +40,7 @@ describe('OtpService', () => {
   describe('requestOtp', () => {
     it('should generate, store, and send an OTP', async () => {
       const identifier = '1234567890';
-      
+
       // Mock Math.random to return a fixed value for predictable OTP
       jest.spyOn(global.Math, 'random').mockReturnValue(0.123456);
       const expectedOtp = '123456';
@@ -56,7 +57,7 @@ describe('OtpService', () => {
         identifier,
         expectedOtp,
       );
-      
+
       // Restore Math.random
       jest.spyOn(global.Math, 'random').mockRestore();
     });

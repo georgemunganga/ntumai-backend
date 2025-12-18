@@ -314,7 +314,9 @@ describe('AuthV2Controller (e2e)', () => {
 
     it('should return error for expired OTP session', async () => {
       const sessionId = 'session_123';
-      mockOtpServiceV2.verifyOtp.mockRejectedValue(new Error('Session expired'));
+      mockOtpServiceV2.verifyOtp.mockRejectedValue(
+        new Error('Session expired'),
+      );
 
       const response = await request(app.getHttpServer())
         .post('/api/v1/auth/otp/verify')
@@ -343,7 +345,7 @@ describe('AuthV2Controller (e2e)', () => {
 
       // Create a valid onboarding token format
       const onboardingToken = `onboard_${userId}_${Date.now()}_abc123`;
-      
+
       mockUserRepository.findById.mockResolvedValue(user);
       mockUserRepository.save.mockResolvedValue(user);
 
@@ -371,7 +373,7 @@ describe('AuthV2Controller (e2e)', () => {
       });
 
       const onboardingToken = `onboard_${userId}_${Date.now()}_xyz789`;
-      
+
       mockUserRepository.findById.mockResolvedValue(user);
       mockUserRepository.save.mockResolvedValue(user);
 
@@ -395,7 +397,7 @@ describe('AuthV2Controller (e2e)', () => {
       });
 
       const onboardingToken = `onboard_${userId}_${Date.now()}_def456`;
-      
+
       mockUserRepository.findById.mockResolvedValue(user);
       mockUserRepository.save.mockResolvedValue(user);
 
