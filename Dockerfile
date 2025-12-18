@@ -1,48 +1,52 @@
-# =========================
-# Builder stage
-# =========================
+# ---------- Builder ----------
 FROM node:22-bookworm-slim AS builder
 
 WORKDIR /app
 
+# Prisma engines may need openssl
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-COPY package.json ./
-RUN npm install --include=dev
+# Install deps first (cache-friendly)
+COPY package*.json ./
+# If you use package-lock.json, npm ci is best
+RUN npm ci
 
+# Copy prisma schema early so generate can run reliably
+COPY prisma ./prisma
+
+# Generate Prisma client BEFORE TypeScript build
+RUN npx prisma generate
+
+# Copy the rest of the source
 COPY . .
 
 # Build NestJS
 RUN npm run build
 
-# prune dev deps
+# Prune dev deps for smaller runtime
 RUN npm prune --omit=dev
 
 
-# =========================
-# Production stage
-# =========================
-FROM node:22-bookworm-slim AS production
+# ---------- Runtime ----------
+FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends dumb-init ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dumb-init ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -u 1001 nestjs
+ENV NODE_ENV=production
 
-COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
+# keep prisma folder if you run migrations/seed from the container
 COPY --from=builder /app/prisma ./prisma
 
-ENV NODE_ENV=production
-ENV PORT=3000
 EXPOSE 3000
 
-USER nestjs
-
-# ✅ Generate Prisma client at runtime (only if prisma exists), then start
-CMD ["dumb-init", "sh", "-c", "if [ -d prisma ]; then npx prisma generate; fi && node dist/main.js"]
+ENTRYPOINT ["dumb-init","--"]
+CMD ["npm","run","start:prod"]
