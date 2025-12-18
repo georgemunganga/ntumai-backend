@@ -4,7 +4,8 @@ WORKDIR /app
 
 RUN apk add --no-cache libc6-compat openssl
 
-COPY bun.lockb package.json ./
+# Use whichever Bun lockfile is present (bun.lock or bun.lockb)
+COPY bun.lock* package.json ./
 RUN bun install
 
 COPY . .
@@ -24,7 +25,7 @@ RUN apk add --no-cache libc6-compat openssl dumb-init
 
 # Copy only what we need
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/bun.lockb ./bun.lockb
+COPY --from=builder /app/bun.lock* ./
 
 # Install production deps
 RUN bun install --production
