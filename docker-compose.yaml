@@ -45,7 +45,6 @@ services:
       timeout: 3s
       retries: 3
 
-
 networks:
   ntumai-network:
     driver: bridge
