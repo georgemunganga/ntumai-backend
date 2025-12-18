@@ -1,39 +1,41 @@
 # ---------- Builder ----------
-FROM oven/bun:1.1.43-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 
 RUN apk add --no-cache libc6-compat openssl
 
-# Use whichever Bun lockfile is present (bun.lock or bun.lockb)
-COPY bun.lock* package.json ./
-RUN bun install
+COPY package.json ./
+RUN npm install
 
 COPY . .
 
-# Prisma generate (matches your local)
-RUN bunx prisma generate
+# Prisma generate only if prisma folder exists
+RUN if [ -d "prisma" ]; then npx prisma generate; fi
 
-# Build Nest (bun will run scripts from package.json)
-RUN bun run build
+RUN npm run build
 
 
 # ---------- Production ----------
-FROM oven/bun:1.1.43-alpine AS production
+FROM node:22-alpine
 WORKDIR /app
 
 RUN apk add --no-cache libc6-compat openssl dumb-init
 
-# Copy only what we need
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/bun.lock* ./
+RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
 
-# Install production deps
-RUN bun install --production
+COPY package.json ./
+RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 
 ENV NODE_ENV=production
+ENV PORT=3000
+EXPOSE 3000
+
+USER nestjs
+
+CMD ["dumb-init", "node", "dist/main.js"]
 ENV PORT=3000
 
 EXPOSE 3000
