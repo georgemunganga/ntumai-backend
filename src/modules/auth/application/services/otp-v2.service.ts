@@ -9,7 +9,7 @@ import {
   FlowType,
   OtpChannel,
 } from '../../domain/entities/otp-session.entity';
-import { CommunicationService } from 'src/modules/communication/communication.service';
+import { CommunicationsService } from '../../../communications/communications.service';
 import { PhoneNormalizer } from '../utils/phone-normalizer';
 
 @Injectable()
@@ -22,7 +22,7 @@ export class OtpServiceV2 {
 
   constructor(
     private readonly sessionRepository: OtpSessionRepository,
-    private readonly communicationService: CommunicationService,
+    private readonly communicationService: CommunicationsService,
   ) {}
 
   /**

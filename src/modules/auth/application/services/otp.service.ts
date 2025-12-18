@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RedisService } from 'src/shared/infrastructure/redis.service';
-import { CommunicationService } from 'src/modules/communication/communication.service';
+import { CommunicationsService } from '../../../communications/communications.service';
 
 @Injectable()
 export class OtpService {
@@ -8,7 +8,7 @@ export class OtpService {
 
   constructor(
     private readonly redisService: RedisService,
-    private readonly communicationService: CommunicationService,
+    private readonly communicationService: CommunicationsService,
   ) {}
 
   private generateOtp(): string {

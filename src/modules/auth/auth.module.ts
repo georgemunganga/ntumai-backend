@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 // import { UsersModule } from '../users/users.module'; // Removed as UsersModule was removed
-import { CommunicationModule } from '../communication/communication.module';
+import { CommunicationsModule } from '../communications/communications.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { AuthService } from './application/services/auth.service';
 import { AuthServiceV2 } from './application/services/auth-v2.service';
@@ -19,7 +19,7 @@ import { OtpSessionRepository } from './infrastructure/repositories/otp-session.
 @Module({
   imports: [
     // UsersModule,
-    CommunicationModule,
+    CommunicationsModule,
     SharedModule,
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({

@@ -1,12 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { OtpService } from './otp.service';
 import { RedisService } from '../../../shared/infrastructure/redis.service';
-import { CommunicationService } from '../../../modules/communication/communication.service';
+import { CommunicationsService } from '../../../modules/communications/communication.service';
 
 describe('OtpService', () => {
   let service: OtpService;
   let redisService: RedisService;
-  let communicationService: CommunicationService;
+  let communicationService: CommunicationsService;
 
   const mockRedisService = {
     set: jest.fn(),
@@ -14,7 +14,7 @@ describe('OtpService', () => {
     del: jest.fn(),
   };
 
-  const mockCommunicationService = {
+  const mockCommunicationsService = {
     sendOtp: jest.fn(),
   };
 
@@ -23,14 +23,14 @@ describe('OtpService', () => {
       providers: [
         OtpService,
         { provide: RedisService, useValue: mockRedisService },
-        { provide: CommunicationService, useValue: mockCommunicationService },
+        { provide: CommunicationsService, useValue: mockCommunicationsService },
       ],
     }).compile();
 
     service = module.get<OtpService>(OtpService);
     redisService = module.get<RedisService>(RedisService);
     communicationService =
-      module.get<CommunicationService>(CommunicationService);
+      module.get<CommunicationsService>(CommunicationsService);
   });
 
   it('should be defined', () => {

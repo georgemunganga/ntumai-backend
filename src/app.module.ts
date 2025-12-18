@@ -7,11 +7,11 @@ import { AuthModule } from './modules/auth/auth.module';
 // Removed modules due to incompatibility with new schema
 
 // Staging modules
-import { DeliveriesModule } from './deliveries/deliveries.module';
-import { MarketplaceModule } from './marketplace/marketplace.module';
-import { MatchingModule } from './matching/matching.module';
-import { ShiftsModule } from './shifts/shifts.module';
-import { TrackingModule } from './tracking/tracking.module';
+import { DeliveriesModule } from './modules/deliveries/deliveries.module';
+import { MarketplaceModule } from './modules/marketplace/marketplace.module';
+import { MatchingModule } from './modules/matching/matching.module';
+import { ShiftsModule } from './modules/shifts/shifts.module';
+import { TrackingModule } from './modules/tracking/tracking.module';
 
 @Module({
   imports: [
