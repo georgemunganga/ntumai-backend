@@ -10,6 +10,13 @@ import {
   UnauthorizedException,
   Res,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiBody,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { AuthServiceV2 } from '../../application/services/auth-v2.service';
 import {
@@ -24,6 +31,7 @@ import {
 } from '../../application/dtos/auth-v2.dto';
 import { Public } from '../../infrastructure/decorators/public.decorator';
 
+@ApiTags('Authentication')
 @Controller('api/v1/auth')
 export class AuthV2Controller {
   constructor(private readonly authService: AuthServiceV2) {}
@@ -35,6 +43,28 @@ export class AuthV2Controller {
   @Public()
   @Post('otp/start')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Start OTP authentication flow',
+    description:
+      'Initiates the OTP-based authentication process for login or signup. ' +
+      'Sends an OTP code to the provided email or phone number.',
+  })
+  @ApiBody({ type: StartOtpDto })
+  @ApiResponse({
+    status: 200,
+    description: 'OTP sent successfully',
+    type: StartOtpResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid request - email or phone required',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'Too many requests - rate limit exceeded',
+    type: ErrorResponseDto,
+  })
   async startOtpFlow(
     @Body() dto: StartOtpDto,
     @Res() res: Response,
@@ -58,6 +88,28 @@ export class AuthV2Controller {
   @Public()
   @Post('otp/verify')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Verify OTP code',
+    description:
+      'Verifies the OTP code sent to user. For new users, returns an onboarding token. ' +
+      'For existing users, returns access and refresh tokens.',
+  })
+  @ApiBody({ type: VerifyOtpDto })
+  @ApiResponse({
+    status: 200,
+    description: 'OTP verified successfully',
+    type: VerifyOtpResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid or expired OTP',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid session',
+    type: ErrorResponseDto,
+  })
   async verifyOtp(
     @Body() dto: VerifyOtpDto,
     @Res() res: Response,
@@ -81,6 +133,28 @@ export class AuthV2Controller {
   @Public()
   @Post('select-role')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Select user role during onboarding',
+    description:
+      'Completes onboarding by selecting initial role (CUSTOMER, TASKER, or VENDOR). ' +
+      'Returns full authentication tokens. Requires onboarding token from OTP verification.',
+  })
+  @ApiBody({ type: SelectRoleDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Role selected successfully',
+    type: SelectRoleResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid role or onboarding token',
+    type: ErrorResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid onboarding token',
+    type: ErrorResponseDto,
+  })
   async selectRole(
     @Body() dto: SelectRoleDto,
     @Res() res: Response,
@@ -102,6 +176,23 @@ export class AuthV2Controller {
    */
   @Get('me')
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get current user information',
+    description:
+      'Returns the currently authenticated user information including role and status. ' +
+      'Requires valid JWT token in Authorization header.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User information retrieved successfully',
+    type: CurrentUserResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - invalid or missing token',
+    type: ErrorResponseDto,
+  })
   async getCurrentUser(
     @Headers('authorization') authHeader: string,
     @Res() res: Response,
