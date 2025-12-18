@@ -41,10 +41,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV NODE_ENV=production
 
 COPY --from=builder /app/package*.json ./
+# Copy only production dependencies
 COPY --from=builder /app/node_modules ./node_modules
+# Copy the built application code
 COPY --from=builder /app/dist ./dist
-# keep prisma folder if you run migrations/seed from the container
+# Copy the prisma schema and generated client for runtime access
 COPY --from=builder /app/prisma ./prisma
+# Copy the prisma client files
+COPY --from=builder /app/node_modules/.prisma /app/node_modules/.prisma
 
 EXPOSE 3000
 
