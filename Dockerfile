@@ -7,7 +7,9 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat openssl
 
 COPY package.json ./
-RUN npm install
+
+# Force dev deps for build even if NODE_ENV is set
+RUN npm install --include=dev
 
 COPY . .
 
@@ -37,5 +39,4 @@ EXPOSE 3000
 
 USER nestjs
 
-# ✅ generate prisma client at runtime (only if prisma exists), then start
 CMD ["dumb-init", "sh", "-c", "if [ -d prisma ]; then npx prisma generate; fi && node dist/main.js"]
