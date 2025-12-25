@@ -41,8 +41,9 @@
 ```json
 {
   "email": "user@example.com",
-  "countrycode": "+26", "phone": "0972827372", (if the param is phone it should come with country code),,
+  "countrycode": "+26" or "phone": "0972827372", (if the param is phone it should come with country code),,
   "method": "email" | "sms"
+  
 }
 ```
 

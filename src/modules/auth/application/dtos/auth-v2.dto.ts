@@ -32,16 +32,7 @@ export class StartOtpDto {
   deviceId?: string;
 }
 
-export class StartOtpResponseDto {
-  @ApiProperty({ example: true })
-  success: boolean;
-  @ApiProperty({
-    type: () => StartOtpResponseData,
-  })
-  data: StartOtpResponseData;
-}
-
-class StartOtpResponseData {
+export class StartOtpResponseData {
   @ApiProperty({
     description: 'Session ID for OTP verification',
     example: 'otp-session-uuid-12345',
@@ -63,6 +54,15 @@ class StartOtpResponseData {
     example: ['email', 'sms'],
   })
   channelsSent: string[];
+}
+
+export class StartOtpResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+  @ApiProperty({
+    type: StartOtpResponseData,
+  })
+  data: StartOtpResponseData;
 }
 
 // ==================== OTP Verification ====================
@@ -92,15 +92,6 @@ export class VerifyOtpDto {
   deviceId?: string;
 }
 
-export class VerifyOtpResponseDto {
-  @ApiProperty({ example: true })
-  success: boolean;
-  @ApiProperty({
-    type: () => VerifyOtpResponseData,
-  })
-  data: VerifyOtpResponseData;
-}
-
 class VerifyOtpResponseUser {
   @ApiProperty({ example: 'uuid-user-123' })
   id: string;
@@ -112,7 +103,7 @@ class VerifyOtpResponseUser {
   role?: string;
 }
 
-class VerifyOtpResponseData {
+export class VerifyOtpResponseData {
   @ApiProperty({
     description: 'Type of flow completed',
     example: 'login',
@@ -149,9 +140,18 @@ class VerifyOtpResponseData {
   })
   onboardingToken?: string;
   @ApiProperty({
-    type: () => VerifyOtpResponseUser,
+    type: VerifyOtpResponseUser,
   })
   user: VerifyOtpResponseUser;
+}
+
+export class VerifyOtpResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+  @ApiProperty({
+    type: VerifyOtpResponseData,
+  })
+  data: VerifyOtpResponseData;
 }
 
 // ==================== Role Selection ====================
@@ -173,15 +173,6 @@ export class SelectRoleDto {
   role: 'customer' | 'tasker' | 'vendor';
 }
 
-export class SelectRoleResponseDto {
-  @ApiProperty({ example: true })
-  success: boolean;
-  @ApiProperty({
-    type: () => SelectRoleResponseData,
-  })
-  data: SelectRoleResponseData;
-}
-
 class SelectRoleResponseUser {
   @ApiProperty({ example: 'uuid-user-123' })
   id: string;
@@ -193,7 +184,7 @@ class SelectRoleResponseUser {
   role: string;
 }
 
-class SelectRoleResponseData {
+export class SelectRoleResponseData {
   @ApiProperty({
     description: 'JWT Access Token',
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
@@ -210,21 +201,21 @@ class SelectRoleResponseData {
   })
   expiresIn: number;
   @ApiProperty({
-    type: () => SelectRoleResponseUser,
+    type: SelectRoleResponseUser,
   })
   user: SelectRoleResponseUser;
 }
 
-// ==================== Get Current User ====================
-
-export class CurrentUserResponseDto {
+export class SelectRoleResponseDto {
   @ApiProperty({ example: true })
   success: boolean;
   @ApiProperty({
-    type: () => CurrentUserResponseData,
+    type: SelectRoleResponseData,
   })
-  data: CurrentUserResponseData;
+  data: SelectRoleResponseData;
 }
+
+// ==================== Get Current User ====================
 
 class CurrentUserResponseUser {
   @ApiProperty({ example: 'uuid-user-123' })
@@ -242,23 +233,23 @@ class CurrentUserResponseUser {
   status: string;
 }
 
-class CurrentUserResponseData {
+export class CurrentUserResponseData {
   @ApiProperty({
-    type: () => CurrentUserResponseUser,
+    type: CurrentUserResponseUser,
   })
   user: CurrentUserResponseUser;
 }
 
-// ==================== Error Response ====================
-
-export class ErrorResponseDto {
-  @ApiProperty({ example: false })
-  success: false;
+export class CurrentUserResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
   @ApiProperty({
-    type: () => ErrorResponseData,
+    type: CurrentUserResponseData,
   })
-  error: ErrorResponseData;
+  data: CurrentUserResponseData;
 }
+
+// ==================== Error Response ====================
 
 class ErrorResponseData {
   @ApiProperty({ example: 'BAD_REQUEST' })
@@ -267,4 +258,13 @@ class ErrorResponseData {
   message: string;
   @ApiProperty({ required: false })
   details?: any;
+}
+
+export class ErrorResponseDto {
+  @ApiProperty({ example: false })
+  success: false;
+  @ApiProperty({
+    type: ErrorResponseData,
+  })
+  error: ErrorResponseData;
 }
