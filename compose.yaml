@@ -8,12 +8,12 @@ services:
     env_file: ./.env  # Use the .env file
     environment:
       NODE_ENV: production
-      PORT: 3100
+      PORT: 8000
       DATABASE_URL: ${DATABASE_URL}
       DATABASE_URL_DIRECT: ${DATABASE_URL_DIRECT}
       REDIS_URL: redis://redis:6379
     ports:
-      - "3100:3100"  # Changed to match the PORT in .env file
+      - "8000:8000"  # Changed to match the PORT in .env file
     networks:
       - appnet
     depends_on:
