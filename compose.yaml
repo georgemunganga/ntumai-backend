@@ -1,0 +1,63 @@
+services:
+  ts-app:
+    container_name: ts-app
+    build:
+      context: .
+    restart: unless-stopped
+    init: true
+    env_file: ./.env  # Use the .env file
+    environment:
+      NODE_ENV: production
+      PORT: 3100
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL_DIRECT: ${DATABASE_URL_DIRECT}
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3100:3100"  # Changed to match the PORT in .env file
+    networks:
+      - appnet
+    depends_on:
+      - redis  # Only depends on redis since using Prisma Accelerate
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: appdb
+    ports:
+      - "5432:5432"  # Default PostgreSQL port
+    networks:
+      - appnet
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Uncomment the following to persist database data
+    # volumes:
+    #   - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"  # Default Redis port
+    networks:
+      - appnet
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  appnet:
+    driver: bridge
+
+# Uncomment to persist PostgreSQL data
+# volumes:
+#   pgdata:

@@ -1,77 +1,86 @@
-# Dependencies
-node_modules
+# Node.js dependencies
+node_modules/
 npm-debug.log
-yarn-error.log
-# package-lock.json
-yarn.lock
+yarn-debug.log
 
-# Build output
-dist
-build
-.next
-out
+# Build outputs
+/dist/
+build/
+out/
 
-# Environment files
-.env
-.env.local
-.env.*.local
-.env.development
-.env.test
-.env.production
+# Test files and directories
+test/
+tests/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
 
-# Git
-.git
-.gitignore
-.gitattributes
-
-# IDE
-.vscode
-.idea
+# IDE and editor files
+.idea/
+.vscode/
 *.swp
 *.swo
-*~
-.DS_Store
 
-# Testing
-coverage
-.nyc_output
-*.test.ts
-*.spec.ts
-test
-tests
-__tests__
+# Version control
+.git/
+.gitignore
+.svn/
+.hg/
 
-# Documentation
-README.md
-CHANGELOG.md
-LICENSE
+# Environment and secrets
+.env*
+*.env
+*.pem
+*.key
+*.crt
+config.local.*
+*.local.yml
+
+# Temporary and local files
+tmp/
+temp/
+*.tmp
+.local/
+local/
+
+# Documentation and markdown
+API_AUDIT_REPORT.md
+ARCHITECTURE.md
+AUTH_API_V2.md
+BUILD_FIX_SUMMARY.md
+CHANGES_SUMMARY.md
+DELIVERABLES.md
+README*
 *.md
-docs
+docs/
 
-# CI/CD
-.github
-.gitlab-ci.yml
-.travis.yml
-azure-pipelines.yml
+# Docker and compose files
+Dockerfile*
+docker-compose*
 
-# Docker
-Dockerfile
-.dockerignore
-docker-compose*.yml
-
-# Logs
-logs
+# Miscellaneous
 *.log
+debug/
 
-# Temporary files
-tmp
-temp
-.cache
+# Python (for completeness, if any)
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
 
-# Database
-*.sqlite
-*.db
-data
+# Go (for completeness, if any)
+/vendor/
+.go-cache/
 
-# Prisma
-prisma/migrations
+# Java (for completeness, if any)
+target/
+*.class
+.gradle/
+
+# Handlebars templates cache (if any)
+*.hbs~
+
+# Ignore .dockerignore itself from context
+!.dockerignore
