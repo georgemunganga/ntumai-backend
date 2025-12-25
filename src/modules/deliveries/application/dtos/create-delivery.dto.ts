@@ -78,7 +78,7 @@ export class AddressDto {
 }
 
 export class CreateStopDto {
-  @ApiProperty({ enum: StopType })
+  @ApiProperty({ enum: StopType, example: StopType.PICKUP })
   @IsEnum(StopType)
   type: StopType;
 
@@ -87,17 +87,17 @@ export class CreateStopDto {
   @Min(0)
   sequence: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'John Doe' })
   @IsOptional()
   @IsString()
   contact_name?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '+254711223344' })
   @IsOptional()
   @IsString()
   contact_phone?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'Ring the bell twice and wait' })
   @IsOptional()
   @IsString()
   notes?: string;
@@ -116,28 +116,35 @@ export class CreateStopDto {
 }
 
 export class CreateDeliveryDto {
-  @ApiProperty({ enum: VehicleType })
+  @ApiProperty({ enum: VehicleType, example: VehicleType.MOTORBIKE })
   @IsEnum(VehicleType)
   vehicle_type: VehicleType;
 
-  @ApiPropertyOptional({ description: 'Special instructions for the courier' })
+  @ApiPropertyOptional({
+    description: 'Special instructions for the courier',
+    example: 'Handle with care, fragile contents.',
+  })
   @IsOptional()
   @IsString()
   courier_comment?: string;
 
-  @ApiPropertyOptional({ default: false })
+  @ApiPropertyOptional({ default: false, example: false })
   @IsOptional()
   @IsBoolean()
   is_scheduled?: boolean;
 
   @ApiPropertyOptional({
     description: 'Scheduled delivery time (required if is_scheduled is true)',
+    example: '2025-12-31T10:00:00.000Z',
   })
   @IsOptional()
   @IsDateString()
   scheduled_at?: string;
 
-  @ApiPropertyOptional({ description: 'Additional delivery information' })
+  @ApiPropertyOptional({
+    description: 'Additional delivery information',
+    example: 'Package contains documents only.',
+  })
   @IsOptional()
   @IsString()
   more_info?: string;
@@ -145,6 +152,34 @@ export class CreateDeliveryDto {
   @ApiProperty({
     type: [CreateStopDto],
     description: 'Delivery stops (1 pickup + N dropoffs)',
+    example: [
+      {
+        type: StopType.PICKUP,
+        sequence: 0,
+        contact_name: 'Sender Name',
+        contact_phone: '+254700112233',
+        notes: 'Pick up from reception desk.',
+        geo: { lat: -1.286389, lng: 36.817223 },
+        address: {
+          line1: '123 Main St',
+          city: 'Nairobi',
+          country: 'Kenya',
+        },
+      },
+      {
+        type: StopType.DROPOFF,
+        sequence: 1,
+        contact_name: 'Receiver Name',
+        contact_phone: '+254700445566',
+        notes: 'Deliver to 5th floor.',
+        geo: { lat: -1.300000, lng: 36.820000 },
+        address: {
+          line1: '456 Side Ave',
+          city: 'Nairobi',
+          country: 'Kenya',
+        },
+      },
+    ],
   })
   @IsArray()
   @ValidateNested({ each: true })
@@ -154,6 +189,7 @@ export class CreateDeliveryDto {
   @ApiPropertyOptional({
     description:
       'Optional marketplace order ID for integration (makes this a marketplace delivery)',
+    example: 'marketplace-order-uuid-123',
   })
   @IsOptional()
   @IsString()
@@ -161,6 +197,7 @@ export class CreateDeliveryDto {
 
   @ApiPropertyOptional({
     description: 'Optional store ID if this is a vendor delivery',
+    example: 'vendor-store-uuid-456',
   })
   @IsOptional()
   @IsString()
@@ -168,16 +205,27 @@ export class CreateDeliveryDto {
 }
 
 export class AttachPricingDto {
-  @ApiProperty({ description: 'Pricing calculator payload' })
+  @ApiProperty({
+    description: 'Pricing calculator payload',
+    example: {
+      distance_km: 5.2,
+      base_fee: 100,
+      total_cost: 250,
+      expires_at: '2025-12-31T10:05:00.000Z',
+    },
+  })
   calc_payload: any;
 
-  @ApiProperty({ description: 'HMAC signature from pricing calculator' })
+  @ApiProperty({
+    description: 'HMAC signature from pricing calculator',
+    example: 'hmac-signature-string-12345',
+  })
   @IsString()
   calc_sig: string;
 }
 
 export class SetPaymentMethodDto {
-  @ApiProperty({ enum: PaymentMethod })
+  @ApiProperty({ enum: PaymentMethod, example: PaymentMethod.MOBILE_MONEY })
   @IsEnum(PaymentMethod)
   method: PaymentMethod;
 }
@@ -220,7 +268,7 @@ export class ReorderStopsDto {
 }
 
 export class CancelDeliveryDto {
-  @ApiProperty()
+  @ApiProperty({ example: 'Changed my mind' })
   @IsString()
   reason: string;
 }
