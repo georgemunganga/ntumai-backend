@@ -72,6 +72,7 @@ export class CommunicationsService {
 
       // If template is specified, render it
       if (options.template) {
+        this.logger.debug(`Rendering template: ${options.template}`);
         const template = this.getTemplate(options.template);
         const context = {
           ...options.context,
@@ -82,8 +83,11 @@ export class CommunicationsService {
           ),
         };
         html = template(context);
+        this.logger.debug(`Template rendered successfully`);
       }
 
+      this.logger.log(`Attempting to send email to ${options.to} with subject: ${options.subject}`);
+      
       // Send email using MailerService
       await this.mailerService.sendMail({
         to: options.to,
@@ -93,9 +97,9 @@ export class CommunicationsService {
         from,
       });
 
-      this.logger.log(`Email sent successfully to ${options.to}`);
+      this.logger.log(`✅ Email sent successfully to ${options.to}`);
     } catch (error) {
-      this.logger.error(`Failed to send email to ${options.to}:`, error);
+      this.logger.error(`❌ Failed to send email to ${options.to}:`, error.stack || error.message || error);
       throw error;
     }
   }
