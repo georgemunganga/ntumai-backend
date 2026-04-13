@@ -171,6 +171,9 @@ export class AuthServiceV2 {
       };
     }
 
+    const onboardingToken = OnboardingToken.generate(user.id);
+    this.storeOnboardingToken(onboardingToken);
+
     if (user.email) {
       await this.communicationsService
         .sendWelcomeEmailByRole({
@@ -190,6 +193,7 @@ export class AuthServiceV2 {
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         expiresIn: this.getTokenExpiration(),
+        onboardingToken: onboardingToken.token,
         user: this.toAuthUser(user),
       },
     };
