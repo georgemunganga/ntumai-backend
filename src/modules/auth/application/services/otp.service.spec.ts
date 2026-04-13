@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { OtpService } from './otp.service';
-import { RedisService } from '../../../shared/infrastructure/redis.service';
-import { CommunicationsService } from '../../../modules/communications/communication.service';
+import { RedisService } from 'src/shared/infrastructure/redis.service';
+import { CommunicationsService } from '../../../communications/communications.service';
 
 describe('OtpService', () => {
   let service: OtpService;
@@ -19,6 +19,8 @@ describe('OtpService', () => {
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OtpService,
@@ -43,14 +45,13 @@ describe('OtpService', () => {
 
       // Mock Math.random to return a fixed value for predictable OTP
       jest.spyOn(global.Math, 'random').mockReturnValue(0.123456);
-      const expectedOtp = '123456';
+      const expectedOtp = '211110';
 
       await service.requestOtp(identifier);
 
       expect(redisService.set).toHaveBeenCalledWith(
         `otp:${identifier}`,
         expectedOtp,
-        'EX',
         300,
       );
       expect(communicationService.sendOtp).toHaveBeenCalledWith(

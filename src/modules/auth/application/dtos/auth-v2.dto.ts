@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 // ==================== OTP Start Flow ====================
@@ -247,6 +247,64 @@ export class CurrentUserResponseDto {
     type: CurrentUserResponseData,
   })
   data: CurrentUserResponseData;
+}
+
+// ==================== Refresh / Logout ====================
+
+export class RefreshTokenDto {
+  @ApiProperty({
+    description: 'Refresh token returned by OTP verify or role selection',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  @IsString()
+  refreshToken: string;
+
+  @ApiProperty({
+    description: 'Unique device identifier for security',
+    example: 'device-uuid-12345',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
+}
+
+export class RefreshTokenResponseData {
+  @ApiProperty({ example: 'new-access-token' })
+  accessToken: string;
+
+  @ApiProperty({ example: 'new-refresh-token' })
+  refreshToken: string;
+
+  @ApiProperty({ example: 3600 })
+  expiresIn: number;
+}
+
+export class RefreshTokenResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({ type: RefreshTokenResponseData })
+  data: RefreshTokenResponseData;
+}
+
+export class LogoutDto {
+  @ApiProperty({
+    description: 'Refresh token to revoke',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  refreshToken?: string;
+
+  @ApiProperty({
+    description: 'When true, revoke all active refresh tokens for the user',
+    required: false,
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  allDevices?: boolean;
 }
 
 // ==================== Error Response ====================

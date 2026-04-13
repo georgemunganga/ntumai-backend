@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { UserRole } from '@prisma/client';
+import { createHash, randomUUID } from 'crypto';
 // import { UserService } from 'src/modules/users/application/services/user.service'; // Removed due to missing UsersModule
 // import { UserEntity } from 'src/modules/users/domain/entities/user.entity'; // Removed due to missing UsersModule
 import { JwtToken } from '../../domain/value-objects/jwt-token.vo';
@@ -17,6 +19,7 @@ import {
   FlowType,
 } from '../../domain/entities/otp-session.entity';
 import { PhoneNormalizer } from '../utils/phone-normalizer';
+import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 
 export interface AuthStartResponse {
   success: boolean;
@@ -74,6 +77,7 @@ export class AuthServiceV2 {
     private readonly configService: ConfigService,
     private readonly otpService: OtpServiceV2,
     private readonly sessionRepository: OtpSessionRepository,
+    private readonly prisma: PrismaService,
   ) {}
 
   /**
@@ -96,19 +100,8 @@ export class AuthServiceV2 {
       throw new BadRequestException('Invalid phone number format');
     }
 
-    // Determine if user exists (login vs signup) - TEMPORARILY DISABLED
-    // let user: UserEntity | null = null;
-    const flowType: FlowType = 'signup';
-
-    // if (normalizedPhone) {
-    //   user = await this.userService.getUserByPhoneNumber(normalizedPhone);
-    // } else if (email) {
-    //   user = await this.userService.getUserByEmail(email);
-    // }
-
-    // if (user) {
-    //   flowType = 'login';
-    // }
+    const existingUser = await this.findUserByContact(email, normalizedPhone);
+    const flowType: FlowType = existingUser ? 'login' : 'signup';
 
     // Create OTP session
     const session = await this.otpService.startOtpFlow(
@@ -140,50 +133,31 @@ export class AuthServiceV2 {
     // Verify OTP
     const session = await this.otpService.verifyOtp(sessionId, otp, deviceId);
 
-    // Get or create user - TEMPORARILY DISABLED
-    // let user: UserEntity | null = null;
-    const tempUserId = 'temp-user-id'; // Use a temp ID to allow token generation
+    const user = await this.findOrCreateUserForSession(session);
 
-    // if (session.phone) {
-    //   user = await this.userService.getUserByPhoneNumber(session.phone);
-    // } else if (session.email) {
-    //   user = await this.userService.getUserByEmail(session.email);
-    // }
+    if (session.flowType === 'login') {
+      const tokens = this.generateTokens(user);
+      await this.storeRefreshToken(tokens.refreshToken, user.id, deviceId);
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date(), updatedAt: new Date() },
+      });
 
-    // if (!user) {
-    //   // Create new user
-    //   user = await this.userService.createOrUpdateUser(
-    //     session.phone,
-    //     session.email,
-    //   );
-    // }
-
-    // For now, all users need role selection
-    // In a real implementation, you'd check the UserRole model
-    const hasRole = false;
-
-    if (session.flowType === 'login' && hasRole) {
-      // Existing user with role - issue full tokens - TEMPORARILY DISABLED
-      // const tokens = this.generateTokens(user);
-      // return {
-      //   success: true,
-      //   data: {
-      //     flowType: 'login',
-      //     requiresRoleSelection: false,
-      //     accessToken: tokens.accessToken,
-      //     refreshToken: tokens.refreshToken,
-      //     expiresIn: this.getTokenExpiration(),
-      //     user: {
-      //       id: user.id,
-      //       email: user.email,
-      //       phone: user.phoneNumber,
-      //   },
-      //   },
-      // };
+      return {
+        success: true,
+        data: {
+          flowType: 'login',
+          requiresRoleSelection: false,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresIn: this.getTokenExpiration(),
+          user: this.toAuthUser(user),
+        },
+      };
     }
 
     // New user or user without role - issue onboarding token
-    const onboardingToken = OnboardingToken.generate(tempUserId);
+    const onboardingToken = OnboardingToken.generate(user.id);
     this.storeOnboardingToken(onboardingToken);
 
     return {
@@ -192,11 +166,7 @@ export class AuthServiceV2 {
         flowType: session.flowType,
         requiresRoleSelection: true,
         onboardingToken: onboardingToken.token,
-        user: {
-          id: tempUserId,
-          email: session.email,
-          phone: session.phone,
-        },
+        user: this.toAuthUser(user),
       },
     };
   }
@@ -214,25 +184,33 @@ export class AuthServiceV2 {
       throw new UnauthorizedException('Invalid or expired onboarding token');
     }
 
-    // Get user - TEMPORARILY DISABLED
-    // const user = await this.userService.getUserById(tokenData.userId);
-    // if (!user) {
-    //   throw new UnauthorizedException('User not found');
-    // }
-    const tempUser = {
-      id: tokenData.userId,
-      email: 'temp@user.com',
-      phoneNumber: '1234567890',
-    };
-
-    // Role is managed separately via UserRole model
-    // This is a placeholder for role assignment
+    const userRole = this.toPrismaRole(role);
+    const user = await this.prisma.user.update({
+      where: { id: tokenData.userId },
+      data: {
+        role: userRole,
+        updatedAt: new Date(),
+        UserRoleAssignment: {
+          upsert: {
+            where: {
+              userId_role: {
+                userId: tokenData.userId,
+                role: userRole,
+              },
+            },
+            update: { active: true },
+            create: { role: userRole, active: true },
+          },
+        },
+      },
+    });
 
     // Clean up onboarding token
     this.deleteOnboardingToken(onboardingToken);
 
     // Issue full tokens
-    const tokens = this.generateTokens(tempUser);
+    const tokens = this.generateTokens(user);
+    await this.storeRefreshToken(tokens.refreshToken, user.id);
 
     return {
       success: true,
@@ -240,12 +218,7 @@ export class AuthServiceV2 {
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         expiresIn: this.getTokenExpiration(),
-        user: {
-          id: tempUser.id,
-          email: tempUser.email,
-          phone: tempUser.phoneNumber,
-          role,
-        },
+        user: this.toAuthUser(user),
       },
     };
   }
@@ -256,24 +229,107 @@ export class AuthServiceV2 {
   async getCurrentUser(token: string): Promise<any | null> {
     try {
       const payload = this.jwtService.verify(token);
-      // return this.userService.getUserById(payload.sub); // TEMPORARILY DISABLED
-      return { id: payload.sub, email: payload.email, phone: payload.phone };
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+      });
+      return user ? this.toAuthUser(user) : null;
     } catch {
       return null;
     }
+  }
+
+  async refreshAccessToken(
+    refreshToken: string,
+    deviceId?: string,
+  ): Promise<{
+    success: boolean;
+    data: { accessToken: string; refreshToken: string; expiresIn: number };
+  }> {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get('JWT_REFRESH_SECRET') || 'refresh-secret',
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const tokenHash = this.hashToken(refreshToken);
+    const storedToken = await this.prisma.refreshToken.findFirst({
+      where: {
+        tokenHash,
+        userId: payload.sub,
+        isRevoked: false,
+        expiresAt: { gt: new Date() },
+      },
+      include: { user: true },
+    });
+
+    if (!storedToken) {
+      throw new UnauthorizedException('Refresh token expired or revoked');
+    }
+
+    await this.prisma.refreshToken.update({
+      where: { id: storedToken.id },
+      data: { isRevoked: true, revokedAt: new Date() },
+    });
+
+    const tokens = this.generateTokens(storedToken.user);
+    await this.storeRefreshToken(tokens.refreshToken, storedToken.user.id, deviceId);
+
+    return {
+      success: true,
+      data: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: this.getTokenExpiration(),
+      },
+    };
+  }
+
+  async logout(refreshToken?: string, allDevices = false): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    if (!refreshToken) {
+      return { success: true, message: 'Logged out' };
+    }
+
+    try {
+      const payload: any = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get('JWT_REFRESH_SECRET') || 'refresh-secret',
+      });
+
+      if (allDevices) {
+        await this.prisma.refreshToken.updateMany({
+          where: { userId: payload.sub, isRevoked: false },
+          data: { isRevoked: true, revokedAt: new Date() },
+        });
+      } else {
+        await this.prisma.refreshToken.updateMany({
+          where: { tokenHash: this.hashToken(refreshToken), isRevoked: false },
+          data: { isRevoked: true, revokedAt: new Date() },
+        });
+      }
+    } catch {
+      // Logout is idempotent for clients.
+    }
+
+    return { success: true, message: 'Logged out' };
   }
 
   // ==================== Private Methods ====================
 
   private generateTokens(user: {
     id: string;
-    email?: string;
+    email?: string | null;
     phoneNumber?: string;
+    phone?: string | null;
   }): JwtToken {
     const payload = {
       sub: user.id,
       email: user.email,
-      phone: user.phoneNumber,
+      phone: user.phoneNumber ?? user.phone,
     };
 
     const accessToken = this.jwtService.sign(payload, {
@@ -314,6 +370,121 @@ export class AuthServiceV2 {
       default:
         return 3600;
     }
+  }
+
+  private getRefreshTokenExpiration(): number {
+    const expirationStr =
+      this.configService.get('JWT_REFRESH_EXPIRATION') || '7d';
+    const match = expirationStr.match(/^(\d+)([smhd])$/);
+    if (!match) return 7 * 86400;
+
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+
+    switch (unit) {
+      case 's':
+        return value;
+      case 'm':
+        return value * 60;
+      case 'h':
+        return value * 3600;
+      case 'd':
+        return value * 86400;
+      default:
+        return 7 * 86400;
+    }
+  }
+
+  private async findUserByContact(email?: string, phone?: string | null) {
+    if (email) {
+      const user = await this.prisma.user.findUnique({
+        where: { email: email.toLowerCase() },
+      });
+      if (user) return user;
+    }
+
+    if (phone) {
+      const user = await this.prisma.user.findUnique({ where: { phone } });
+      if (user) return user;
+    }
+
+    return null;
+  }
+
+  private async findOrCreateUserForSession(session: OtpSessionEntity) {
+    const existing = await this.findUserByContact(session.email, session.phone);
+    if (existing) return existing;
+
+    const now = new Date();
+    return this.prisma.user.create({
+      data: {
+        id: randomUUID(),
+        email: session.email?.toLowerCase(),
+        phone: session.phone,
+        password: 'otp-auth',
+        firstName: 'User',
+        lastName: 'Ntumai',
+        role: UserRole.CUSTOMER,
+        isEmailVerified: !!session.email,
+        isPhoneVerified: !!session.phone,
+        updatedAt: now,
+      },
+    });
+  }
+
+  private async storeRefreshToken(
+    refreshToken: string,
+    userId: string,
+    deviceId?: string,
+  ): Promise<void> {
+    await this.prisma.refreshToken.create({
+      data: {
+        tokenHash: this.hashToken(refreshToken),
+        userId,
+        deviceId,
+        expiresAt: new Date(Date.now() + this.getRefreshTokenExpiration() * 1000),
+      },
+    });
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private toPrismaRole(role: 'customer' | 'tasker' | 'vendor'): UserRole {
+    if (role === 'tasker') return UserRole.DRIVER;
+    if (role === 'vendor') return UserRole.VENDOR;
+    return UserRole.CUSTOMER;
+  }
+
+  private toApiRole(role?: UserRole | null): string {
+    if (role === UserRole.DRIVER) return 'tasker';
+    if (role === UserRole.VENDOR) return 'vendor';
+    if (role === UserRole.ADMIN) return 'admin';
+    return 'customer';
+  }
+
+  private toAuthUser(user: {
+    id: string;
+    email?: string | null;
+    phone?: string | null;
+    role?: UserRole | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    profileImage?: string | null;
+    isEmailVerified?: boolean | null;
+    isPhoneVerified?: boolean | null;
+  }) {
+    return {
+      id: user.id,
+      email: user.email ?? undefined,
+      phone: user.phone ?? undefined,
+      role: this.toApiRole(user.role),
+      firstName: user.firstName ?? undefined,
+      lastName: user.lastName ?? undefined,
+      avatar: user.profileImage ?? undefined,
+      isVerified: Boolean(user.isEmailVerified || user.isPhoneVerified),
+    };
   }
 
   private storeOnboardingToken(token: OnboardingToken): void {

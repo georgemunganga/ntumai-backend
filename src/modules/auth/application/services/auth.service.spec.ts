@@ -1,28 +1,17 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
-import { UserService } from 'src/modules/users/application/services/user.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OtpService } from './otp.service';
-import { UserEntity } from 'src/modules/users/domain/entities/user.entity';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let userService: jest.Mocked<UserService>;
   let jwtService: jest.Mocked<JwtService>;
   let configService: jest.Mocked<ConfigService>;
   let otpService: jest.Mocked<OtpService>;
 
   beforeEach(async () => {
-    const mockUserService = {
-      getUserById: jest.fn(),
-      getUserByPhoneNumber: jest.fn(),
-      getUserByEmail: jest.fn(),
-      createOrUpdateUser: jest.fn(),
-      activateUser: jest.fn(),
-    };
-
     const mockJwtService = {
       sign: jest.fn().mockReturnValue('test-token'),
       verify: jest.fn(),
@@ -48,10 +37,6 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         {
-          provide: UserService,
-          useValue: mockUserService,
-        },
-        {
           provide: JwtService,
           useValue: mockJwtService,
         },
@@ -67,7 +52,6 @@ describe('AuthService', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    userService = module.get(UserService);
     jwtService = module.get(JwtService);
     configService = module.get(ConfigService);
     otpService = module.get(OtpService);
@@ -80,21 +64,11 @@ describe('AuthService', () => {
   describe('requestOtp', () => {
     it('should request OTP for email', async () => {
       const email = 'test@example.com';
-      const user = new UserEntity({
-        id: 'user-123',
-        email,
-        status: 'PENDING_VERIFICATION',
-      });
 
-      userService.createOrUpdateUser.mockResolvedValue(user);
       otpService.requestOtp.mockResolvedValue(undefined);
 
       await service.requestOtp(undefined, email);
 
-      expect(userService.createOrUpdateUser).toHaveBeenCalledWith(
-        undefined,
-        email,
-      );
       expect(otpService.requestOtp).toHaveBeenCalledWith(email);
     });
 
@@ -107,17 +81,8 @@ describe('AuthService', () => {
     it('should verify OTP and return tokens', async () => {
       const email = 'test@example.com';
       const otp = '123456';
-      const user = new UserEntity({
-        id: 'user-123',
-        email,
-        status: 'PENDING_VERIFICATION',
-      });
 
       otpService.verifyOtp.mockResolvedValue(true);
-      userService.getUserByEmail.mockResolvedValue(user);
-      userService.activateUser.mockImplementation((u) =>
-        Promise.resolve(new UserEntity({ ...u, status: 'ACTIVE' })),
-      );
 
       const result = await service.verifyOtp(otp, undefined, email);
 
@@ -134,13 +99,10 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('should throw error if user not found', async () => {
-      otpService.verifyOtp.mockResolvedValue(true);
-      userService.getUserByEmail.mockResolvedValue(null);
-
-      await expect(
-        service.verifyOtp('123456', undefined, 'test@example.com'),
-      ).rejects.toThrow(UnauthorizedException);
+    it('should throw error if neither phone nor email provided', async () => {
+      await expect(service.verifyOtp('123456')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });

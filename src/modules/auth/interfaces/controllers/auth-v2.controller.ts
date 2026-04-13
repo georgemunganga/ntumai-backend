@@ -27,6 +27,9 @@ import {
   SelectRoleDto,
   SelectRoleResponseDto,
   CurrentUserResponseDto,
+  RefreshTokenDto,
+  RefreshTokenResponseDto,
+  LogoutDto,
   ErrorResponseDto,
 } from '../../application/dtos/auth-v2.dto';
 import { Public } from '../../infrastructure/decorators/public.decorator';
@@ -217,13 +220,69 @@ export class AuthV2Controller {
           user: {
             id: user.id,
             email: user.email,
-            phone: user.phoneNumber,
+            phone: user.phone,
             role: user.role,
-            status: user.status,
+            status: user.status || 'active',
           },
         },
       };
 
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  /**
+   * Refresh access token
+   * POST /api/v1/auth/refresh
+   */
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Refresh access token',
+    description: 'Rotates a valid refresh token and returns a new token pair.',
+  })
+  @ApiBody({ type: RefreshTokenDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Token refreshed successfully',
+    type: RefreshTokenResponseDto,
+  })
+  async refreshToken(
+    @Body() dto: RefreshTokenDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      const response = await this.authService.refreshAccessToken(
+        dto.refreshToken,
+        dto.deviceId,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  /**
+   * Logout
+   * POST /api/v1/auth/logout
+   */
+  @Public()
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Logout',
+    description: 'Revokes the provided refresh token. Can revoke all devices when requested.',
+  })
+  @ApiBody({ type: LogoutDto })
+  async logout(@Body() dto: LogoutDto, @Res() res: Response): Promise<void> {
+    try {
+      const response = await this.authService.logout(
+        dto.refreshToken,
+        Boolean(dto.allDevices),
+      );
       res.json(response);
     } catch (error) {
       this.handleError(error, res);
