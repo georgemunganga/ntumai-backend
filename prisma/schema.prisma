@@ -182,14 +182,18 @@ model Notification {
 }
 
 model OTPVerification {
-  id         String   @id
-  identifier String
-  otp        String
-  type       OTPType
-  requestId  String?  @unique
-  isVerified Boolean  @default(false)
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  id                String    @id
+  identifier        String
+  otpHash           String
+  type              OTPType
+  requestId         String    @unique
+  isVerified        Boolean   @default(false)
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+  attempts          Int       @default(0)
+  consumedAt        DateTime?
+  maxAttempts       Int       @default(5)
+  resendAvailableAt DateTime?
 }
 
 // Auth Module: OTP Challenge for OTP-first authentication
@@ -747,4 +751,3 @@ model UnifiedOrder {
   @@index([delivery_id])
   @@map("unified_orders")
 }
-
