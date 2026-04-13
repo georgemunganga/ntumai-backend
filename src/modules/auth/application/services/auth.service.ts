@@ -24,6 +24,12 @@ export class AuthService {
       throw new BadRequestException('Phone number or email must be provided.');
     }
 
+    if (phoneNumber && !email) {
+      throw new BadRequestException(
+        'Phone OTP is not available yet. Use email until SMS transport is configured.',
+      );
+    }
+
     const identifier = phoneNumber || email;
 
     // Create or get user - TEMPORARILY DISABLED

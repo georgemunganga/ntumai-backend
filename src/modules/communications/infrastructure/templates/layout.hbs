@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="x-apple-disable-message-reformatting">
+    <title>{{emailTitle}}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #eef4ff;
+            font-family: {{{fontFamily}}};
+            color: #1f2937;
+            line-height: 1.6;
+        }
+
+        .preheader {
+            display: none !important;
+            visibility: hidden;
+            opacity: 0;
+            color: transparent;
+            height: 0;
+            width: 0;
+            overflow: hidden;
+            mso-hide: all;
+        }
+
+        .email-shell {
+            width: 100%;
+            padding: 24px 12px;
+            background-color: #eef4ff;
+        }
+
+        .email-card {
+            max-width: 640px;
+            margin: 0 auto;
+            background: #ffffff;
+            border: 1px solid #dbe7ff;
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .content {
+            padding: 32px 28px;
+        }
+
+        .headline {
+            margin: 0 0 12px;
+            font-size: 28px;
+            line-height: 1.2;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .subheadline {
+            margin: 0 0 24px;
+            font-size: 16px;
+            color: #475569;
+        }
+
+        .text {
+            margin: 0 0 16px;
+            font-size: 15px;
+            color: #475569;
+        }
+
+        .panel {
+            margin: 24px 0;
+            padding: 24px;
+            background: #f8fbff;
+            border: 1px solid #dbe7ff;
+            border-radius: 14px;
+        }
+
+        .code-label {
+            margin: 0 0 10px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #64748b;
+        }
+
+        .code {
+            margin: 0;
+            font-size: 34px;
+            line-height: 1;
+            font-weight: 700;
+            letter-spacing: 0.22em;
+            color: {{brandPrimary}};
+            text-align: center;
+        }
+
+        .meta {
+            margin: 12px 0 0;
+            font-size: 13px;
+            color: #64748b;
+            text-align: center;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 14px 24px;
+            background: {{brandPrimary}};
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 700;
+        }
+
+        .list {
+            margin: 20px 0 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .list-item {
+            margin: 0 0 12px;
+            padding: 16px;
+            background: #f8fbff;
+            border: 1px solid #dbe7ff;
+            border-radius: 12px;
+        }
+
+        .list-title {
+            display: block;
+            margin: 0 0 6px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .notice {
+            margin: 24px 0 0;
+            padding: 16px 18px;
+            border-left: 4px solid {{brandPrimary}};
+            border-radius: 8px;
+            background: {{brandAccent}};
+            color: #334155;
+            font-size: 14px;
+        }
+
+        .notice.warning {
+            border-left-color: #f59e0b;
+            background: #fff7e6;
+        }
+
+        .center {
+            text-align: center;
+        }
+
+        .link {
+            color: {{brandPrimary}};
+            text-decoration: none;
+        }
+
+        @media only screen and (max-width: 640px) {
+            .content {
+                padding: 24px 18px;
+            }
+
+            .headline {
+                font-size: 24px;
+            }
+
+            .code {
+                font-size: 28px;
+                letter-spacing: 0.18em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="preheader">{{preheader}}</div>
+    <div class="email-shell">
+        <div class="email-card">
+            {{> header}}
+            <div class="content">
+                {{{body}}}
+            </div>
+            {{> footer}}
+        </div>
+    </div>
+</body>
+</html>

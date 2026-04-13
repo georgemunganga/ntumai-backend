@@ -20,6 +20,7 @@ import {
 } from '../../domain/entities/otp-session.entity';
 import { PhoneNormalizer } from '../utils/phone-normalizer';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
+import { CommunicationsService } from '../../../communications/communications.service';
 
 export interface AuthStartResponse {
   success: boolean;
@@ -78,6 +79,7 @@ export class AuthServiceV2 {
     private readonly otpService: OtpServiceV2,
     private readonly sessionRepository: OtpSessionRepository,
     private readonly prisma: PrismaService,
+    private readonly communicationsService: CommunicationsService,
   ) {}
 
   /**
@@ -134,14 +136,27 @@ export class AuthServiceV2 {
     const session = await this.otpService.verifyOtp(sessionId, otp, deviceId);
 
     const user = await this.findOrCreateUserForSession(session);
+    const isKnownDevice = await this.isKnownDevice(user.id, deviceId);
+    const tokens = this.generateTokens(user);
+    await this.storeRefreshToken(tokens.refreshToken, user.id, deviceId);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date(), updatedAt: new Date() },
+    });
 
     if (session.flowType === 'login') {
-      const tokens = this.generateTokens(user);
-      await this.storeRefreshToken(tokens.refreshToken, user.id, deviceId);
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: { lastLoginAt: new Date(), updatedAt: new Date() },
-      });
+      if (user.email && deviceId && !isKnownDevice) {
+        await this.communicationsService
+          .sendLoginAlertEmail({
+            to: user.email,
+            firstName: user.firstName ?? undefined,
+            identifier: user.email,
+            deviceId,
+            occurredAt: new Date().toISOString(),
+            ctaUrl: this.configService.get<string>('APP_URL'),
+          })
+          .catch(() => undefined);
+      }
 
       return {
         success: true,
@@ -156,16 +171,25 @@ export class AuthServiceV2 {
       };
     }
 
-    // New user or user without role - issue onboarding token
-    const onboardingToken = OnboardingToken.generate(user.id);
-    this.storeOnboardingToken(onboardingToken);
+    if (user.email) {
+      await this.communicationsService
+        .sendWelcomeEmailByRole({
+          to: user.email,
+          firstName: user.firstName ?? undefined,
+          role: 'customer',
+          ctaUrl: this.configService.get<string>('APP_URL'),
+        })
+        .catch(() => undefined);
+    }
 
     return {
       success: true,
       data: {
         flowType: session.flowType,
-        requiresRoleSelection: true,
-        onboardingToken: onboardingToken.token,
+        requiresRoleSelection: false,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: this.getTokenExpiration(),
         user: this.toAuthUser(user),
       },
     };
@@ -211,6 +235,17 @@ export class AuthServiceV2 {
     // Issue full tokens
     const tokens = this.generateTokens(user);
     await this.storeRefreshToken(tokens.refreshToken, user.id);
+
+    if (user.email) {
+      await this.communicationsService
+        .sendWelcomeEmailByRole({
+          to: user.email,
+          firstName: user.firstName ?? undefined,
+          role,
+          ctaUrl: this.configService.get<string>('APP_URL'),
+        })
+        .catch(() => undefined);
+    }
 
     return {
       success: true,
@@ -445,6 +480,26 @@ export class AuthServiceV2 {
         expiresAt: new Date(Date.now() + this.getRefreshTokenExpiration() * 1000),
       },
     });
+  }
+
+  private async isKnownDevice(
+    userId: string,
+    deviceId?: string,
+  ): Promise<boolean> {
+    if (!deviceId) {
+      return false;
+    }
+
+    const existing = await this.prisma.refreshToken.findFirst({
+      where: {
+        userId,
+        deviceId,
+        isRevoked: false,
+      },
+      select: { id: true },
+    });
+
+    return Boolean(existing);
   }
 
   private hashToken(token: string): string {

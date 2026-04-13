@@ -1,0 +1,10 @@
+{{#if details.length}}
+<div class="panel">
+    {{#each details}}
+    <div style="display: block; margin-bottom: 12px;">
+        <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; margin-bottom: 4px;">{{label}}</div>
+        <div style="font-size: 15px; color: #0f172a; font-weight: 500;">{{value}}</div>
+    </div>
+    {{/each}}
+</div>
+{{/if}}

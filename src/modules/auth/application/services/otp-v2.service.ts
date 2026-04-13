@@ -84,6 +84,7 @@ export class OtpServiceV2 {
       email,
       normalizedPhone || undefined,
       channels,
+      flowType || 'signup',
     );
 
     // Return session without OTP
@@ -119,8 +120,25 @@ export class OtpServiceV2 {
 
     // Check device consistency (optional security measure)
     if (session.deviceId && deviceId && session.deviceId !== deviceId) {
-      // Log potential security issue but don't block
+      // Log and notify but don't block the user flow.
       console.warn(`Device mismatch for session ${sessionId}`);
+      if (session.email) {
+        await this.communicationService
+          .sendSuspiciousActivityAlertEmail({
+            to: session.email,
+            identifier: session.email,
+            occurredAt: new Date().toISOString(),
+            reason: 'OTP verified from a different device than the one that requested it',
+            recommendedAction:
+              'If this was not you, request a new OTP and review recent account activity.',
+          })
+          .catch((err) => {
+            console.error(
+              `Failed to send suspicious activity email to ${session.email}:`,
+              err,
+            );
+          });
+      }
     }
 
     // Verify OTP
@@ -172,10 +190,15 @@ export class OtpServiceV2 {
     const channels: OtpChannel[] = [];
 
     if (email) channels.push('email');
-    if (phone) channels.push('sms');
+    // SMS transport is not implemented yet. Keep auth honest and do not claim
+    // we sent a phone OTP when only email delivery exists.
+    if (phone && !email) {
+      throw new BadRequestException(
+        'Phone OTP is not available yet. Use email until SMS transport is configured.',
+      );
+    }
 
-    // If both available, send to both for security
-    return channels.length > 0 ? channels : ['email'];
+    return channels;
   }
 
   private async sendOtpThroughChannels(
@@ -183,6 +206,7 @@ export class OtpServiceV2 {
     email?: string,
     phone?: string,
     channels?: OtpChannel[],
+    purpose: string = 'verify',
   ): Promise<void> {
     const sendChannels = channels || this.determineChannels(email, phone);
 
@@ -190,7 +214,7 @@ export class OtpServiceV2 {
 
     if (sendChannels.includes('email') && email) {
       promises.push(
-        this.communicationService.sendOtp(email, otp).catch((err) => {
+        this.communicationService.sendOtp(email, otp, purpose).catch((err) => {
           console.error(`Failed to send OTP via email to ${email}:`, err);
           // Don't throw - continue with other channels
         }),
@@ -199,7 +223,7 @@ export class OtpServiceV2 {
 
     if (sendChannels.includes('sms') && phone) {
       promises.push(
-        this.communicationService.sendOtp(phone, otp).catch((err) => {
+        this.communicationService.sendOtp(phone, otp, purpose).catch((err) => {
           console.error(`Failed to send OTP via SMS to ${phone}:`, err);
           // Don't throw - continue with other channels
         }),
