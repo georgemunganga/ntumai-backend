@@ -12,6 +12,7 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { TrackingModule } from './modules/tracking/tracking.module';
     MatchingModule,
     ShiftsModule,
     TrackingModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
