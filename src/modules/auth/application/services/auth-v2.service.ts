@@ -151,6 +151,42 @@ type OnboardingDraftState = {
   completedAt?: string;
 };
 
+type KycRole = 'vendor' | 'tasker';
+
+type KycDocument = {
+  id: string;
+  type:
+    | 'business_license'
+    | 'national_id'
+    | 'tax_certificate'
+    | 'drivers_license'
+    | 'vehicle_registration';
+  label: string;
+  status: 'pending' | 'approved' | 'rejected';
+  fileUrl: string;
+  documentNumber?: string;
+  expiryDate?: string;
+  uploadedAt: string;
+  rejectionReason?: string;
+};
+
+type KycStatusState = {
+  role: KycRole;
+  onboardingStatus: 'pending' | 'complete';
+  kycStatus:
+    | 'not_started'
+    | 'pending_submission'
+    | 'under_review'
+    | 'approved'
+    | 'rejected';
+  activationStatus: 'inactive' | 'restricted' | 'active' | 'suspended';
+  documents: KycDocument[];
+  submittedAt?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+  reviewNotes?: string;
+};
+
 @Injectable()
 export class AuthServiceV2 {
   private readonly onboardingTokenStore = new Map<
@@ -530,6 +566,297 @@ export class AuthServiceV2 {
       success: true,
       data: {
         onboarding: this.toOnboardingDraftState(role, assignment?.metadata),
+      },
+    };
+  }
+
+  async getKycStatus(
+    userId: string,
+    role: KycRole,
+  ): Promise<{
+    success: boolean;
+    data: { kyc: KycStatusState };
+  }> {
+    const assignment = await this.getRoleAssignment(userId, role);
+
+    return {
+      success: true,
+      data: {
+        kyc: this.toKycStatusState(role, assignment?.metadata),
+      },
+    };
+  }
+
+  async upsertKycDocument(
+    userId: string,
+    role: KycRole,
+    input: {
+      id?: string;
+      type:
+        | 'business_license'
+        | 'national_id'
+        | 'tax_certificate'
+        | 'drivers_license'
+        | 'vehicle_registration';
+      label: string;
+      fileUrl: string;
+      documentNumber?: string;
+      expiryDate?: string;
+    },
+  ): Promise<{
+    success: boolean;
+    data: { kyc: KycStatusState };
+  }> {
+    const existingAssignment = await this.getRoleAssignment(userId, role);
+    const currentState = this.toKycStatusState(role, existingAssignment?.metadata);
+    const now = new Date().toISOString();
+    const nextDocument: KycDocument = {
+      id: input.id || randomUUID(),
+      type: input.type,
+      label: input.label,
+      status: 'pending',
+      fileUrl: input.fileUrl,
+      documentNumber: input.documentNumber,
+      expiryDate: input.expiryDate,
+      uploadedAt: now,
+    };
+
+    const documents = currentState.documents.some((doc) => doc.id === nextDocument.id)
+      ? currentState.documents.map((doc) =>
+          doc.id === nextDocument.id ? nextDocument : doc,
+        )
+      : [
+          ...currentState.documents.filter((doc) => doc.type !== nextDocument.type),
+          nextDocument,
+        ];
+
+    const user = await this.upsertRoleAssignment(userId, role, {
+      kycDocuments: documents,
+      kycStatus:
+        currentState.kycStatus === 'approved' ? 'pending_submission' : 'pending_submission',
+      activationStatus: 'inactive',
+      kycSubmittedAt: null,
+      kycReviewedAt: null,
+      kycReviewNotes: null,
+      kycRejectionReason: null,
+    });
+
+    const assignment = await this.getRoleAssignment(user.id, role);
+
+    return {
+      success: true,
+      data: {
+        kyc: this.toKycStatusState(role, assignment?.metadata),
+      },
+    };
+  }
+
+  async deleteKycDocument(
+    userId: string,
+    role: KycRole,
+    documentId: string,
+  ): Promise<{
+    success: boolean;
+    data: { kyc: KycStatusState };
+  }> {
+    const existingAssignment = await this.getRoleAssignment(userId, role);
+    const currentState = this.toKycStatusState(role, existingAssignment?.metadata);
+    const documents = currentState.documents.filter((doc) => doc.id !== documentId);
+
+    const user = await this.upsertRoleAssignment(userId, role, {
+      kycDocuments: documents,
+      kycStatus: documents.length ? 'pending_submission' : 'not_started',
+      activationStatus: 'inactive',
+      kycSubmittedAt: null,
+      kycReviewedAt: null,
+      kycReviewNotes: null,
+      kycRejectionReason: null,
+    });
+
+    const assignment = await this.getRoleAssignment(user.id, role);
+
+    return {
+      success: true,
+      data: {
+        kyc: this.toKycStatusState(role, assignment?.metadata),
+      },
+    };
+  }
+
+  async submitKyc(
+    userId: string,
+    role: KycRole,
+  ): Promise<{
+    success: boolean;
+    data: { kyc: KycStatusState };
+  }> {
+    const existingAssignment = await this.getRoleAssignment(userId, role);
+    const currentState = this.toKycStatusState(role, existingAssignment?.metadata);
+
+    if (currentState.onboardingStatus !== 'complete') {
+      throw new BadRequestException('Complete onboarding before submitting KYC');
+    }
+
+    const requiredDocumentTypes =
+      role === 'vendor'
+        ? ['business_license', 'national_id']
+        : ['drivers_license', 'national_id'];
+
+    const missingDocument = requiredDocumentTypes.find(
+      (requiredType) =>
+        !currentState.documents.some((document) => document.type === requiredType),
+    );
+
+    if (missingDocument) {
+      throw new BadRequestException(`Missing required document: ${missingDocument}`);
+    }
+
+    const now = new Date().toISOString();
+    const user = await this.upsertRoleAssignment(userId, role, {
+      kycStatus: 'under_review',
+      activationStatus: 'restricted',
+      kycSubmittedAt: now,
+      kycReviewedAt: null,
+      kycReviewNotes: null,
+      kycRejectionReason: null,
+      kycDocuments: currentState.documents.map((document) => ({
+        ...document,
+        status: 'pending',
+        rejectionReason: null,
+      })),
+    });
+
+    const assignment = await this.getRoleAssignment(user.id, role);
+
+    return {
+      success: true,
+      data: {
+        kyc: this.toKycStatusState(role, assignment?.metadata),
+      },
+    };
+  }
+
+  async listKycSubmissions(
+    adminUserId: string,
+    filters?: {
+      role?: KycRole;
+      status?: KycStatusState['kycStatus'];
+    },
+  ): Promise<{
+    success: boolean;
+    data: {
+      submissions: Array<{
+        userId: string;
+        role: KycRole;
+        firstName?: string;
+        lastName?: string;
+        email?: string;
+        phone?: string;
+        kycStatus: KycStatusState['kycStatus'];
+        activationStatus: KycStatusState['activationStatus'];
+        submittedAt?: string;
+      }>;
+    };
+  }> {
+    await this.assertAdmin(adminUserId);
+
+    const assignments = await this.prisma.userRoleAssignment.findMany({
+      where: {
+        active: true,
+        role: filters?.role ? this.toPrismaRole(filters.role) : undefined,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+
+    const submissions = assignments
+      .map((assignment) => {
+        const role = this.toApiRole(assignment.role) as KycRole;
+        const state = this.toKycStatusState(role, assignment.metadata);
+        return {
+          userId: assignment.user.id,
+          role,
+          firstName: assignment.user.firstName ?? undefined,
+          lastName: assignment.user.lastName ?? undefined,
+          email: assignment.user.email ?? undefined,
+          phone: assignment.user.phone ?? undefined,
+          kycStatus: state.kycStatus,
+          activationStatus: state.activationStatus,
+          submittedAt: state.submittedAt,
+        };
+      })
+      .filter((submission) =>
+        filters?.status ? submission.kycStatus === filters.status : true,
+      );
+
+    return {
+      success: true,
+      data: {
+        submissions,
+      },
+    };
+  }
+
+  async reviewKycSubmission(
+    adminUserId: string,
+    userId: string,
+    role: KycRole,
+    input: {
+      action: 'approved' | 'rejected' | 'request_changes';
+      notes?: string;
+      rejectionReason?: string;
+    },
+  ): Promise<{
+    success: boolean;
+    data: { kyc: KycStatusState };
+  }> {
+    await this.assertAdmin(adminUserId);
+
+    const existingAssignment = await this.getRoleAssignment(userId, role);
+    const currentState = this.toKycStatusState(role, existingAssignment?.metadata);
+    const now = new Date().toISOString();
+
+    const nextStatus =
+      input.action === 'approved'
+        ? 'approved'
+        : 'rejected';
+    const nextActivationStatus =
+      input.action === 'approved' ? 'active' : 'inactive';
+
+    const user = await this.upsertRoleAssignment(userId, role, {
+      kycStatus: nextStatus,
+      activationStatus: nextActivationStatus,
+      kycReviewedAt: now,
+      kycReviewedBy: adminUserId,
+      kycReviewNotes: input.notes || null,
+      kycRejectionReason:
+        input.action === 'approved' ? null : input.rejectionReason || null,
+      kycDocuments: currentState.documents.map((document) => ({
+        ...document,
+        status: input.action === 'approved' ? 'approved' : 'rejected',
+        rejectionReason:
+          input.action === 'approved' ? null : input.rejectionReason || undefined,
+      })),
+    });
+
+    const assignment = await this.getRoleAssignment(user.id, role);
+
+    return {
+      success: true,
+      data: {
+        kyc: this.toKycStatusState(role, assignment?.metadata),
       },
     };
   }
@@ -1179,6 +1506,83 @@ export class AuthServiceV2 {
           ? safeMetadata.onboardingCompletedAt
           : undefined,
     };
+  }
+
+  private toKycStatusState(
+    role: KycRole,
+    metadata: unknown,
+  ): KycStatusState {
+    const safeMetadata =
+      metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+        ? (metadata as Record<string, unknown>)
+        : {};
+
+    const documents = Array.isArray(safeMetadata.kycDocuments)
+      ? (safeMetadata.kycDocuments.filter(
+          (document): document is KycDocument =>
+            !!document && typeof document === 'object' && !Array.isArray(document),
+        ) as KycDocument[])
+      : [];
+
+    return {
+      role,
+      onboardingStatus: this.getRoleStatus(safeMetadata),
+      kycStatus:
+        safeMetadata.kycStatus === 'pending_submission' ||
+        safeMetadata.kycStatus === 'under_review' ||
+        safeMetadata.kycStatus === 'approved' ||
+        safeMetadata.kycStatus === 'rejected'
+          ? (safeMetadata.kycStatus as KycStatusState['kycStatus'])
+          : 'not_started',
+      activationStatus:
+        safeMetadata.activationStatus === 'restricted' ||
+        safeMetadata.activationStatus === 'active' ||
+        safeMetadata.activationStatus === 'suspended'
+          ? (safeMetadata.activationStatus as KycStatusState['activationStatus'])
+          : 'inactive',
+      documents,
+      submittedAt:
+        typeof safeMetadata.kycSubmittedAt === 'string'
+          ? safeMetadata.kycSubmittedAt
+          : undefined,
+      reviewedAt:
+        typeof safeMetadata.kycReviewedAt === 'string'
+          ? safeMetadata.kycReviewedAt
+          : undefined,
+      rejectionReason:
+        typeof safeMetadata.kycRejectionReason === 'string'
+          ? safeMetadata.kycRejectionReason
+          : undefined,
+      reviewNotes:
+        typeof safeMetadata.kycReviewNotes === 'string'
+          ? safeMetadata.kycReviewNotes
+          : undefined,
+    };
+  }
+
+  private async getRoleAssignment(userId: string, role: KycRole) {
+    return this.prisma.userRoleAssignment.findUnique({
+      where: {
+        userId_role: {
+          userId,
+          role: this.toPrismaRole(role),
+        },
+      },
+      select: {
+        metadata: true,
+      },
+    });
+  }
+
+  private async assertAdmin(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+
+    if (!user || user.role !== UserRole.ADMIN) {
+      throw new UnauthorizedException('Admin access required');
+    }
   }
 
   private async toAuthUser(user: {

@@ -43,9 +43,13 @@ import {
   CompleteRoleOnboardingResponseDto,
   CompleteTaskerOnboardingDto,
   CompleteVendorOnboardingDto,
+  KycStatusResponseDto,
+  KycSubmissionListResponseDto,
   OnboardingDraftResponseDto,
   ProfileAddressesResponseDto,
+  ReviewKycSubmissionDto,
   SaveOnboardingDraftDto,
+  UpsertKycDocumentDto,
   CreateAddressDto,
   UpdateAddressDto,
 } from '../../application/dtos/auth-v2.dto';
@@ -524,6 +528,205 @@ export class AuthV2Controller {
         role,
         dto.currentStepId,
         dto.draftData,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Get('me/kyc/:role')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get KYC status for the authenticated role',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC status retrieved successfully',
+    type: KycStatusResponseDto,
+  })
+  async getKycStatus(
+    @Req() req: any,
+    @Param('role') role: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      if (role !== 'vendor' && role !== 'tasker') {
+        throw new BadRequestException('Unsupported KYC role');
+      }
+
+      const response = await this.authService.getKycStatus(
+        req.user.userId,
+        role,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Put('me/kyc/:role/documents')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Create or update a KYC document for the authenticated role',
+  })
+  @ApiBody({ type: UpsertKycDocumentDto })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC document saved successfully',
+    type: KycStatusResponseDto,
+  })
+  async upsertKycDocument(
+    @Req() req: any,
+    @Param('role') role: string,
+    @Body() dto: UpsertKycDocumentDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      if (role !== 'vendor' && role !== 'tasker') {
+        throw new BadRequestException('Unsupported KYC role');
+      }
+
+      const response = await this.authService.upsertKycDocument(
+        req.user.userId,
+        role,
+        dto,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Delete('me/kyc/:role/documents/:documentId')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Delete a KYC document for the authenticated role',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC document deleted successfully',
+    type: KycStatusResponseDto,
+  })
+  async deleteKycDocument(
+    @Req() req: any,
+    @Param('role') role: string,
+    @Param('documentId') documentId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      if (role !== 'vendor' && role !== 'tasker') {
+        throw new BadRequestException('Unsupported KYC role');
+      }
+
+      const response = await this.authService.deleteKycDocument(
+        req.user.userId,
+        role,
+        documentId,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Post('me/kyc/:role/submit')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Submit KYC for review',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC submitted successfully',
+    type: KycStatusResponseDto,
+  })
+  async submitKyc(
+    @Req() req: any,
+    @Param('role') role: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      if (role !== 'vendor' && role !== 'tasker') {
+        throw new BadRequestException('Unsupported KYC role');
+      }
+
+      const response = await this.authService.submitKyc(req.user.userId, role);
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Get('admin/kyc/submissions')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'List KYC submissions for admin review',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC submissions retrieved successfully',
+    type: KycSubmissionListResponseDto,
+  })
+  async listKycSubmissions(
+    @Req() req: any,
+    @Headers('x-kyc-role') role: string | undefined,
+    @Headers('x-kyc-status') status: string | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      const response = await this.authService.listKycSubmissions(
+        req.user.userId,
+        {
+          role: role === 'vendor' || role === 'tasker' ? role : undefined,
+          status: status as any,
+        },
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Post('admin/kyc/:userId/:role/review')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Approve, reject, or request changes for a KYC submission',
+  })
+  @ApiBody({ type: ReviewKycSubmissionDto })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC review saved successfully',
+    type: KycStatusResponseDto,
+  })
+  async reviewKycSubmission(
+    @Req() req: any,
+    @Param('userId') userId: string,
+    @Param('role') role: string,
+    @Body() dto: ReviewKycSubmissionDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      if (role !== 'vendor' && role !== 'tasker') {
+        throw new BadRequestException('Unsupported KYC role');
+      }
+
+      const response = await this.authService.reviewKycSubmission(
+        req.user.userId,
+        userId,
+        role,
+        dto,
       );
       res.json(response);
     } catch (error) {

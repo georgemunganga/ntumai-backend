@@ -529,6 +529,242 @@ export class OnboardingDraftResponseDto {
   data: OnboardingDraftResponseData;
 }
 
+export class KycDocumentDto {
+  @ApiProperty({ example: 'doc_vendor_business_license' })
+  id: string;
+
+  @ApiProperty({
+    example: 'business_license',
+    enum: [
+      'business_license',
+      'national_id',
+      'tax_certificate',
+      'drivers_license',
+      'vehicle_registration',
+    ],
+  })
+  type:
+    | 'business_license'
+    | 'national_id'
+    | 'tax_certificate'
+    | 'drivers_license'
+    | 'vehicle_registration';
+
+  @ApiProperty({ example: 'Business License' })
+  label: string;
+
+  @ApiProperty({ example: 'pending', enum: ['pending', 'approved', 'rejected'] })
+  status: 'pending' | 'approved' | 'rejected';
+
+  @ApiProperty({ example: 'https://files.ntumai.com/kyc/business-license.jpg' })
+  fileUrl: string;
+
+  @ApiProperty({ example: 'ABC-12345', required: false })
+  documentNumber?: string;
+
+  @ApiProperty({ example: '2028-01-01T00:00:00.000Z', required: false })
+  expiryDate?: string;
+
+  @ApiProperty({ example: '2026-04-14T10:30:00.000Z' })
+  uploadedAt: string;
+
+  @ApiProperty({ example: 'Needs clearer image', required: false })
+  rejectionReason?: string;
+}
+
+export class UpsertKycDocumentDto {
+  @ApiProperty({
+    example: 'doc_vendor_business_license',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @ApiProperty({
+    enum: [
+      'business_license',
+      'national_id',
+      'tax_certificate',
+      'drivers_license',
+      'vehicle_registration',
+    ],
+  })
+  @IsString()
+  @IsIn([
+    'business_license',
+    'national_id',
+    'tax_certificate',
+    'drivers_license',
+    'vehicle_registration',
+  ])
+  type:
+    | 'business_license'
+    | 'national_id'
+    | 'tax_certificate'
+    | 'drivers_license'
+    | 'vehicle_registration';
+
+  @ApiProperty({ example: 'Business License' })
+  @IsString()
+  label: string;
+
+  @ApiProperty({ example: 'https://files.ntumai.com/kyc/business-license.jpg' })
+  @IsString()
+  fileUrl: string;
+
+  @ApiProperty({ example: 'ABC-12345', required: false })
+  @IsOptional()
+  @IsString()
+  documentNumber?: string;
+
+  @ApiProperty({ example: '2028-01-01T00:00:00.000Z', required: false })
+  @IsOptional()
+  @IsString()
+  expiryDate?: string;
+}
+
+export class KycStatusStateDto {
+  @ApiProperty({ example: 'vendor', enum: ['vendor', 'tasker'] })
+  role: 'vendor' | 'tasker';
+
+  @ApiProperty({ example: 'complete', enum: ['pending', 'complete'] })
+  onboardingStatus: 'pending' | 'complete';
+
+  @ApiProperty({
+    example: 'pending_submission',
+    enum: [
+      'not_started',
+      'pending_submission',
+      'under_review',
+      'approved',
+      'rejected',
+    ],
+  })
+  kycStatus:
+    | 'not_started'
+    | 'pending_submission'
+    | 'under_review'
+    | 'approved'
+    | 'rejected';
+
+  @ApiProperty({
+    example: 'inactive',
+    enum: ['inactive', 'restricted', 'active', 'suspended'],
+  })
+  activationStatus: 'inactive' | 'restricted' | 'active' | 'suspended';
+
+  @ApiProperty({ type: [KycDocumentDto] })
+  documents: KycDocumentDto[];
+
+  @ApiProperty({ required: false, example: '2026-04-14T10:45:00.000Z' })
+  submittedAt?: string;
+
+  @ApiProperty({ required: false, example: '2026-04-14T11:00:00.000Z' })
+  reviewedAt?: string;
+
+  @ApiProperty({ required: false, example: 'Please re-upload your national ID.' })
+  rejectionReason?: string;
+
+  @ApiProperty({ required: false, example: 'All documents verified.' })
+  reviewNotes?: string;
+}
+
+export class KycStatusResponseData {
+  @ApiProperty({ type: KycStatusStateDto })
+  kyc: KycStatusStateDto;
+}
+
+export class KycStatusResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({ type: KycStatusResponseData })
+  data: KycStatusResponseData;
+}
+
+export class KycSubmissionListItemDto {
+  @ApiProperty({ example: 'user_123' })
+  userId: string;
+
+  @ApiProperty({ example: 'vendor', enum: ['vendor', 'tasker'] })
+  role: 'vendor' | 'tasker';
+
+  @ApiProperty({ example: 'George' })
+  firstName?: string;
+
+  @ApiProperty({ example: 'Munganga' })
+  lastName?: string;
+
+  @ApiProperty({ example: 'dev@greenwebb.tech' })
+  email?: string;
+
+  @ApiProperty({ example: '+260971234567' })
+  phone?: string;
+
+  @ApiProperty({
+    example: 'under_review',
+    enum: [
+      'not_started',
+      'pending_submission',
+      'under_review',
+      'approved',
+      'rejected',
+    ],
+  })
+  kycStatus:
+    | 'not_started'
+    | 'pending_submission'
+    | 'under_review'
+    | 'approved'
+    | 'rejected';
+
+  @ApiProperty({
+    example: 'inactive',
+    enum: ['inactive', 'restricted', 'active', 'suspended'],
+  })
+  activationStatus: 'inactive' | 'restricted' | 'active' | 'suspended';
+
+  @ApiProperty({ required: false, example: '2026-04-14T10:45:00.000Z' })
+  submittedAt?: string;
+}
+
+export class KycSubmissionListResponseData {
+  @ApiProperty({ type: [KycSubmissionListItemDto] })
+  submissions: KycSubmissionListItemDto[];
+}
+
+export class KycSubmissionListResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({ type: KycSubmissionListResponseData })
+  data: KycSubmissionListResponseData;
+}
+
+export class ReviewKycSubmissionDto {
+  @ApiProperty({
+    example: 'approved',
+    enum: ['approved', 'rejected', 'request_changes'],
+  })
+  @IsString()
+  @IsIn(['approved', 'rejected', 'request_changes'])
+  action: 'approved' | 'rejected' | 'request_changes';
+
+  @ApiProperty({ example: 'All documents verified', required: false })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ApiProperty({
+    example: 'Please upload a clearer business license image',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  rejectionReason?: string;
+}
+
 export class CurrentUserResponseData {
   @ApiProperty({
     type: CurrentUserResponseUser,
