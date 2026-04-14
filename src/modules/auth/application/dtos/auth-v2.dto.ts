@@ -283,6 +283,12 @@ class CurrentUserResponseUser {
   email?: string;
   @ApiProperty({ example: '+254712345678', required: false })
   phone?: string;
+  @ApiProperty({ example: 'George', required: false })
+  firstName?: string;
+  @ApiProperty({ example: 'Munganga', required: false })
+  lastName?: string;
+  @ApiProperty({ example: 'https://cdn.ntumai.com/avatars/user-123.jpg', required: false })
+  avatar?: string;
   @ApiProperty({ example: 'customer', required: false })
   role?: string;
   @ApiProperty({ example: 'customer', required: false })
@@ -309,6 +315,38 @@ class CurrentUserResponseUser {
     example: 'active',
   })
   status: string;
+}
+
+export class UpdateProfileDto {
+  @ApiProperty({ example: 'George', required: false })
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @ApiProperty({ example: 'Munganga', required: false })
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
+  @ApiProperty({ example: 'dev@greenwebb.tech', required: false })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiProperty({ example: '+260972873722', required: false })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiProperty({ example: '+260', required: false })
+  @IsOptional()
+  @IsString()
+  countryCode?: string;
+
+  @ApiProperty({ example: 'https://cdn.ntumai.com/avatars/user-123.jpg', required: false })
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
 }
 
 export class ActivateRoleDto {

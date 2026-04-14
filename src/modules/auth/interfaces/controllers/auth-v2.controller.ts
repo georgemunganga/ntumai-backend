@@ -61,6 +61,7 @@ import {
   UpsertKycDocumentDto,
   CreateAddressDto,
   UpdateAddressDto,
+  UpdateProfileDto,
 } from '../../application/dtos/auth-v2.dto';
 import { Public } from '../../infrastructure/decorators/public.decorator';
 import { JwtAuthGuard } from '../../infrastructure/guards/jwt-auth.guard';
@@ -263,6 +264,9 @@ export class AuthV2Controller {
             id: user.id,
             email: user.email,
             phone: user.phone,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            avatar: user.avatar,
             role: user.role,
             activeRole: user.activeRole,
             roles: user.roles,
@@ -275,6 +279,56 @@ export class AuthV2Controller {
       };
 
       res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Update current user profile',
+    description: 'Updates editable profile fields for the authenticated user.',
+  })
+  @ApiBody({ type: UpdateProfileDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile updated successfully',
+    type: CurrentUserResponseDto,
+  })
+  async updateCurrentUser(
+    @Req() req: any,
+    @Body() dto: UpdateProfileDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      const user = await this.authService.updateCurrentUserProfile(
+        req.user.userId,
+        dto,
+      );
+
+      res.json({
+        success: true,
+        data: {
+          user: {
+            id: user.id,
+            email: user.email,
+            phone: user.phone,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            avatar: user.avatar,
+            role: user.role,
+            activeRole: user.activeRole,
+            roles: user.roles,
+            roleStatuses: user.roleStatuses,
+            kycStatuses: user.kycStatuses,
+            activationStatuses: user.activationStatuses,
+            status: 'active',
+          },
+        },
+      });
     } catch (error) {
       this.handleError(error, res);
     }

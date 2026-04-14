@@ -875,6 +875,87 @@ export class AuthServiceV2 {
     return user ? await this.toAuthUser(user) : null;
   }
 
+  async updateCurrentUserProfile(
+    userId: string,
+    input: {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      phone?: string;
+      countryCode?: string;
+      avatarUrl?: string;
+    },
+  ): Promise<AuthUserPayload> {
+    const firstName = input.firstName?.trim();
+    const lastName = input.lastName?.trim();
+    const email = input.email?.trim().toLowerCase();
+    const normalizedPhone =
+      input.phone !== undefined
+        ? input.phone.trim()
+          ? PhoneNormalizer.normalize(input.phone)
+          : null
+        : undefined;
+
+    if (input.phone && !normalizedPhone) {
+      throw new BadRequestException('Invalid phone number format');
+    }
+
+    if (firstName !== undefined && firstName.length === 0) {
+      throw new BadRequestException('First name cannot be empty');
+    }
+
+    if (lastName !== undefined && lastName.length === 0) {
+      throw new BadRequestException('Last name cannot be empty');
+    }
+
+    if (email) {
+      const existing = await this.prisma.user.findFirst({
+        where: {
+          email,
+          id: { not: userId },
+        },
+        select: { id: true },
+      });
+
+      if (existing) {
+        throw new ConflictException('Email is already in use');
+      }
+    }
+
+    if (normalizedPhone) {
+      const existing = await this.prisma.user.findFirst({
+        where: {
+          phone: normalizedPhone,
+          id: { not: userId },
+        },
+        select: { id: true },
+      });
+
+      if (existing) {
+        throw new ConflictException('Phone number is already in use');
+      }
+    }
+
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(firstName !== undefined ? { firstName } : {}),
+        ...(lastName !== undefined ? { lastName } : {}),
+        ...(email !== undefined ? { email: email || null } : {}),
+        ...(normalizedPhone !== undefined ? { phone: normalizedPhone } : {}),
+        ...(input.countryCode !== undefined
+          ? { countryCode: input.countryCode?.trim() || null }
+          : {}),
+        ...(input.avatarUrl !== undefined
+          ? { profileImage: input.avatarUrl?.trim() || null }
+          : {}),
+        updatedAt: new Date(),
+      },
+    });
+
+    return this.toAuthUser(user);
+  }
+
   async getAddresses(userId: string): Promise<{
     success: boolean;
     data: { addresses: AddressPayload[] };
