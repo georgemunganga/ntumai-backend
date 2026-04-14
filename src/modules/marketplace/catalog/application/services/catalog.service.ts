@@ -48,6 +48,9 @@ export class CatalogService {
           Store: {
             select: { id: true, name: true, imageUrl: true },
           },
+          Category: {
+            select: { id: true, name: true },
+          },
         },
         orderBy,
         skip,
@@ -112,6 +115,9 @@ export class CatalogService {
           Store: {
             select: { id: true, name: true, imageUrl: true },
           },
+          Category: {
+            select: { id: true, name: true },
+          },
         },
         orderBy,
         skip,
@@ -160,6 +166,9 @@ export class CatalogService {
         include: {
           Store: {
             select: { id: true, name: true, imageUrl: true },
+          },
+          Category: {
+            select: { id: true, name: true },
           },
         },
         orderBy,
@@ -249,6 +258,9 @@ export class CatalogService {
         Store: {
           select: { id: true, name: true, imageUrl: true },
         },
+        Category: {
+          select: { id: true, name: true },
+        },
       },
       take: 6,
     });
@@ -309,8 +321,11 @@ export class CatalogService {
       stores: stores.map((s) => ({
         id: s.id,
         name: s.name,
+        description: s.description,
         imageUrl: s.imageUrl,
+        vendorId: s.vendorId,
         averageRating: s.averageRating,
+        isActive: s.isActive,
         productCount: s._count.Product,
       })),
       pagination: {
@@ -370,6 +385,9 @@ export class CatalogService {
           Store: {
             select: { id: true, name: true, imageUrl: true },
           },
+          Category: {
+            select: { id: true, name: true },
+          },
         },
         orderBy,
         skip,
@@ -400,6 +418,10 @@ export class CatalogService {
       discountedPrice: product.discountedPrice,
       discountPercentage: product.discountPercentage,
       imageUrl: product.imageUrl,
+      stock: product.stock,
+      category: product.Category
+        ? { id: product.Category.id, name: product.Category.name }
+        : undefined,
       rating: product.averageRating,
       reviewCount: product.reviewCount,
       store: product.Store,

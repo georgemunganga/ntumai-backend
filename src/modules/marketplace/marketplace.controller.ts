@@ -32,7 +32,7 @@ import { PromotionService } from './promotions/application/services/promotion.se
 import { ReviewService } from './reviews/application/services/review.service';
 
 @ApiTags('Marketplace')
-@Controller('marketplace')
+@Controller('api/v1/marketplace')
 export class MarketplaceController {
   constructor(
     private readonly catalogService: CatalogService,
