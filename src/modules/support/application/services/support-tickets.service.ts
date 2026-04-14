@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
+import { CommunicationsService } from '../../../communications/communications.service';
 import {
   CreateSupportTicketDto,
   SupportTicketCategoryDto,
@@ -8,7 +9,12 @@ import {
 
 @Injectable()
 export class SupportTicketsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(SupportTicketsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly communicationsService: CommunicationsService,
+  ) {}
 
   async list(userId: string) {
     const supportTicket = (this.prisma as any).supportTicket;
@@ -27,6 +33,14 @@ export class SupportTicketsService {
 
   async create(userId: string, input: CreateSupportTicketDto) {
     const supportTicket = (this.prisma as any).supportTicket;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        firstName: true,
+      },
+    });
+
     const created = await supportTicket.create({
       data: {
         userId,
@@ -36,6 +50,25 @@ export class SupportTicketsService {
         status: 'OPEN',
       },
     });
+
+    if (user?.email) {
+      this.communicationsService
+        .sendSupportTicketReceivedEmail({
+          to: user.email,
+          firstName: user.firstName,
+          ticketId: created.id,
+          subject: created.subject,
+          category: this.toCategoryDto(created.category).replace('_', ' '),
+          submittedAt: created.createdAt.toISOString(),
+        })
+        .catch((error) => {
+          this.logger.warn(
+            `Support ticket acknowledgement email failed for ${created.id}: ${
+              error?.message || error
+            }`,
+          );
+        });
+    }
 
     return {
       success: true,

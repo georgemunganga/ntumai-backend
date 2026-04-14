@@ -1,0 +1,13 @@
+<h1 class="headline">Support ticket received</h1>
+<p class="subheadline">
+  {{#if firstName}}Hi {{firstName}}, {{/if}}we have received your request and logged it for review.
+</p>
+
+{{> detail-list details=details}}
+
+<p class="text">
+  Our support team will review your ticket and respond with the next update. You can also check your
+  ticket history from Help &amp; Support in the app.
+</p>
+
+{{> cta-button ctaUrl=ctaUrl ctaLabel=ctaLabel}}

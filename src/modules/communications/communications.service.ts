@@ -110,6 +110,15 @@ interface SuspiciousActivityEmailInput extends EmailAction {
   recommendedAction?: string;
 }
 
+interface SupportTicketReceivedEmailInput extends EmailAction {
+  to: string;
+  firstName?: string;
+  ticketId: string;
+  subject: string;
+  category: string;
+  submittedAt: string;
+}
+
 @Injectable()
 export class CommunicationsService {
   private readonly logger = new Logger(CommunicationsService.name);
@@ -439,6 +448,30 @@ export class CommunicationsService {
           ['Recommended Action', input.recommendedAction],
         ]),
         ctaLabel: input.ctaLabel || 'Secure Account',
+        ctaUrl: input.ctaUrl,
+      },
+    });
+  }
+
+  async sendSupportTicketReceivedEmail(
+    input: SupportTicketReceivedEmailInput,
+  ): Promise<void> {
+    await this.sendEmail({
+      to: input.to,
+      subject: `Support ticket received: ${input.subject}`,
+      template: 'support-ticket-received-email',
+      context: {
+        firstName: input.firstName,
+        preheader:
+          input.preheader ||
+          `We received your support request ${input.ticketId}.`,
+        details: this.buildDetails([
+          ['Ticket ID', input.ticketId],
+          ['Subject', input.subject],
+          ['Category', input.category],
+          ['Submitted At', input.submittedAt],
+        ]),
+        ctaLabel: input.ctaLabel || 'Open Support',
         ctaUrl: input.ctaUrl,
       },
     });
