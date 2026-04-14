@@ -14,6 +14,7 @@ Available to every template through `sendEmail()`:
 - `companyUrl`
 - `brandPrimary`
 - `brandPrimaryDark`
+- `brandLogoUrl`
 - `brandAccent`
 - `fontFamily`
 - `emailTitle`

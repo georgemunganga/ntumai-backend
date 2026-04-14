@@ -276,9 +276,12 @@ export class CommunicationsService {
             'COMPANY_URL',
             'https://greenwebb.tech',
           ),
-          brandPrimary: '#2563eb',
-          brandPrimaryDark: '#1d4ed8',
-          brandAccent: '#eff6ff',
+          brandPrimary: '#08af97',
+          brandPrimaryDark: '#067f70',
+          brandAccent: '#e9fbf7',
+          brandLogoUrl:
+            this.configService.get<string>('MAIL_LOGO_URL') ||
+            'https://www.ntumai.com/static/media/ntumaiLogo.c6a2e68de55abfba5b1e.png',
           fontFamily:
             "'Ubuntu', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
         };
