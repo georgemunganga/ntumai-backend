@@ -137,6 +137,20 @@ type TaskerOnboardingCompletionInput = {
   }>;
 };
 
+type OnboardingRole = 'vendor' | 'tasker';
+
+type OnboardingDraftState = {
+  role: OnboardingRole;
+  onboardingStatus: 'pending' | 'complete';
+  lifecycleStatus: 'not_started' | 'in_progress' | 'completed';
+  kycStatus?: string;
+  activationStatus?: string;
+  currentStepId?: string;
+  draftData?: Record<string, unknown> | null;
+  updatedAt?: string;
+  completedAt?: string;
+};
+
 @Injectable()
 export class AuthServiceV2 {
   private readonly onboardingTokenStore = new Map<
@@ -408,8 +422,13 @@ export class AuthServiceV2 {
   }> {
     const user = await this.upsertRoleAssignment(userId, 'vendor', {
       onboardingStatus: 'complete',
+      onboardingLifecycleStatus: 'completed',
       onboardingCompletedAt: new Date().toISOString(),
-      kycStatus: 'pending_review',
+      onboardingCurrentStepId: null,
+      onboardingDraft: null,
+      onboardingUpdatedAt: new Date().toISOString(),
+      kycStatus: 'under_review',
+      activationStatus: 'restricted',
       onboardingData: payload,
     });
 
@@ -430,8 +449,13 @@ export class AuthServiceV2 {
   }> {
     const user = await this.upsertRoleAssignment(userId, 'tasker', {
       onboardingStatus: 'complete',
+      onboardingLifecycleStatus: 'completed',
       onboardingCompletedAt: new Date().toISOString(),
-      kycStatus: 'pending_review',
+      onboardingCurrentStepId: null,
+      onboardingDraft: null,
+      onboardingUpdatedAt: new Date().toISOString(),
+      kycStatus: 'under_review',
+      activationStatus: 'restricted',
       onboardingData: payload,
     });
 
@@ -439,6 +463,73 @@ export class AuthServiceV2 {
       success: true,
       data: {
         user: await this.toAuthUser(user),
+      },
+    };
+  }
+
+  async getOnboardingDraft(
+    userId: string,
+    role: OnboardingRole,
+  ): Promise<{
+    success: boolean;
+    data: { onboarding: OnboardingDraftState };
+  }> {
+    const assignment = await this.prisma.userRoleAssignment.findUnique({
+      where: {
+        userId_role: {
+          userId,
+          role: this.toPrismaRole(role),
+        },
+      },
+      select: {
+        metadata: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        onboarding: this.toOnboardingDraftState(role, assignment?.metadata),
+      },
+    };
+  }
+
+  async saveOnboardingDraft(
+    userId: string,
+    role: OnboardingRole,
+    currentStepId: string,
+    draftData: Record<string, unknown>,
+  ): Promise<{
+    success: boolean;
+    data: { onboarding: OnboardingDraftState };
+  }> {
+    const now = new Date().toISOString();
+    const user = await this.upsertRoleAssignment(userId, role, {
+      onboardingStatus: 'pending',
+      onboardingLifecycleStatus: 'in_progress',
+      onboardingCurrentStepId: currentStepId,
+      onboardingDraft: draftData,
+      onboardingUpdatedAt: now,
+      kycStatus: 'not_started',
+      activationStatus: 'inactive',
+    });
+
+    const assignment = await this.prisma.userRoleAssignment.findUnique({
+      where: {
+        userId_role: {
+          userId: user.id,
+          role: this.toPrismaRole(role),
+        },
+      },
+      select: {
+        metadata: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        onboarding: this.toOnboardingDraftState(role, assignment?.metadata),
       },
     };
   }
@@ -1006,6 +1097,12 @@ export class AuthServiceV2 {
     return {
       onboardingStatus:
         role === 'customer' ? 'complete' : 'pending',
+      onboardingLifecycleStatus:
+        role === 'customer' ? 'completed' : 'not_started',
+      kycStatus:
+        role === 'customer' ? 'approved' : 'not_started',
+      activationStatus:
+        role === 'customer' ? 'active' : 'inactive',
     };
   }
 
@@ -1034,6 +1131,54 @@ export class AuthServiceV2 {
     }
 
     return 'complete';
+  }
+
+  private toOnboardingDraftState(
+    role: OnboardingRole,
+    metadata: unknown,
+  ): OnboardingDraftState {
+    const safeMetadata =
+      metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+        ? (metadata as Record<string, unknown>)
+        : {};
+
+    return {
+      role,
+      onboardingStatus: this.getRoleStatus(safeMetadata),
+      lifecycleStatus:
+        safeMetadata.onboardingLifecycleStatus === 'in_progress' ||
+        safeMetadata.onboardingLifecycleStatus === 'completed'
+          ? (safeMetadata.onboardingLifecycleStatus as
+              | 'in_progress'
+              | 'completed')
+          : 'not_started',
+      kycStatus:
+        typeof safeMetadata.kycStatus === 'string'
+          ? safeMetadata.kycStatus
+          : undefined,
+      activationStatus:
+        typeof safeMetadata.activationStatus === 'string'
+          ? safeMetadata.activationStatus
+          : undefined,
+      currentStepId:
+        typeof safeMetadata.onboardingCurrentStepId === 'string'
+          ? safeMetadata.onboardingCurrentStepId
+          : undefined,
+      draftData:
+        safeMetadata.onboardingDraft &&
+        typeof safeMetadata.onboardingDraft === 'object' &&
+        !Array.isArray(safeMetadata.onboardingDraft)
+          ? (safeMetadata.onboardingDraft as Record<string, unknown>)
+          : null,
+      updatedAt:
+        typeof safeMetadata.onboardingUpdatedAt === 'string'
+          ? safeMetadata.onboardingUpdatedAt
+          : undefined,
+      completedAt:
+        typeof safeMetadata.onboardingCompletedAt === 'string'
+          ? safeMetadata.onboardingCompletedAt
+          : undefined,
+    };
   }
 
   private async toAuthUser(user: {

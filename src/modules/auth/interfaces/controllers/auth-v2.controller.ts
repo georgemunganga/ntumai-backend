@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Patch,
+  Put,
   Delete,
   Body,
   Headers,
@@ -42,7 +43,9 @@ import {
   CompleteRoleOnboardingResponseDto,
   CompleteTaskerOnboardingDto,
   CompleteVendorOnboardingDto,
+  OnboardingDraftResponseDto,
   ProfileAddressesResponseDto,
+  SaveOnboardingDraftDto,
   CreateAddressDto,
   UpdateAddressDto,
 } from '../../application/dtos/auth-v2.dto';
@@ -453,6 +456,74 @@ export class AuthV2Controller {
       const response = await this.authService.completeTaskerOnboarding(
         req.user.userId,
         dto,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Get('me/onboarding/:role')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get onboarding draft and status for the authenticated role',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Onboarding draft retrieved successfully',
+    type: OnboardingDraftResponseDto,
+  })
+  async getOnboardingDraft(
+    @Req() req: any,
+    @Param('role') role: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      if (role !== 'vendor' && role !== 'tasker') {
+        throw new BadRequestException('Unsupported onboarding role');
+      }
+
+      const response = await this.authService.getOnboardingDraft(
+        req.user.userId,
+        role,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Put('me/onboarding/:role/draft')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Save onboarding draft for the authenticated role',
+  })
+  @ApiBody({ type: SaveOnboardingDraftDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Onboarding draft saved successfully',
+    type: OnboardingDraftResponseDto,
+  })
+  async saveOnboardingDraft(
+    @Req() req: any,
+    @Param('role') role: string,
+    @Body() dto: SaveOnboardingDraftDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      if (role !== 'vendor' && role !== 'tasker') {
+        throw new BadRequestException('Unsupported onboarding role');
+      }
+
+      const response = await this.authService.saveOnboardingDraft(
+        req.user.userId,
+        role,
+        dto.currentStepId,
+        dto.draftData,
       );
       res.json(response);
     } catch (error) {

@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsIn,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   ValidateNested,
@@ -438,6 +439,94 @@ export class CompleteRoleOnboardingResponseDto {
     type: CompleteRoleOnboardingResponseData,
   })
   data: CompleteRoleOnboardingResponseData;
+}
+
+export class SaveOnboardingDraftDto {
+  @ApiProperty({
+    description: 'Stable step identifier so the mobile app can resume accurately',
+    example: 'business-name',
+  })
+  @IsString()
+  currentStepId: string;
+
+  @ApiProperty({
+    description: 'Draft onboarding payload for the selected role',
+    example: {
+      businessName: 'Mama Tina Kitchen',
+      city: 'Lusaka',
+    },
+  })
+  @IsObject()
+  draftData: Record<string, unknown>;
+}
+
+export class OnboardingDraftStateDto {
+  @ApiProperty({ example: 'vendor', enum: ['vendor', 'tasker'] })
+  role: 'vendor' | 'tasker';
+
+  @ApiProperty({ example: 'pending', enum: ['pending', 'complete'] })
+  onboardingStatus: 'pending' | 'complete';
+
+  @ApiProperty({
+    example: 'in_progress',
+    enum: ['not_started', 'in_progress', 'completed'],
+  })
+  lifecycleStatus: 'not_started' | 'in_progress' | 'completed';
+
+  @ApiProperty({
+    example: 'not_started',
+    required: false,
+  })
+  kycStatus?: string;
+
+  @ApiProperty({
+    example: 'inactive',
+    required: false,
+  })
+  activationStatus?: string;
+
+  @ApiProperty({
+    example: 'business-name',
+    required: false,
+  })
+  currentStepId?: string;
+
+  @ApiProperty({
+    required: false,
+    example: {
+      businessName: 'Mama Tina Kitchen',
+    },
+  })
+  draftData?: Record<string, unknown> | null;
+
+  @ApiProperty({
+    required: false,
+    example: '2026-04-14T10:00:00.000Z',
+  })
+  updatedAt?: string;
+
+  @ApiProperty({
+    required: false,
+    example: '2026-04-14T10:15:00.000Z',
+  })
+  completedAt?: string;
+}
+
+export class OnboardingDraftResponseData {
+  @ApiProperty({
+    type: OnboardingDraftStateDto,
+  })
+  onboarding: OnboardingDraftStateDto;
+}
+
+export class OnboardingDraftResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({
+    type: OnboardingDraftResponseData,
+  })
+  data: OnboardingDraftResponseData;
 }
 
 export class CurrentUserResponseData {
