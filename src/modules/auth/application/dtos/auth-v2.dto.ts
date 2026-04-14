@@ -131,6 +131,16 @@ class VerifyOtpResponseUser {
     required: false,
   })
   roleStatuses?: Record<string, 'complete' | 'pending'>;
+  @ApiProperty({
+    example: { customer: 'approved', vendor: 'pending_submission' },
+    required: false,
+  })
+  kycStatuses?: Record<string, string>;
+  @ApiProperty({
+    example: { customer: 'active', vendor: 'inactive' },
+    required: false,
+  })
+  activationStatuses?: Record<string, string>;
 }
 
 export class VerifyOtpResponseData {
@@ -221,6 +231,16 @@ class SelectRoleResponseUser {
     required: false,
   })
   roleStatuses?: Record<string, 'complete' | 'pending'>;
+  @ApiProperty({
+    example: { customer: 'approved', vendor: 'pending_submission' },
+    required: false,
+  })
+  kycStatuses?: Record<string, string>;
+  @ApiProperty({
+    example: { customer: 'active', vendor: 'inactive' },
+    required: false,
+  })
+  activationStatuses?: Record<string, string>;
 }
 
 export class SelectRoleResponseData {
@@ -274,6 +294,16 @@ class CurrentUserResponseUser {
     required: false,
   })
   roleStatuses?: Record<string, 'complete' | 'pending'>;
+  @ApiProperty({
+    example: { customer: 'approved', vendor: 'pending_submission' },
+    required: false,
+  })
+  kycStatuses?: Record<string, string>;
+  @ApiProperty({
+    example: { customer: 'active', vendor: 'inactive' },
+    required: false,
+  })
+  activationStatuses?: Record<string, string>;
   @ApiProperty({
     description: 'User status (e.g., active, pending_kyc, suspended)',
     example: 'active',

@@ -16,6 +16,8 @@ import {
   UseGuards,
   Req,
   Param,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,8 +25,15 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiBody,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
+import type { Request } from 'express';
+import { randomUUID } from 'crypto';
+import { mkdirSync } from 'fs';
+import { extname, join } from 'path';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
 import { AuthServiceV2 } from '../../application/services/auth-v2.service';
 import {
   StartOtpDto,
@@ -60,6 +69,16 @@ import { JwtAuthGuard } from '../../infrastructure/guards/jwt-auth.guard';
 @Controller('api/v1/auth')
 export class AuthV2Controller {
   constructor(private readonly authService: AuthServiceV2) {}
+
+  private getPublicBaseUrl(req: Request) {
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const protocol =
+      typeof forwardedProto === 'string' && forwardedProto.length > 0
+        ? forwardedProto.split(',')[0]
+        : req.protocol;
+
+    return `${protocol}://${req.get('host')}`;
+  }
 
   /**
    * Start OTP flow - initiates login/signup
@@ -248,6 +267,8 @@ export class AuthV2Controller {
             activeRole: user.activeRole,
             roles: user.roles,
             roleStatuses: user.roleStatuses,
+            kycStatuses: user.kycStatuses,
+            activationStatuses: user.activationStatuses,
             status: user.status || 'active',
           },
         },
@@ -595,6 +616,65 @@ export class AuthV2Controller {
         req.user.userId,
         role,
         dto,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Post('me/kyc/:role/documents/upload')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          const uploadDir = join(process.cwd(), 'public', 'uploads', 'kyc');
+          mkdirSync(uploadDir, { recursive: true });
+          cb(null, uploadDir);
+        },
+        filename: (_req, file, cb) => {
+          const extension = extname(file.originalname || '').toLowerCase() || '.jpg';
+          cb(null, `kyc-${Date.now()}-${randomUUID()}${extension}`);
+        },
+      }),
+    }),
+  )
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Upload and save a KYC document for the authenticated role',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'KYC document uploaded successfully',
+    type: KycStatusResponseDto,
+  })
+  async uploadKycDocument(
+    @Req() req: any,
+    @Param('role') role: string,
+    @UploadedFile() file: any,
+    @Body() dto: UpsertKycDocumentDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      if (role !== 'vendor' && role !== 'tasker') {
+        throw new BadRequestException('Unsupported KYC role');
+      }
+
+      if (!file) {
+        throw new BadRequestException('KYC document file is required');
+      }
+
+      const publicUrl = `${this.getPublicBaseUrl(req)}/uploads/kyc/${file.filename}`;
+      const response = await this.authService.upsertKycDocument(
+        req.user.userId,
+        role,
+        {
+          ...dto,
+          fileUrl: publicUrl,
+        },
       );
       res.json(response);
     } catch (error) {

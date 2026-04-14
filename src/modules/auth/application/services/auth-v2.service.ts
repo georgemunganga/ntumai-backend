@@ -33,6 +33,8 @@ type AuthUserPayload = {
   activeRole: ApiRole;
   roles: ApiRole[];
   roleStatuses?: Partial<Record<ApiRole, RoleOnboardingStatus>>;
+  kycStatuses?: Partial<Record<ApiRole, string>>;
+  activationStatuses?: Partial<Record<ApiRole, string>>;
   firstName?: string;
   lastName?: string;
   avatar?: string;
@@ -66,6 +68,8 @@ export interface AuthVerifyResponse {
       activeRole?: ApiRole;
       roles?: ApiRole[];
       roleStatuses?: Partial<Record<ApiRole, RoleOnboardingStatus>>;
+      kycStatuses?: Partial<Record<ApiRole, string>>;
+      activationStatuses?: Partial<Record<ApiRole, string>>;
     };
   };
 }
@@ -84,6 +88,8 @@ export interface RoleSelectionResponse {
       activeRole?: ApiRole;
       roles?: ApiRole[];
       roleStatuses?: Partial<Record<ApiRole, RoleOnboardingStatus>>;
+      kycStatuses?: Partial<Record<ApiRole, string>>;
+      activationStatuses?: Partial<Record<ApiRole, string>>;
     };
   };
 }
@@ -463,8 +469,8 @@ export class AuthServiceV2 {
       onboardingCurrentStepId: null,
       onboardingDraft: null,
       onboardingUpdatedAt: new Date().toISOString(),
-      kycStatus: 'under_review',
-      activationStatus: 'restricted',
+      kycStatus: 'pending_submission',
+      activationStatus: 'inactive',
       onboardingData: payload,
     });
 
@@ -490,8 +496,8 @@ export class AuthServiceV2 {
       onboardingCurrentStepId: null,
       onboardingDraft: null,
       onboardingUpdatedAt: new Date().toISOString(),
-      kycStatus: 'under_review',
-      activationStatus: 'restricted',
+      kycStatus: 'pending_submission',
+      activationStatus: 'inactive',
       onboardingData: payload,
     });
 
@@ -1616,9 +1622,53 @@ export class AuthServiceV2 {
       },
       {},
     );
+    const kycStatuses = assignments.reduce<Partial<Record<ApiRole, string>>>(
+      (acc, assignment) => {
+        const safeMetadata =
+          assignment.metadata &&
+          typeof assignment.metadata === 'object' &&
+          !Array.isArray(assignment.metadata)
+            ? (assignment.metadata as Record<string, unknown>)
+            : {};
+        const apiRole = this.toApiRole(assignment.role);
+        acc[apiRole] =
+          typeof safeMetadata.kycStatus === 'string'
+            ? safeMetadata.kycStatus
+            : apiRole === 'customer'
+              ? 'approved'
+              : 'not_started';
+        return acc;
+      },
+      {},
+    );
+    const activationStatuses = assignments.reduce<Partial<Record<ApiRole, string>>>(
+      (acc, assignment) => {
+        const safeMetadata =
+          assignment.metadata &&
+          typeof assignment.metadata === 'object' &&
+          !Array.isArray(assignment.metadata)
+            ? (assignment.metadata as Record<string, unknown>)
+            : {};
+        const apiRole = this.toApiRole(assignment.role);
+        acc[apiRole] =
+          typeof safeMetadata.activationStatus === 'string'
+            ? safeMetadata.activationStatus
+            : apiRole === 'customer'
+              ? 'active'
+              : 'inactive';
+        return acc;
+      },
+      {},
+    );
 
     if (!roleStatuses[activeRole]) {
       roleStatuses[activeRole] = 'complete';
+    }
+    if (!kycStatuses[activeRole]) {
+      kycStatuses[activeRole] = activeRole === 'customer' ? 'approved' : 'not_started';
+    }
+    if (!activationStatuses[activeRole]) {
+      activationStatuses[activeRole] = activeRole === 'customer' ? 'active' : 'inactive';
     }
 
     const roles = Object.keys(roleStatuses) as ApiRole[];
@@ -1631,6 +1681,8 @@ export class AuthServiceV2 {
       activeRole,
       roles,
       roleStatuses,
+      kycStatuses,
+      activationStatuses,
       firstName: user.firstName ?? undefined,
       lastName: user.lastName ?? undefined,
       avatar: user.profileImage ?? undefined,
