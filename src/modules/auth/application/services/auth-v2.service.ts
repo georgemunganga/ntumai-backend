@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { AddressType, UserRole } from '@prisma/client';
+import { AddressType, Prisma, UserRole } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
 // import { UserService } from 'src/modules/users/application/services/user.service'; // Removed due to missing UsersModule
 // import { UserEntity } from 'src/modules/users/domain/entities/user.entity'; // Removed due to missing UsersModule
@@ -102,6 +102,39 @@ type AddressPayload = {
     longitude: number;
   };
   isDefault: boolean;
+};
+
+type VendorOnboardingCompletionInput = {
+  businessName: string;
+  businessType: string;
+  description?: string;
+  address: string;
+  city: string;
+  district?: string;
+  payoutMethod: 'mobile_money' | 'bank';
+  mobileMoneyProvider?: string;
+  mobileMoneyNumber?: string;
+  accountName?: string;
+  bankName?: string;
+  accountNumber?: string;
+  locationLatLng?: {
+    latitude: number;
+    longitude: number;
+  };
+};
+
+type TaskerOnboardingCompletionInput = {
+  fullName: string;
+  nrcNumber: string;
+  phoneNumber: string;
+  vehicleType: string;
+  plateNumber: string;
+  documents: Array<{
+    type: 'drivers_license' | 'national_id' | 'vehicle_registration';
+    documentNumber: string;
+    status: 'pending' | 'approved' | 'rejected';
+    expiryDate?: string;
+  }>;
 };
 
 @Injectable()
@@ -362,6 +395,50 @@ export class AuthServiceV2 {
         refreshToken: tokens.refreshToken,
         expiresIn: this.getTokenExpiration(),
         user: authUser,
+      },
+    };
+  }
+
+  async completeVendorOnboarding(
+    userId: string,
+    payload: VendorOnboardingCompletionInput,
+  ): Promise<{
+    success: boolean;
+    data: { user: AuthUserPayload };
+  }> {
+    const user = await this.upsertRoleAssignment(userId, 'vendor', {
+      onboardingStatus: 'complete',
+      onboardingCompletedAt: new Date().toISOString(),
+      kycStatus: 'pending_review',
+      onboardingData: payload,
+    });
+
+    return {
+      success: true,
+      data: {
+        user: await this.toAuthUser(user),
+      },
+    };
+  }
+
+  async completeTaskerOnboarding(
+    userId: string,
+    payload: TaskerOnboardingCompletionInput,
+  ): Promise<{
+    success: boolean;
+    data: { user: AuthUserPayload };
+  }> {
+    const user = await this.upsertRoleAssignment(userId, 'tasker', {
+      onboardingStatus: 'complete',
+      onboardingCompletedAt: new Date().toISOString(),
+      kycStatus: 'pending_review',
+      onboardingData: payload,
+    });
+
+    return {
+      success: true,
+      data: {
+        user: await this.toAuthUser(user),
       },
     };
   }
@@ -932,6 +1009,20 @@ export class AuthServiceV2 {
     };
   }
 
+  private mergeRoleMetadata(
+    currentMetadata: unknown,
+    nextMetadata: Record<string, unknown>,
+  ): Prisma.InputJsonValue {
+    return ({
+      ...(currentMetadata &&
+      typeof currentMetadata === 'object' &&
+      !Array.isArray(currentMetadata)
+        ? currentMetadata
+        : {}),
+      ...nextMetadata,
+    } as Prisma.InputJsonObject);
+  }
+
   private getRoleStatus(metadata: unknown): RoleOnboardingStatus {
     if (
       metadata &&
@@ -1021,5 +1112,57 @@ export class AuthServiceV2 {
 
   private deleteOnboardingToken(token: string): void {
     this.onboardingTokenStore.delete(token);
+  }
+
+  private async upsertRoleAssignment(
+    userId: string,
+    role: 'customer' | 'tasker' | 'vendor',
+    metadataPatch: Record<string, unknown>,
+  ) {
+    const prismaRole = this.toPrismaRole(role);
+    const existingAssignment = await this.prisma.userRoleAssignment.findUnique({
+      where: {
+        userId_role: {
+          userId,
+          role: prismaRole,
+        },
+      },
+      select: {
+        metadata: true,
+      },
+    });
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        role: prismaRole,
+        updatedAt: new Date(),
+        UserRoleAssignment: {
+          upsert: {
+            where: {
+              userId_role: {
+                userId,
+                role: prismaRole,
+              },
+            },
+            update: {
+              active: true,
+              metadata: this.mergeRoleMetadata(
+                existingAssignment?.metadata,
+                metadataPatch,
+              ),
+            },
+            create: {
+              role: prismaRole,
+              active: true,
+              metadata: this.mergeRoleMetadata(
+                this.getRoleMetadata(role),
+                metadataPatch,
+              ),
+            },
+          },
+        },
+      },
+    });
   }
 }

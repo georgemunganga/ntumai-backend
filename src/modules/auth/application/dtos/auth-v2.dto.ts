@@ -5,8 +5,10 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 // ==================== OTP Start Flow ====================
 
@@ -297,6 +299,145 @@ export class ActivateRoleResponseDto {
     type: SelectRoleResponseData,
   })
   data: SelectRoleResponseData;
+}
+
+export class VendorLocationDto {
+  @ApiProperty({ example: -15.3875 })
+  @IsNumber()
+  latitude: number;
+
+  @ApiProperty({ example: 28.3228 })
+  @IsNumber()
+  longitude: number;
+}
+
+export class CompleteVendorOnboardingDto {
+  @ApiProperty({ example: 'Mama Tina Kitchen' })
+  @IsString()
+  businessName: string;
+
+  @ApiProperty({ example: 'Restaurant' })
+  @IsString()
+  businessType: string;
+
+  @ApiProperty({ example: 'Fresh meals and drinks delivered daily', required: false })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({ example: '123 Leopards Hill Road' })
+  @IsString()
+  address: string;
+
+  @ApiProperty({ example: 'Lusaka' })
+  @IsString()
+  city: string;
+
+  @ApiProperty({ example: 'Woodlands', required: false })
+  @IsOptional()
+  @IsString()
+  district?: string;
+
+  @ApiProperty({ enum: ['mobile_money', 'bank'] })
+  @IsString()
+  @IsIn(['mobile_money', 'bank'])
+  payoutMethod: 'mobile_money' | 'bank';
+
+  @ApiProperty({ example: 'mtn', required: false })
+  @IsOptional()
+  @IsString()
+  mobileMoneyProvider?: string;
+
+  @ApiProperty({ example: '0971234567', required: false })
+  @IsOptional()
+  @IsString()
+  mobileMoneyNumber?: string;
+
+  @ApiProperty({ example: 'Mama Tina Kitchen', required: false })
+  @IsOptional()
+  @IsString()
+  accountName?: string;
+
+  @ApiProperty({ example: 'Zanaco', required: false })
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @ApiProperty({ example: '1234567890', required: false })
+  @IsOptional()
+  @IsString()
+  accountNumber?: string;
+
+  @ApiProperty({ type: VendorLocationDto, required: false })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => VendorLocationDto)
+  locationLatLng?: VendorLocationDto;
+}
+
+export class TaskerOnboardingDocumentDto {
+  @ApiProperty({ enum: ['drivers_license', 'national_id', 'vehicle_registration'] })
+  @IsString()
+  @IsIn(['drivers_license', 'national_id', 'vehicle_registration'])
+  type: 'drivers_license' | 'national_id' | 'vehicle_registration';
+
+  @ApiProperty({ example: '123456/78/9' })
+  @IsString()
+  documentNumber: string;
+
+  @ApiProperty({ example: 'pending', enum: ['pending', 'approved', 'rejected'] })
+  @IsString()
+  @IsIn(['pending', 'approved', 'rejected'])
+  status: 'pending' | 'approved' | 'rejected';
+
+  @ApiProperty({ example: '2028-04-01', required: false })
+  @IsOptional()
+  @IsString()
+  expiryDate?: string;
+}
+
+export class CompleteTaskerOnboardingDto {
+  @ApiProperty({ example: 'George Munganga' })
+  @IsString()
+  fullName: string;
+
+  @ApiProperty({ example: '123456/78/9' })
+  @IsString()
+  nrcNumber: string;
+
+  @ApiProperty({ example: '+260971234567' })
+  @IsString()
+  phoneNumber: string;
+
+  @ApiProperty({ example: 'Motorcycle' })
+  @IsString()
+  vehicleType: string;
+
+  @ApiProperty({ example: 'ABC 1234' })
+  @IsString()
+  plateNumber: string;
+
+  @ApiProperty({ type: [TaskerOnboardingDocumentDto] })
+  @ValidateNested({ each: true })
+  @Type(() => TaskerOnboardingDocumentDto)
+  documents: TaskerOnboardingDocumentDto[];
+}
+
+export class CompleteRoleOnboardingResponseData {
+  @ApiProperty({
+    type: CurrentUserResponseUser,
+  })
+  user: CurrentUserResponseUser;
+}
+
+export class CompleteRoleOnboardingResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({
+    type: CompleteRoleOnboardingResponseData,
+  })
+  data: CompleteRoleOnboardingResponseData;
 }
 
 export class CurrentUserResponseData {

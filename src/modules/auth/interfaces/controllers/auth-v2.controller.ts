@@ -39,6 +39,9 @@ import {
   ErrorResponseDto,
   ActivateRoleDto,
   ActivateRoleResponseDto,
+  CompleteRoleOnboardingResponseDto,
+  CompleteTaskerOnboardingDto,
+  CompleteVendorOnboardingDto,
   ProfileAddressesResponseDto,
   CreateAddressDto,
   UpdateAddressDto,
@@ -389,6 +392,68 @@ export class AuthV2Controller {
 
       const token = authHeader.substring(7);
       const response = await this.authService.activateRole(token, dto.role);
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Post('me/onboarding/vendor/complete')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Complete vendor onboarding',
+    description:
+      'Persists the authenticated vendor onboarding submission and marks vendor onboarding as complete.',
+  })
+  @ApiBody({ type: CompleteVendorOnboardingDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Vendor onboarding completed successfully',
+    type: CompleteRoleOnboardingResponseDto,
+  })
+  async completeVendorOnboarding(
+    @Req() req: any,
+    @Body() dto: CompleteVendorOnboardingDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      const response = await this.authService.completeVendorOnboarding(
+        req.user.userId,
+        dto,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Post('me/onboarding/tasker/complete')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Complete tasker onboarding',
+    description:
+      'Persists the authenticated tasker onboarding submission and marks tasker onboarding as complete.',
+  })
+  @ApiBody({ type: CompleteTaskerOnboardingDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Tasker onboarding completed successfully',
+    type: CompleteRoleOnboardingResponseDto,
+  })
+  async completeTaskerOnboarding(
+    @Req() req: any,
+    @Body() dto: CompleteTaskerOnboardingDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      const response = await this.authService.completeTaskerOnboarding(
+        req.user.userId,
+        dto,
+      );
       res.json(response);
     } catch (error) {
       this.handleError(error, res);
