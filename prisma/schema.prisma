@@ -160,6 +160,19 @@ model Favorite {
   @@unique([userId, productId])
 }
 
+model StoreFavorite {
+  id        String   @id @default(uuid())
+  userId    String
+  storeId   String
+  createdAt DateTime @default(now())
+  store      Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storeId])
+  @@index([userId])
+  @@map("store_favorites")
+}
+
 model LoyaltyPoint {
   id        String   @id
   userId    String
@@ -462,6 +475,7 @@ model Store {
   Product       Product[]
   Review        Review[]
   User          User      @relation(fields: [vendorId], references: [id])
+  StoreFavorite StoreFavorite[]
 }
 
 model Task {
@@ -514,6 +528,7 @@ model User {
   GiftCard                     GiftCard[]           // Marketplace Module relation
   GiftCardSent                 GiftCard[]           @relation("GiftCardSender") // Marketplace Module relation
   Wishlist                     Wishlist[]           // Marketplace Module relation
+  StoreFavorite                StoreFavorite[]
 }
 
 model SupportTicket {

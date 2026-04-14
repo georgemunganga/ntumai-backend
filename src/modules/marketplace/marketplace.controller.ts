@@ -785,9 +785,11 @@ export class MarketplaceController {
   async toggleFavorite(@Request() req, @Body() body: any) {
     const result = await this.reviewService.toggleFavorite(
       req.user.userId,
+      body.type,
       body.productId,
+      body.storeId,
     );
-    return result;
+    return { success: true, data: result };
   }
 
   @UseGuards(JwtAuthGuard)
@@ -799,11 +801,13 @@ export class MarketplaceController {
   @ApiQuery({ name: 'limit', required: false })
   async getFavorites(
     @Request() req,
+    @Query('type') type?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     const result = await this.reviewService.getFavorites(
       req.user.userId,
+      type || 'product',
       parseInt(page || '1'),
       parseInt(limit || '20'),
     );

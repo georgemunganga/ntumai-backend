@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../../../shared/infrastructure/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -216,36 +217,49 @@ export class ReviewService {
   }
 
   // Favorites
-  async toggleFavorite(userId: string, productId: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id: productId },
-    });
+  async toggleFavorite(
+    userId: string,
+    type: 'product' | 'store',
+    productId?: string,
+    storeId?: string,
+  ) {
+    if (type === 'product') {
+      if (!productId || storeId) {
+        throw new BadRequestException(
+          'Provide productId only when toggling a product favorite',
+        );
+      }
 
-    if (!product) {
-      throw new NotFoundException('Product not found');
-    }
-
-    const existing = await this.prisma.favorite.findUnique({
-      where: {
-        userId_productId: {
-          userId,
-          productId,
-        },
-      },
-    });
-
-    if (existing) {
-      // Remove favorite
-      await this.prisma.favorite.delete({
-        where: { id: existing.id },
+      const product = await this.prisma.product.findUnique({
+        where: { id: productId },
       });
 
-      return {
-        isFavorite: false,
-        message: 'Removed from favorites',
-      };
-    } else {
-      // Add favorite
+      if (!product) {
+        throw new NotFoundException('Product not found');
+      }
+
+      const existing = await this.prisma.favorite.findUnique({
+        where: {
+          userId_productId: {
+            userId,
+            productId,
+          },
+        },
+      });
+
+      if (existing) {
+        await this.prisma.favorite.delete({
+          where: { id: existing.id },
+        });
+
+        return {
+          type,
+          targetId: productId,
+          isFavorite: false,
+          message: 'Removed from favorites',
+        };
+      }
+
       await this.prisma.favorite.create({
         data: {
           id: uuidv4(),
@@ -255,14 +269,132 @@ export class ReviewService {
       });
 
       return {
+        type,
+        targetId: productId,
         isFavorite: true,
         message: 'Added to favorites',
       };
     }
+
+    if (type === 'store') {
+      if (!storeId || productId) {
+        throw new BadRequestException(
+          'Provide storeId only when toggling a store favorite',
+        );
+      }
+
+      const store = await this.prisma.store.findUnique({
+        where: { id: storeId },
+      });
+
+      if (!store) {
+        throw new NotFoundException('Store not found');
+      }
+
+      const existing = await this.prisma.storeFavorite.findUnique({
+        where: {
+          userId_storeId: {
+            userId,
+            storeId,
+          },
+        },
+      });
+
+      if (existing) {
+        await this.prisma.storeFavorite.delete({
+          where: { id: existing.id },
+        });
+
+        return {
+          type,
+          targetId: storeId,
+          isFavorite: false,
+          message: 'Removed from favorites',
+        };
+      }
+
+      await this.prisma.storeFavorite.create({
+        data: {
+          userId,
+          storeId,
+        },
+      });
+
+      return {
+        type,
+        targetId: storeId,
+        isFavorite: true,
+        message: 'Added to favorites',
+      };
+    }
+
+    throw new BadRequestException('Favorite type must be product or store');
   }
 
-  async getFavorites(userId: string, page: number = 1, limit: number = 20) {
+  async getFavorites(
+    userId: string,
+    type: 'product' | 'store' | string = 'product',
+    page: number = 1,
+    limit: number = 20,
+  ) {
     const skip = (page - 1) * limit;
+
+    if (type === 'store') {
+      const [favorites, total] = await Promise.all([
+        this.prisma.storeFavorite.findMany({
+          where: { userId },
+          include: {
+            store: {
+              include: {
+                _count: {
+                  select: { Product: true },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        this.prisma.storeFavorite.count({ where: { userId } }),
+      ]);
+
+      return {
+        type: 'store',
+        favorites: favorites.map((favorite) => {
+          const store: any = favorite.store;
+
+          return {
+            id: favorite.id,
+            store: {
+              id: store.id,
+              name: store.name,
+              description: store.description,
+              logo: store.imageUrl,
+              imageUrl: store.imageUrl,
+              rating: store.averageRating,
+              reviewCount: store.reviewCount ?? 0,
+              deliveryTime: store.deliveryTime ?? '30-45 min',
+              deliveryFee: store.deliveryFee ?? 0,
+              minimumOrder: store.minimumOrder ?? 0,
+              isOpen: store.isOpen ?? store.isActive,
+              productCount: store._count?.Product ?? 0,
+            },
+            createdAt: favorite.createdAt,
+          };
+        }),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+      };
+    }
+
+    if (type !== 'product') {
+      throw new BadRequestException('Favorite type must be product or store');
+    }
 
     const [favorites, total] = await Promise.all([
       this.prisma.favorite.findMany({
@@ -288,6 +420,7 @@ export class ReviewService {
     ]);
 
     return {
+      type: 'product',
       favorites: favorites.map((f) => ({
         id: f.id,
         product: {
