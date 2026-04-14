@@ -400,6 +400,133 @@ export class AppearancePreferencesDto {
   darkMode?: boolean;
 }
 
+export class TaskerNotificationPreferencesDto {
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  newJobs?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  jobReminders?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  earningsUpdates?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  weeklyReport?: boolean;
+}
+
+export class TaskerWorkPreferencesDto {
+  @ApiProperty({ example: false, required: false })
+  @IsOptional()
+  @IsBoolean()
+  autoAcceptJobs?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  soundAlerts?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  vibrationAlerts?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  showDistance?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  showEstimatedEarnings?: boolean;
+}
+
+export class TaskerAvailabilityPreferencesDto {
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  acceptDeliveries?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  acceptTasks?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  acceptSameDay?: boolean;
+}
+
+export class VendorNotificationPreferencesDto {
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  newOrders?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  orderReminders?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  lowStock?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  dailyReport?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  customerReviews?: boolean;
+}
+
+export class VendorStorePreferencesDto {
+  @ApiProperty({ example: false, required: false })
+  @IsOptional()
+  @IsBoolean()
+  autoAcceptOrders?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  showPrepTime?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  allowScheduledOrders?: boolean;
+
+  @ApiProperty({ example: false, required: false })
+  @IsOptional()
+  @IsBoolean()
+  pauseNewOrders?: boolean;
+}
+
+export class VendorSoundPreferencesDto {
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  orderSound?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  vibration?: boolean;
+}
+
 export class UpdateUserPreferencesDto {
   @ApiProperty({ type: NotificationPreferencesDto, required: false })
   @IsOptional()
@@ -421,6 +548,48 @@ export class UpdateUserPreferencesDto {
   @ValidateNested()
   @Type(() => AppearancePreferencesDto)
   appearance?: AppearancePreferencesDto;
+
+  @ApiProperty({ type: TaskerNotificationPreferencesDto, required: false })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => TaskerNotificationPreferencesDto)
+  taskerNotifications?: TaskerNotificationPreferencesDto;
+
+  @ApiProperty({ type: TaskerWorkPreferencesDto, required: false })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => TaskerWorkPreferencesDto)
+  taskerWorkPreferences?: TaskerWorkPreferencesDto;
+
+  @ApiProperty({ type: TaskerAvailabilityPreferencesDto, required: false })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => TaskerAvailabilityPreferencesDto)
+  taskerAvailability?: TaskerAvailabilityPreferencesDto;
+
+  @ApiProperty({ type: VendorNotificationPreferencesDto, required: false })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => VendorNotificationPreferencesDto)
+  vendorNotifications?: VendorNotificationPreferencesDto;
+
+  @ApiProperty({ type: VendorStorePreferencesDto, required: false })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => VendorStorePreferencesDto)
+  vendorStoreSettings?: VendorStorePreferencesDto;
+
+  @ApiProperty({ type: VendorSoundPreferencesDto, required: false })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => VendorSoundPreferencesDto)
+  vendorSoundSettings?: VendorSoundPreferencesDto;
 }
 
 export class ActivateRoleDto {
@@ -932,6 +1101,24 @@ export class UserPreferencesPayloadDto {
 
   @ApiProperty({ type: AppearancePreferencesDto })
   appearance: AppearancePreferencesDto;
+
+  @ApiProperty({ type: TaskerNotificationPreferencesDto })
+  taskerNotifications: TaskerNotificationPreferencesDto;
+
+  @ApiProperty({ type: TaskerWorkPreferencesDto })
+  taskerWorkPreferences: TaskerWorkPreferencesDto;
+
+  @ApiProperty({ type: TaskerAvailabilityPreferencesDto })
+  taskerAvailability: TaskerAvailabilityPreferencesDto;
+
+  @ApiProperty({ type: VendorNotificationPreferencesDto })
+  vendorNotifications: VendorNotificationPreferencesDto;
+
+  @ApiProperty({ type: VendorStorePreferencesDto })
+  vendorStoreSettings: VendorStorePreferencesDto;
+
+  @ApiProperty({ type: VendorSoundPreferencesDto })
+  vendorSoundSettings: VendorSoundPreferencesDto;
 }
 
 export class UserPreferencesResponseDataDto {

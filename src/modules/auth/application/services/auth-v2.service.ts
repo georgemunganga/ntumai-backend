@@ -211,6 +211,41 @@ export class AuthServiceV2 {
     appearance: {
       darkMode: false,
     },
+    taskerNotifications: {
+      newJobs: true,
+      jobReminders: true,
+      earningsUpdates: true,
+      weeklyReport: true,
+    },
+    taskerWorkPreferences: {
+      autoAcceptJobs: false,
+      soundAlerts: true,
+      vibrationAlerts: true,
+      showDistance: true,
+      showEstimatedEarnings: true,
+    },
+    taskerAvailability: {
+      acceptDeliveries: true,
+      acceptTasks: true,
+      acceptSameDay: true,
+    },
+    vendorNotifications: {
+      newOrders: true,
+      orderReminders: true,
+      lowStock: true,
+      dailyReport: true,
+      customerReviews: true,
+    },
+    vendorStoreSettings: {
+      autoAcceptOrders: false,
+      showPrepTime: true,
+      allowScheduledOrders: true,
+      pauseNewOrders: false,
+    },
+    vendorSoundSettings: {
+      orderSound: true,
+      vibration: true,
+    },
   };
 
   private readonly onboardingTokenStore = new Map<
@@ -992,6 +1027,12 @@ export class AuthServiceV2 {
       notifications?: Partial<typeof this.defaultPreferences.notifications>;
       orderPreferences?: Partial<typeof this.defaultPreferences.orderPreferences>;
       appearance?: Partial<typeof this.defaultPreferences.appearance>;
+      taskerNotifications?: Partial<typeof this.defaultPreferences.taskerNotifications>;
+      taskerWorkPreferences?: Partial<typeof this.defaultPreferences.taskerWorkPreferences>;
+      taskerAvailability?: Partial<typeof this.defaultPreferences.taskerAvailability>;
+      vendorNotifications?: Partial<typeof this.defaultPreferences.vendorNotifications>;
+      vendorStoreSettings?: Partial<typeof this.defaultPreferences.vendorStoreSettings>;
+      vendorSoundSettings?: Partial<typeof this.defaultPreferences.vendorSoundSettings>;
     },
   ): Promise<{
     success: boolean;
@@ -1010,6 +1051,30 @@ export class AuthServiceV2 {
       appearance: {
         ...current.appearance,
         ...(input.appearance || {}),
+      },
+      taskerNotifications: {
+        ...current.taskerNotifications,
+        ...(input.taskerNotifications || {}),
+      },
+      taskerWorkPreferences: {
+        ...current.taskerWorkPreferences,
+        ...(input.taskerWorkPreferences || {}),
+      },
+      taskerAvailability: {
+        ...current.taskerAvailability,
+        ...(input.taskerAvailability || {}),
+      },
+      vendorNotifications: {
+        ...current.vendorNotifications,
+        ...(input.vendorNotifications || {}),
+      },
+      vendorStoreSettings: {
+        ...current.vendorStoreSettings,
+        ...(input.vendorStoreSettings || {}),
+      },
+      vendorSoundSettings: {
+        ...current.vendorSoundSettings,
+        ...(input.vendorSoundSettings || {}),
       },
     };
 
@@ -1068,6 +1133,30 @@ export class AuthServiceV2 {
       appearance: {
         ...this.defaultPreferences.appearance,
         ...(raw.appearance || {}),
+      },
+      taskerNotifications: {
+        ...this.defaultPreferences.taskerNotifications,
+        ...(raw.taskerNotifications || {}),
+      },
+      taskerWorkPreferences: {
+        ...this.defaultPreferences.taskerWorkPreferences,
+        ...(raw.taskerWorkPreferences || {}),
+      },
+      taskerAvailability: {
+        ...this.defaultPreferences.taskerAvailability,
+        ...(raw.taskerAvailability || {}),
+      },
+      vendorNotifications: {
+        ...this.defaultPreferences.vendorNotifications,
+        ...(raw.vendorNotifications || {}),
+      },
+      vendorStoreSettings: {
+        ...this.defaultPreferences.vendorStoreSettings,
+        ...(raw.vendorStoreSettings || {}),
+      },
+      vendorSoundSettings: {
+        ...this.defaultPreferences.vendorSoundSettings,
+        ...(raw.vendorSoundSettings || {}),
       },
     };
   }
