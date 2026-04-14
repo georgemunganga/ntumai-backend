@@ -140,6 +140,53 @@ export class CatalogService {
   }
 
   // Products
+  async getProducts(
+    page: number = 1,
+    limit: number = 20,
+    sort: string = 'newest',
+    categoryId?: string,
+  ) {
+    const skip = (page - 1) * limit;
+
+    let orderBy: any = { createdAt: 'desc' };
+    if (sort === 'price_asc') orderBy = { price: 'asc' };
+    if (sort === 'price_desc') orderBy = { price: 'desc' };
+    if (sort === 'rating') orderBy = { averageRating: 'desc' };
+
+    const where: any = {
+      isActive: true,
+      ...(categoryId ? { categoryId } : {}),
+    };
+
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        include: {
+          Store: {
+            select: { id: true, name: true, imageUrl: true },
+          },
+          Category: {
+            select: { id: true, name: true },
+          },
+        },
+        orderBy,
+        skip,
+        take: limit,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return {
+      products: products.map((p) => this.mapProductToDto(p)),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   async searchProducts(
     query: string,
     page: number = 1,

@@ -104,6 +104,28 @@ export class MarketplaceController {
   }
 
   @Public()
+  @Get('products')
+  @ApiOperation({ summary: 'Get all products' })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'sort', required: false })
+  @ApiQuery({ name: 'categoryId', required: false })
+  async getProducts(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('sort') sort?: string,
+    @Query('categoryId') categoryId?: string,
+  ) {
+    const result = await this.catalogService.getProducts(
+      parseInt(page || '1'),
+      parseInt(limit || '20'),
+      sort || 'newest',
+      categoryId,
+    );
+    return { success: true, data: result };
+  }
+
+  @Public()
   @Get('products/search')
   @ApiOperation({ summary: 'Search products' })
   @ApiQuery({ name: 'query', required: true })
@@ -583,10 +605,9 @@ export class MarketplaceController {
 
   // ===== PROMOTIONS & GIFT CARDS =====
 
-  @UseGuards(JwtAuthGuard)
+  @Public()
   @Get('customer/promotions')
   @ApiOperation({ summary: 'Get promotions' })
-  @ApiBearerAuth()
   @ApiQuery({ name: 'category', required: false })
   async getPromotions(@Query('category') category?: string) {
     const promotions = await this.promotionService.getPromotions(category);
