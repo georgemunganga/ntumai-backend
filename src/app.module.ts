@@ -13,6 +13,7 @@ import { MatchingModule } from './modules/matching/matching.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { SupportModule } from './modules/support/support.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     ShiftsModule,
     TrackingModule,
     PaymentsModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
