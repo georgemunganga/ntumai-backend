@@ -87,6 +87,7 @@ model CartItem {
 model Category {
   id        String    @id
   name      String
+  iconKey   String?
   imageUrl  String?
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())

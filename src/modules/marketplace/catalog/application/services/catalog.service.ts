@@ -20,6 +20,7 @@ export class CatalogService {
     return categories.map((cat) => ({
       id: cat.id,
       name: cat.name,
+      iconKey: cat.iconKey,
       imageUrl: cat.imageUrl,
       productCount: cat._count.Product,
     }));
@@ -49,7 +50,7 @@ export class CatalogService {
             select: { id: true, name: true, imageUrl: true },
           },
           Category: {
-            select: { id: true, name: true },
+            select: { id: true, name: true, iconKey: true },
           },
         },
         orderBy,
@@ -116,7 +117,7 @@ export class CatalogService {
             select: { id: true, name: true, imageUrl: true },
           },
           Category: {
-            select: { id: true, name: true },
+            select: { id: true, name: true, iconKey: true },
           },
         },
         orderBy,
@@ -166,7 +167,7 @@ export class CatalogService {
             select: { id: true, name: true, imageUrl: true },
           },
           Category: {
-            select: { id: true, name: true },
+            select: { id: true, name: true, iconKey: true },
           },
         },
         orderBy,
@@ -215,7 +216,7 @@ export class CatalogService {
             select: { id: true, name: true, imageUrl: true },
           },
           Category: {
-            select: { id: true, name: true },
+            select: { id: true, name: true, iconKey: true },
           },
         },
         orderBy,
@@ -367,6 +368,7 @@ export class CatalogService {
     const mappedCategories = categories.map((cat) => ({
       id: cat.id,
       name: cat.name,
+      iconKey: cat.iconKey,
       imageUrl: cat.imageUrl,
       productCount: cat._count.Product,
     }));
@@ -417,7 +419,7 @@ export class CatalogService {
           select: { id: true, name: true, imageUrl: true },
         },
         Category: {
-          select: { id: true, name: true },
+          select: { id: true, name: true, iconKey: true },
         },
         ProductVariant: true,
         Review: {
@@ -467,7 +469,7 @@ export class CatalogService {
           select: { id: true, name: true, imageUrl: true },
         },
         Category: {
-          select: { id: true, name: true },
+          select: { id: true, name: true, iconKey: true },
         },
       },
       take: 6,
@@ -594,7 +596,7 @@ export class CatalogService {
             select: { id: true, name: true, imageUrl: true },
           },
           Category: {
-            select: { id: true, name: true },
+            select: { id: true, name: true, iconKey: true },
           },
         },
         orderBy,
@@ -628,7 +630,11 @@ export class CatalogService {
       imageUrl: product.imageUrl,
       stock: product.stock,
       category: product.Category
-        ? { id: product.Category.id, name: product.Category.name }
+        ? {
+            id: product.Category.id,
+            name: product.Category.name,
+            iconKey: product.Category.iconKey,
+          }
         : undefined,
       rating: product.averageRating,
       reviewCount: product.reviewCount,
