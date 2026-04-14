@@ -7,12 +7,12 @@
     "assets": [
       {
         "include": "**/*.hbs",
-        "outDir": "dist",
+        "outDir": "dist/src",
         "watchAssets": true
       },
       {
         "include": "modules/communications/infrastructure/templates/**/*",
-        "outDir": "dist",
+        "outDir": "dist/src",
         "watchAssets": true
       }
     ]

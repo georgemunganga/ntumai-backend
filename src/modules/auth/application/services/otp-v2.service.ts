@@ -2,6 +2,7 @@ import {
   Injectable,
   BadRequestException,
   UnauthorizedException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { OtpSessionRepository } from '../../infrastructure/repositories/otp-session.repository';
 import {
@@ -214,24 +215,29 @@ export class OtpServiceV2 {
 
     if (sendChannels.includes('email') && email) {
       promises.push(
-        this.communicationService.sendOtp(email, otp, purpose).catch((err) => {
-          console.error(`Failed to send OTP via email to ${email}:`, err);
-          // Don't throw - continue with other channels
-        }),
+        this.communicationService.sendOtp(email, otp, purpose),
       );
     }
 
     if (sendChannels.includes('sms') && phone) {
       promises.push(
-        this.communicationService.sendOtp(phone, otp, purpose).catch((err) => {
-          console.error(`Failed to send OTP via SMS to ${phone}:`, err);
-          // Don't throw - continue with other channels
-        }),
+        this.communicationService.sendOtp(phone, otp, purpose),
       );
     }
 
+    if (promises.length === 0) {
+      throw new BadRequestException('No OTP delivery channel is available');
+    }
+
     if (promises.length > 0) {
-      await Promise.all(promises);
+      try {
+        await Promise.all(promises);
+      } catch (error) {
+        console.error('Failed to send OTP through configured channels:', error);
+        throw new ServiceUnavailableException(
+          'Could not send OTP right now. Please try again.',
+        );
+      }
     }
   }
 

@@ -124,7 +124,7 @@ export class CommunicationsService {
   }
 
   private initializeTemplates(): void {
-    const templateDir = path.join(__dirname, 'infrastructure', 'templates');
+    const templateDir = this.getTemplateDir();
     if (fs.existsSync(templateDir)) {
       const templates = fs.readdirSync(templateDir);
       this.logger.log(`Found ${templates.length} email templates`);
@@ -132,17 +132,54 @@ export class CommunicationsService {
     this.registerPartials();
   }
 
+  private getTemplateDir(): string {
+    const candidates = [
+      path.join(__dirname, 'infrastructure', 'templates'),
+      path.join(
+        process.cwd(),
+        'dist',
+        'src',
+        'modules',
+        'communications',
+        'infrastructure',
+        'templates',
+      ),
+      path.join(
+        process.cwd(),
+        'dist',
+        'modules',
+        'communications',
+        'infrastructure',
+        'templates',
+      ),
+      path.join(
+        process.cwd(),
+        'src',
+        'modules',
+        'communications',
+        'infrastructure',
+        'templates',
+      ),
+    ];
+
+    const templateDir = candidates.find((candidate) => fs.existsSync(candidate));
+
+    if (!templateDir) {
+      this.logger.warn(
+        `Email template directory not found. Checked: ${candidates.join(', ')}`,
+      );
+      return candidates[0];
+    }
+
+    return templateDir;
+  }
+
   private registerPartials(): void {
     if (this.partialsRegistered) {
       return;
     }
 
-    const partialsDir = path.join(
-      __dirname,
-      'infrastructure',
-      'templates',
-      'partials',
-    );
+    const partialsDir = path.join(this.getTemplateDir(), 'partials');
 
     if (!fs.existsSync(partialsDir)) {
       return;
@@ -174,12 +211,7 @@ export class CommunicationsService {
     }
 
     // Load template from file
-    const templatePath = path.join(
-      __dirname,
-      'infrastructure',
-      'templates',
-      `${templateName}.hbs`,
-    );
+    const templatePath = path.join(this.getTemplateDir(), `${templateName}.hbs`);
 
     if (!fs.existsSync(templatePath)) {
       this.logger.warn(`Template not found: ${templateName}`);

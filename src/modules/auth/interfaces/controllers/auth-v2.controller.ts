@@ -6,6 +6,7 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  HttpException,
   BadRequestException,
   UnauthorizedException,
   Res,
@@ -310,13 +311,21 @@ export class AuthV2Controller {
           message: error.message,
         },
       });
-    } else if (error.status === 429) {
-      res.status(HttpStatus.TOO_MANY_REQUESTS).json({
+    } else if (error instanceof HttpException) {
+      const status = error.getStatus();
+      const response = error.getResponse();
+      const message =
+        typeof response === 'object' &&
+        response !== null &&
+        'message' in response
+          ? (response as { message?: string | string[] }).message
+          : error.message;
+
+      res.status(status).json({
         success: false,
         error: {
-          code: 'TOO_MANY_REQUESTS',
-          message:
-            error.message || 'Too many requests. Please try again later.',
+          code: HttpStatus[status] || 'HTTP_ERROR',
+          message: Array.isArray(message) ? message.join(', ') : message,
         },
       });
     } else {
