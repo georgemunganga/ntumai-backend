@@ -1,6 +1,6 @@
 import { IsOptional, IsString, Length } from 'class-validator';
 
-export class RequestOtpDto {
+export class LegacyRequestOtpDto {
   @IsOptional()
   @IsString()
   phoneNumber?: string;
@@ -10,7 +10,7 @@ export class RequestOtpDto {
   email?: string;
 }
 
-export class VerifyOtpDto {
+export class LegacyVerifyOtpDto {
   @IsString()
   @Length(6, 6)
   otp: string;

@@ -2,8 +2,8 @@ import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from '../../application/services/auth.service';
 import {
-  RequestOtpDto,
-  VerifyOtpDto,
+  LegacyRequestOtpDto,
+  LegacyVerifyOtpDto,
   AuthResponseDto,
 } from '../../application/dtos/auth.dto';
 import { Public } from '../../infrastructure/decorators/public.decorator';
@@ -18,7 +18,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request OTP for sign-up or login' })
   @ApiResponse({ status: 200, description: 'OTP sent successfully' })
-  async requestOtp(@Body() dto: RequestOtpDto): Promise<{ message: string }> {
+  async requestOtp(@Body() dto: LegacyRequestOtpDto): Promise<{ message: string }> {
     await this.authService.requestOtp(dto.phoneNumber, dto.email);
     return { message: 'OTP sent' };
   }
@@ -29,7 +29,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify OTP and return JWT tokens' })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiResponse({ status: 401, description: 'Invalid or expired OTP' })
-  async verifyOtp(@Body() dto: VerifyOtpDto): Promise<AuthResponseDto> {
+  async verifyOtp(@Body() dto: LegacyVerifyOtpDto): Promise<AuthResponseDto> {
     const tokens = await this.authService.verifyOtp(
       dto.otp,
       dto.phoneNumber,
