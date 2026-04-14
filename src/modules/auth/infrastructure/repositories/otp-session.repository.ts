@@ -97,6 +97,7 @@ export class OtpSessionRepository implements IOtpSessionRepository {
       expiresAt: session.expiresAt.toISOString(),
       verifiedAt: session.verifiedAt?.toISOString(),
       deviceId: session.deviceId,
+      requestedRole: session.requestedRole,
     };
   }
 
@@ -116,6 +117,7 @@ export class OtpSessionRepository implements IOtpSessionRepository {
       expiresAt: new Date(data.expiresAt),
       verifiedAt: data.verifiedAt ? new Date(data.verifiedAt) : undefined,
       deviceId: data.deviceId,
+      requestedRole: data.requestedRole,
     });
   }
 }

@@ -1,6 +1,7 @@
 export type FlowType = 'login' | 'signup';
 export type OtpChannel = 'sms' | 'email';
 export type OtpSessionStatus = 'active' | 'verified' | 'expired' | 'locked';
+export type RequestedAuthRole = 'customer' | 'tasker' | 'vendor' | 'vendor_tasker';
 
 export class OtpSessionEntity {
   id: string;
@@ -17,6 +18,7 @@ export class OtpSessionEntity {
   expiresAt: Date;
   verifiedAt?: Date;
   deviceId?: string;
+  requestedRole?: RequestedAuthRole;
 
   constructor(data: Partial<OtpSessionEntity>) {
     this.id = data.id || this.generateId();
@@ -33,6 +35,7 @@ export class OtpSessionEntity {
     this.expiresAt = data.expiresAt || new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
     this.verifiedAt = data.verifiedAt;
     this.deviceId = data.deviceId;
+    this.requestedRole = data.requestedRole;
   }
 
   private generateId(): string {

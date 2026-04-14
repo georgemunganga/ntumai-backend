@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UserRole } from '@prisma/client';
+import { AddressType, UserRole } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
 // import { UserService } from 'src/modules/users/application/services/user.service'; // Removed due to missing UsersModule
 // import { UserEntity } from 'src/modules/users/domain/entities/user.entity'; // Removed due to missing UsersModule
@@ -17,10 +17,27 @@ import { OtpSessionRepository } from '../../infrastructure/repositories/otp-sess
 import {
   OtpSessionEntity,
   FlowType,
+  RequestedAuthRole,
 } from '../../domain/entities/otp-session.entity';
 import { PhoneNormalizer } from '../utils/phone-normalizer';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 import { CommunicationsService } from '../../../communications/communications.service';
+
+type ApiRole = 'customer' | 'tasker' | 'vendor' | 'admin';
+type RoleOnboardingStatus = 'complete' | 'pending';
+type AuthUserPayload = {
+  id: string;
+  email?: string;
+  phone?: string;
+  role: ApiRole;
+  activeRole: ApiRole;
+  roles: ApiRole[];
+  roleStatuses?: Partial<Record<ApiRole, RoleOnboardingStatus>>;
+  firstName?: string;
+  lastName?: string;
+  avatar?: string;
+  isVerified?: boolean;
+};
 
 export interface AuthStartResponse {
   success: boolean;
@@ -45,7 +62,10 @@ export interface AuthVerifyResponse {
       id: string;
       email?: string;
       phone?: string;
-      role?: string;
+      role?: ApiRole;
+      activeRole?: ApiRole;
+      roles?: ApiRole[];
+      roleStatuses?: Partial<Record<ApiRole, RoleOnboardingStatus>>;
     };
   };
 }
@@ -60,10 +80,29 @@ export interface RoleSelectionResponse {
       id: string;
       email?: string;
       phone?: string;
-      role: string;
+      role: ApiRole;
+      activeRole?: ApiRole;
+      roles?: ApiRole[];
+      roleStatuses?: Partial<Record<ApiRole, RoleOnboardingStatus>>;
     };
   };
 }
+
+type AddressPayload = {
+  id: string;
+  type: 'home' | 'work' | 'other';
+  label?: string;
+  street: string;
+  city: string;
+  state: string;
+  zipCode?: string;
+  country: string;
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  isDefault: boolean;
+};
 
 @Injectable()
 export class AuthServiceV2 {
@@ -89,6 +128,7 @@ export class AuthServiceV2 {
     email?: string,
     phone?: string,
     deviceId?: string,
+    requestedRole?: RequestedAuthRole,
   ): Promise<AuthStartResponse> {
     if (!email && !phone) {
       throw new BadRequestException('Email or phone must be provided');
@@ -111,6 +151,7 @@ export class AuthServiceV2 {
       normalizedPhone || undefined,
       flowType,
       deviceId,
+      requestedRole,
     );
 
     return {
@@ -135,9 +176,13 @@ export class AuthServiceV2 {
     // Verify OTP
     const session = await this.otpService.verifyOtp(sessionId, otp, deviceId);
 
-    const user = await this.findOrCreateUserForSession(session);
+    const user = await this.activateRequestedRoleIfOwned(
+      await this.findOrCreateUserForSession(session),
+      session.requestedRole,
+    );
     const isKnownDevice = await this.isKnownDevice(user.id, deviceId);
     const tokens = this.generateTokens(user);
+    const authUser = await this.toAuthUser(user);
     await this.storeRefreshToken(tokens.refreshToken, user.id, deviceId);
     await this.prisma.user.update({
       where: { id: user.id },
@@ -166,7 +211,7 @@ export class AuthServiceV2 {
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
           expiresIn: this.getTokenExpiration(),
-          user: this.toAuthUser(user),
+          user: authUser,
         },
       };
     }
@@ -194,7 +239,7 @@ export class AuthServiceV2 {
         refreshToken: tokens.refreshToken,
         expiresIn: this.getTokenExpiration(),
         onboardingToken: onboardingToken.token,
-        user: this.toAuthUser(user),
+        user: authUser,
       },
     };
   }
@@ -226,8 +271,15 @@ export class AuthServiceV2 {
                 role: userRole,
               },
             },
-            update: { active: true },
-            create: { role: userRole, active: true },
+            update: {
+              active: true,
+              metadata: this.getRoleMetadata(role),
+            },
+            create: {
+              role: userRole,
+              active: true,
+              metadata: this.getRoleMetadata(role),
+            },
           },
         },
       },
@@ -238,6 +290,7 @@ export class AuthServiceV2 {
 
     // Issue full tokens
     const tokens = this.generateTokens(user);
+    const authUser = await this.toAuthUser(user);
     await this.storeRefreshToken(tokens.refreshToken, user.id);
 
     if (user.email) {
@@ -257,7 +310,58 @@ export class AuthServiceV2 {
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         expiresIn: this.getTokenExpiration(),
-        user: this.toAuthUser(user),
+        user: authUser,
+      },
+    };
+  }
+
+  async activateRole(
+    accessToken: string,
+    role: 'customer' | 'tasker' | 'vendor',
+  ): Promise<RoleSelectionResponse> {
+    const currentUser = await this.getCurrentUserRecord(accessToken);
+    if (!currentUser) {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    const userRole = this.toPrismaRole(role);
+    const user = await this.prisma.user.update({
+      where: { id: currentUser.id },
+      data: {
+        role: userRole,
+        updatedAt: new Date(),
+        UserRoleAssignment: {
+          upsert: {
+            where: {
+              userId_role: {
+                userId: currentUser.id,
+                role: userRole,
+              },
+            },
+            update: {
+              active: true,
+            },
+            create: {
+              role: userRole,
+              active: true,
+              metadata: this.getRoleMetadata(role),
+            },
+          },
+        },
+      },
+    });
+
+    const tokens = this.generateTokens(user);
+    await this.storeRefreshToken(tokens.refreshToken, user.id);
+    const authUser = await this.toAuthUser(user);
+
+    return {
+      success: true,
+      data: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: this.getTokenExpiration(),
+        user: authUser,
       },
     };
   }
@@ -266,12 +370,221 @@ export class AuthServiceV2 {
    * Get current user from token
    */
   async getCurrentUser(token: string): Promise<any | null> {
+    const user = await this.getCurrentUserRecord(token);
+    return user ? await this.toAuthUser(user) : null;
+  }
+
+  async getAddresses(userId: string): Promise<{
+    success: boolean;
+    data: { addresses: AddressPayload[] };
+  }> {
+    const addresses = await this.prisma.address.findMany({
+      where: { userId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    });
+
+    return {
+      success: true,
+      data: {
+        addresses: addresses.map((address) => this.toAddressPayload(address)),
+      },
+    };
+  }
+
+  async createAddress(
+    userId: string,
+    input: {
+      type: 'home' | 'work' | 'other';
+      label?: string;
+      street: string;
+      city: string;
+      state: string;
+      zipCode?: string;
+      country?: string;
+      isDefault?: boolean;
+      latitude?: number;
+      longitude?: number;
+    },
+  ): Promise<{
+    success: boolean;
+    data: { address: AddressPayload; addresses: AddressPayload[] };
+  }> {
+    const existingCount = await this.prisma.address.count({ where: { userId } });
+    const shouldSetDefault = Boolean(input.isDefault) || existingCount === 0;
+
+    if (shouldSetDefault) {
+      await this.prisma.address.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      });
+    }
+
+    const created = await this.prisma.address.create({
+      data: {
+        userId,
+        type: this.toAddressType(input.type),
+        label: input.label?.trim() || null,
+        address: input.street.trim(),
+        city: input.city.trim(),
+        state: input.state.trim(),
+        country: input.country?.trim() || 'Zambia',
+        postalCode: input.zipCode?.trim() || null,
+        latitude: input.latitude ?? 0,
+        longitude: input.longitude ?? 0,
+        isDefault: shouldSetDefault,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        address: this.toAddressPayload(created),
+        addresses: (await this.prisma.address.findMany({
+          where: { userId },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+        })).map((address) => this.toAddressPayload(address)),
+      },
+    };
+  }
+
+  async updateAddress(
+    userId: string,
+    addressId: string,
+    input: {
+      type?: 'home' | 'work' | 'other';
+      label?: string;
+      street?: string;
+      city?: string;
+      state?: string;
+      zipCode?: string;
+      country?: string;
+      isDefault?: boolean;
+      latitude?: number;
+      longitude?: number;
+    },
+  ): Promise<{
+    success: boolean;
+    data: { address: AddressPayload; addresses: AddressPayload[] };
+  }> {
+    const existing = await this.prisma.address.findFirst({
+      where: { id: addressId, userId },
+    });
+
+    if (!existing) {
+      throw new BadRequestException('Address not found');
+    }
+
+    if (input.isDefault) {
+      await this.prisma.address.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      });
+    }
+
+    const updated = await this.prisma.address.update({
+      where: { id: addressId },
+      data: {
+        type: input.type ? this.toAddressType(input.type) : undefined,
+        label: input.label !== undefined ? input.label.trim() || null : undefined,
+        address: input.street !== undefined ? input.street.trim() : undefined,
+        city: input.city !== undefined ? input.city.trim() : undefined,
+        state: input.state !== undefined ? input.state.trim() : undefined,
+        country: input.country !== undefined ? input.country.trim() : undefined,
+        postalCode:
+          input.zipCode !== undefined ? input.zipCode.trim() || null : undefined,
+        latitude: input.latitude,
+        longitude: input.longitude,
+        isDefault: input.isDefault ?? undefined,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        address: this.toAddressPayload(updated),
+        addresses: (await this.prisma.address.findMany({
+          where: { userId },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+        })).map((address) => this.toAddressPayload(address)),
+      },
+    };
+  }
+
+  async setDefaultAddress(
+    userId: string,
+    addressId: string,
+  ): Promise<{
+    success: boolean;
+    data: { addresses: AddressPayload[] };
+  }> {
+    const existing = await this.prisma.address.findFirst({
+      where: { id: addressId, userId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new BadRequestException('Address not found');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.address.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      }),
+      this.prisma.address.update({
+        where: { id: addressId },
+        data: { isDefault: true },
+      }),
+    ]);
+
+    return this.getAddresses(userId);
+  }
+
+  async deleteAddress(
+    userId: string,
+    addressId: string,
+  ): Promise<{
+    success: boolean;
+    data: { addresses: AddressPayload[] };
+  }> {
+    const existing = await this.prisma.address.findFirst({
+      where: { id: addressId, userId },
+      select: { id: true, isDefault: true },
+    });
+
+    if (!existing) {
+      throw new BadRequestException('Address not found');
+    }
+
+    await this.prisma.address.delete({
+      where: { id: addressId },
+    });
+
+    if (existing.isDefault) {
+      const fallback = await this.prisma.address.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      });
+
+      if (fallback) {
+        await this.prisma.address.update({
+          where: { id: fallback.id },
+          data: { isDefault: true },
+        });
+      }
+    }
+
+    return this.getAddresses(userId);
+  }
+
+  private async getCurrentUserRecord(token: string): Promise<any | null> {
     try {
       const payload = this.jwtService.verify(token);
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
       });
-      return user ? this.toAuthUser(user) : null;
+      return user;
     } catch {
       return null;
     }
@@ -369,6 +682,7 @@ export class AuthServiceV2 {
       sub: user.id,
       email: user.email,
       phone: user.phoneNumber ?? user.phone,
+      activeRole: this.toApiRole((user as any).role),
     };
 
     const accessToken = this.jwtService.sign(payload, {
@@ -467,6 +781,53 @@ export class AuthServiceV2 {
         isEmailVerified: !!session.email,
         isPhoneVerified: !!session.phone,
         updatedAt: now,
+        UserRoleAssignment: {
+          create: {
+            role: UserRole.CUSTOMER,
+            active: true,
+            metadata: this.getRoleMetadata('customer'),
+          },
+        },
+      },
+    });
+  }
+
+  private async activateRequestedRoleIfOwned(
+    user: any,
+    requestedRole?: RequestedAuthRole,
+  ) {
+    if (
+      requestedRole !== 'customer' &&
+      requestedRole !== 'tasker' &&
+      requestedRole !== 'vendor'
+    ) {
+      return user;
+    }
+
+    const prismaRole = this.toPrismaRole(requestedRole);
+    if (user.role === prismaRole) {
+      return user;
+    }
+
+    const ownsRole = await this.prisma.userRoleAssignment.findUnique({
+      where: {
+        userId_role: {
+          userId: user.id,
+          role: prismaRole,
+        },
+      },
+      select: { active: true },
+    });
+
+    if (!ownsRole?.active) {
+      return user;
+    }
+
+    return this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        role: prismaRole,
+        updatedAt: new Date(),
       },
     });
   }
@@ -516,14 +877,75 @@ export class AuthServiceV2 {
     return UserRole.CUSTOMER;
   }
 
-  private toApiRole(role?: UserRole | null): string {
+  private toAddressType(type: 'home' | 'work' | 'other'): AddressType {
+    if (type === 'work') return AddressType.WORK;
+    if (type === 'other') return AddressType.OTHER;
+    return AddressType.HOME;
+  }
+
+  private toAddressPayload(address: {
+    id: string;
+    type: AddressType;
+    label: string | null;
+    address: string;
+    city: string;
+    state: string;
+    postalCode: string | null;
+    country: string;
+    latitude: number;
+    longitude: number;
+    isDefault: boolean;
+  }): AddressPayload {
+    return {
+      id: address.id,
+      type:
+        address.type === AddressType.WORK
+          ? 'work'
+          : address.type === AddressType.OTHER
+            ? 'other'
+            : 'home',
+      label: address.label ?? undefined,
+      street: address.address,
+      city: address.city,
+      state: address.state,
+      zipCode: address.postalCode ?? undefined,
+      country: address.country,
+      coordinates: {
+        latitude: address.latitude,
+        longitude: address.longitude,
+      },
+      isDefault: address.isDefault,
+    };
+  }
+
+  private toApiRole(role?: UserRole | null): ApiRole {
     if (role === UserRole.DRIVER) return 'tasker';
     if (role === UserRole.VENDOR) return 'vendor';
     if (role === UserRole.ADMIN) return 'admin';
     return 'customer';
   }
 
-  private toAuthUser(user: {
+  private getRoleMetadata(role: 'customer' | 'tasker' | 'vendor') {
+    return {
+      onboardingStatus:
+        role === 'customer' ? 'complete' : 'pending',
+    };
+  }
+
+  private getRoleStatus(metadata: unknown): RoleOnboardingStatus {
+    if (
+      metadata &&
+      typeof metadata === 'object' &&
+      'onboardingStatus' in metadata &&
+      (metadata as { onboardingStatus?: unknown }).onboardingStatus === 'pending'
+    ) {
+      return 'pending';
+    }
+
+    return 'complete';
+  }
+
+  private async toAuthUser(user: {
     id: string;
     email?: string | null;
     phone?: string | null;
@@ -533,12 +955,42 @@ export class AuthServiceV2 {
     profileImage?: string | null;
     isEmailVerified?: boolean | null;
     isPhoneVerified?: boolean | null;
-  }) {
+  }): Promise<AuthUserPayload> {
+    const activeRole = this.toApiRole(user.role);
+    const assignments = await this.prisma.userRoleAssignment.findMany({
+      where: {
+        userId: user.id,
+        active: true,
+      },
+      select: {
+        role: true,
+        metadata: true,
+      },
+    });
+    const roleStatuses = assignments.reduce<Partial<Record<ApiRole, RoleOnboardingStatus>>>(
+      (acc, assignment) => {
+        acc[this.toApiRole(assignment.role)] = this.getRoleStatus(
+          assignment.metadata,
+        );
+        return acc;
+      },
+      {},
+    );
+
+    if (!roleStatuses[activeRole]) {
+      roleStatuses[activeRole] = 'complete';
+    }
+
+    const roles = Object.keys(roleStatuses) as ApiRole[];
+
     return {
       id: user.id,
       email: user.email ?? undefined,
       phone: user.phone ?? undefined,
-      role: this.toApiRole(user.role),
+      role: activeRole,
+      activeRole,
+      roles,
+      roleStatuses,
       firstName: user.firstName ?? undefined,
       lastName: user.lastName ?? undefined,
       avatar: user.profileImage ?? undefined,

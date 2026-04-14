@@ -9,6 +9,7 @@ import {
   OtpSessionEntity,
   FlowType,
   OtpChannel,
+  RequestedAuthRole,
 } from '../../domain/entities/otp-session.entity';
 import { CommunicationsService } from '../../../communications/communications.service';
 import { PhoneNormalizer } from '../utils/phone-normalizer';
@@ -34,6 +35,7 @@ export class OtpServiceV2 {
     phone?: string,
     flowType?: FlowType,
     deviceId?: string,
+    requestedRole?: RequestedAuthRole,
   ): Promise<OtpSessionEntity> {
     if (!email && !phone) {
       throw new BadRequestException('Email or phone must be provided');
@@ -73,6 +75,7 @@ export class OtpServiceV2 {
       flowType: flowType || 'signup',
       channelsSent: channels,
       deviceId,
+      requestedRole,
       expiresAt: new Date(Date.now() + this.OTP_TTL_SECONDS * 1000),
     });
 

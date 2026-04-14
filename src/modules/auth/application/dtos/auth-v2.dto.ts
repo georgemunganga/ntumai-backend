@@ -1,4 +1,11 @@
-import { IsBoolean, IsEmail, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsEmail,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 // ==================== OTP Start Flow ====================
@@ -30,6 +37,17 @@ export class StartOtpDto {
   @IsOptional()
   @IsString()
   deviceId?: string;
+
+  @ApiProperty({
+    description: 'Role path the user selected before authentication',
+    example: 'vendor_tasker',
+    enum: ['customer', 'tasker', 'vendor', 'vendor_tasker'],
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['customer', 'tasker', 'vendor', 'vendor_tasker'])
+  requestedRole?: 'customer' | 'tasker' | 'vendor' | 'vendor_tasker';
 }
 
 export class StartOtpResponseData {
@@ -101,6 +119,15 @@ class VerifyOtpResponseUser {
   phone?: string;
   @ApiProperty({ example: 'customer', required: false })
   role?: string;
+  @ApiProperty({ example: 'customer', required: false })
+  activeRole?: string;
+  @ApiProperty({ example: ['customer', 'vendor'], required: false })
+  roles?: string[];
+  @ApiProperty({
+    example: { customer: 'complete', vendor: 'pending' },
+    required: false,
+  })
+  roleStatuses?: Record<string, 'complete' | 'pending'>;
 }
 
 export class VerifyOtpResponseData {
@@ -182,6 +209,15 @@ class SelectRoleResponseUser {
   phone?: string;
   @ApiProperty({ example: 'customer' })
   role: string;
+  @ApiProperty({ example: 'customer', required: false })
+  activeRole?: string;
+  @ApiProperty({ example: ['customer', 'vendor'], required: false })
+  roles?: string[];
+  @ApiProperty({
+    example: { customer: 'complete', vendor: 'pending' },
+    required: false,
+  })
+  roleStatuses?: Record<string, 'complete' | 'pending'>;
 }
 
 export class SelectRoleResponseData {
@@ -226,11 +262,41 @@ class CurrentUserResponseUser {
   phone?: string;
   @ApiProperty({ example: 'customer', required: false })
   role?: string;
+  @ApiProperty({ example: 'customer', required: false })
+  activeRole?: string;
+  @ApiProperty({ example: ['customer', 'vendor'], required: false })
+  roles?: string[];
+  @ApiProperty({
+    example: { customer: 'complete', vendor: 'pending' },
+    required: false,
+  })
+  roleStatuses?: Record<string, 'complete' | 'pending'>;
   @ApiProperty({
     description: 'User status (e.g., active, pending_kyc, suspended)',
     example: 'active',
   })
   status: string;
+}
+
+export class ActivateRoleDto {
+  @ApiProperty({
+    description: 'Role to add or activate for the authenticated user',
+    example: 'customer',
+    enum: ['customer', 'tasker', 'vendor'],
+  })
+  @IsString()
+  @IsIn(['customer', 'tasker', 'vendor'])
+  role: 'customer' | 'tasker' | 'vendor';
+}
+
+export class ActivateRoleResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({
+    type: SelectRoleResponseData,
+  })
+  data: SelectRoleResponseData;
 }
 
 export class CurrentUserResponseData {
@@ -247,6 +313,161 @@ export class CurrentUserResponseDto {
     type: CurrentUserResponseData,
   })
   data: CurrentUserResponseData;
+}
+
+// ==================== Profile Addresses ====================
+
+export class AuthAddressDto {
+  @ApiProperty({ example: 'addr_123' })
+  id: string;
+
+  @ApiProperty({ example: 'home', enum: ['home', 'work', 'other'] })
+  type: 'home' | 'work' | 'other';
+
+  @ApiProperty({ example: 'Home', required: false })
+  label?: string;
+
+  @ApiProperty({ example: '123 Leopards Hill Road' })
+  street: string;
+
+  @ApiProperty({ example: 'Lusaka' })
+  city: string;
+
+  @ApiProperty({ example: 'Lusaka Province' })
+  state: string;
+
+  @ApiProperty({ example: '10101', required: false })
+  zipCode?: string;
+
+  @ApiProperty({ example: 'Zambia' })
+  country: string;
+
+  @ApiProperty({
+    example: { latitude: -15.3875, longitude: 28.3228 },
+    required: false,
+  })
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+
+  @ApiProperty({ example: true })
+  isDefault: boolean;
+}
+
+export class ProfileAddressesResponseData {
+  @ApiProperty({ type: [AuthAddressDto] })
+  addresses: AuthAddressDto[];
+}
+
+export class ProfileAddressesResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({ type: ProfileAddressesResponseData })
+  data: ProfileAddressesResponseData;
+}
+
+export class CreateAddressDto {
+  @ApiProperty({ example: 'home', enum: ['home', 'work', 'other'] })
+  @IsString()
+  @IsIn(['home', 'work', 'other'])
+  type: 'home' | 'work' | 'other';
+
+  @ApiProperty({ example: 'Home', required: false })
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @ApiProperty({ example: '123 Leopards Hill Road' })
+  @IsString()
+  street: string;
+
+  @ApiProperty({ example: 'Lusaka' })
+  @IsString()
+  city: string;
+
+  @ApiProperty({ example: 'Lusaka Province' })
+  @IsString()
+  state: string;
+
+  @ApiProperty({ example: '10101', required: false })
+  @IsOptional()
+  @IsString()
+  zipCode?: string;
+
+  @ApiProperty({ example: 'Zambia', required: false })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
+  @ApiProperty({ example: -15.3875, required: false })
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @ApiProperty({ example: 28.3228, required: false })
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+}
+
+export class UpdateAddressDto {
+  @ApiProperty({ example: 'home', enum: ['home', 'work', 'other'], required: false })
+  @IsOptional()
+  @IsString()
+  @IsIn(['home', 'work', 'other'])
+  type?: 'home' | 'work' | 'other';
+
+  @ApiProperty({ example: 'Home', required: false })
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @ApiProperty({ example: '123 Leopards Hill Road', required: false })
+  @IsOptional()
+  @IsString()
+  street?: string;
+
+  @ApiProperty({ example: 'Lusaka', required: false })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiProperty({ example: 'Lusaka Province', required: false })
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @ApiProperty({ example: '10101', required: false })
+  @IsOptional()
+  @IsString()
+  zipCode?: string;
+
+  @ApiProperty({ example: 'Zambia', required: false })
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
+  @ApiProperty({ example: -15.3875, required: false })
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @ApiProperty({ example: 28.3228, required: false })
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
 }
 
 // ==================== Refresh / Logout ====================

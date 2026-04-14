@@ -2,6 +2,8 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
+  Delete,
   Body,
   Headers,
   HttpCode,
@@ -10,6 +12,9 @@ import {
   BadRequestException,
   UnauthorizedException,
   Res,
+  UseGuards,
+  Req,
+  Param,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -32,8 +37,14 @@ import {
   RefreshTokenResponseDto,
   LogoutDto,
   ErrorResponseDto,
+  ActivateRoleDto,
+  ActivateRoleResponseDto,
+  ProfileAddressesResponseDto,
+  CreateAddressDto,
+  UpdateAddressDto,
 } from '../../application/dtos/auth-v2.dto';
 import { Public } from '../../infrastructure/decorators/public.decorator';
+import { JwtAuthGuard } from '../../infrastructure/guards/jwt-auth.guard';
 
 @ApiTags('Authentication')
 @Controller('api/v1/auth')
@@ -78,6 +89,7 @@ export class AuthV2Controller {
         dto.email,
         dto.phone,
         dto.deviceId,
+        dto.requestedRole,
       );
       res.json(response);
     } catch (error) {
@@ -223,11 +235,160 @@ export class AuthV2Controller {
             email: user.email,
             phone: user.phone,
             role: user.role,
+            activeRole: user.activeRole,
+            roles: user.roles,
+            roleStatuses: user.roleStatuses,
             status: user.status || 'active',
           },
         },
       };
 
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Get('me/addresses')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get saved addresses for the authenticated user',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Addresses retrieved successfully',
+    type: ProfileAddressesResponseDto,
+  })
+  async getAddresses(@Req() req: any, @Res() res: Response): Promise<void> {
+    try {
+      const response = await this.authService.getAddresses(req.user.userId);
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Post('me/addresses')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Create a saved address for the authenticated user',
+  })
+  async createAddress(
+    @Req() req: any,
+    @Body() dto: CreateAddressDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      const response = await this.authService.createAddress(req.user.userId, dto);
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Patch('me/addresses/:addressId')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Update a saved address for the authenticated user',
+  })
+  async updateAddress(
+    @Req() req: any,
+    @Param('addressId') addressId: string,
+    @Body() dto: UpdateAddressDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      const response = await this.authService.updateAddress(
+        req.user.userId,
+        addressId,
+        dto,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Patch('me/addresses/:addressId/default')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Set a saved address as the default address',
+  })
+  async setDefaultAddress(
+    @Req() req: any,
+    @Param('addressId') addressId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      const response = await this.authService.setDefaultAddress(
+        req.user.userId,
+        addressId,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Delete('me/addresses/:addressId')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Delete a saved address for the authenticated user',
+  })
+  async deleteAddress(
+    @Req() req: any,
+    @Param('addressId') addressId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      const response = await this.authService.deleteAddress(
+        req.user.userId,
+        addressId,
+      );
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Post('roles/activate')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Add or activate a user role',
+    description:
+      'Adds the requested role for the authenticated user if missing, makes it the active role, and returns fresh tokens.',
+  })
+  @ApiBody({ type: ActivateRoleDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Role activated successfully',
+    type: ActivateRoleResponseDto,
+  })
+  async activateRole(
+    @Headers('authorization') authHeader: string,
+    @Body() dto: ActivateRoleDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new UnauthorizedException(
+          'Missing or invalid authorization header',
+        );
+      }
+
+      const token = authHeader.substring(7);
+      const response = await this.authService.activateRole(token, dto.role);
       res.json(response);
     } catch (error) {
       this.handleError(error, res);
