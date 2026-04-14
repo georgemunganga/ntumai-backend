@@ -349,6 +349,80 @@ export class UpdateProfileDto {
   avatarUrl?: string;
 }
 
+export class NotificationPreferencesDto {
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  orderUpdates?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  promotions?: boolean;
+
+  @ApiProperty({ example: false, required: false })
+  @IsOptional()
+  @IsBoolean()
+  newRestaurants?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  priceDrops?: boolean;
+}
+
+export class OrderPreferencesDto {
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  savePaymentInfo?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  saveAddresses?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  locationServices?: boolean;
+
+  @ApiProperty({ example: true, required: false })
+  @IsOptional()
+  @IsBoolean()
+  autoApplyPromos?: boolean;
+}
+
+export class AppearancePreferencesDto {
+  @ApiProperty({ example: false, required: false })
+  @IsOptional()
+  @IsBoolean()
+  darkMode?: boolean;
+}
+
+export class UpdateUserPreferencesDto {
+  @ApiProperty({ type: NotificationPreferencesDto, required: false })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => NotificationPreferencesDto)
+  notifications?: NotificationPreferencesDto;
+
+  @ApiProperty({ type: OrderPreferencesDto, required: false })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => OrderPreferencesDto)
+  orderPreferences?: OrderPreferencesDto;
+
+  @ApiProperty({ type: AppearancePreferencesDto, required: false })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => AppearancePreferencesDto)
+  appearance?: AppearancePreferencesDto;
+}
+
 export class ActivateRoleDto {
   @ApiProperty({
     description: 'Role to add or activate for the authenticated user',
@@ -847,6 +921,30 @@ export class CurrentUserResponseDto {
     type: CurrentUserResponseData,
   })
   data: CurrentUserResponseData;
+}
+
+export class UserPreferencesPayloadDto {
+  @ApiProperty({ type: NotificationPreferencesDto })
+  notifications: NotificationPreferencesDto;
+
+  @ApiProperty({ type: OrderPreferencesDto })
+  orderPreferences: OrderPreferencesDto;
+
+  @ApiProperty({ type: AppearancePreferencesDto })
+  appearance: AppearancePreferencesDto;
+}
+
+export class UserPreferencesResponseDataDto {
+  @ApiProperty({ type: UserPreferencesPayloadDto })
+  preferences: UserPreferencesPayloadDto;
+}
+
+export class UserPreferencesResponseDto {
+  @ApiProperty({ example: true })
+  success: boolean;
+
+  @ApiProperty({ type: UserPreferencesResponseDataDto })
+  data: UserPreferencesResponseDataDto;
 }
 
 // ==================== Profile Addresses ====================

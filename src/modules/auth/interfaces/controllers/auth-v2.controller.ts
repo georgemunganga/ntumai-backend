@@ -62,6 +62,8 @@ import {
   CreateAddressDto,
   UpdateAddressDto,
   UpdateProfileDto,
+  UpdateUserPreferencesDto,
+  UserPreferencesResponseDto,
 } from '../../application/dtos/auth-v2.dto';
 import { Public } from '../../infrastructure/decorators/public.decorator';
 import { JwtAuthGuard } from '../../infrastructure/guards/jwt-auth.guard';
@@ -329,6 +331,58 @@ export class AuthV2Controller {
           },
         },
       });
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Get('me/preferences')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get current user preferences',
+    description: 'Returns customer settings and preference flags for the authenticated user.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Preferences retrieved successfully',
+    type: UserPreferencesResponseDto,
+  })
+  async getUserPreferences(@Req() req: any, @Res() res: Response): Promise<void> {
+    try {
+      const response = await this.authService.getUserPreferences(req.user.userId);
+      res.json(response);
+    } catch (error) {
+      this.handleError(error, res);
+    }
+  }
+
+  @Patch('me/preferences')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Update current user preferences',
+    description: 'Updates persisted customer settings and preference flags for the authenticated user.',
+  })
+  @ApiBody({ type: UpdateUserPreferencesDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Preferences updated successfully',
+    type: UserPreferencesResponseDto,
+  })
+  async updateUserPreferences(
+    @Req() req: any,
+    @Body() dto: UpdateUserPreferencesDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    try {
+      const response = await this.authService.updateUserPreferences(
+        req.user.userId,
+        dto,
+      );
+      res.json(response);
     } catch (error) {
       this.handleError(error, res);
     }

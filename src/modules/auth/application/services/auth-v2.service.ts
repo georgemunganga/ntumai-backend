@@ -195,6 +195,24 @@ type KycStatusState = {
 
 @Injectable()
 export class AuthServiceV2 {
+  private readonly defaultPreferences = {
+    notifications: {
+      orderUpdates: true,
+      promotions: true,
+      newRestaurants: false,
+      priceDrops: true,
+    },
+    orderPreferences: {
+      savePaymentInfo: true,
+      saveAddresses: true,
+      locationServices: true,
+      autoApplyPromos: true,
+    },
+    appearance: {
+      darkMode: false,
+    },
+  };
+
   private readonly onboardingTokenStore = new Map<
     string,
     { userId: string; expiresAt: number }
@@ -956,6 +974,63 @@ export class AuthServiceV2 {
     return this.toAuthUser(user);
   }
 
+  async getUserPreferences(userId: string): Promise<{
+    success: boolean;
+    data: { preferences: typeof this.defaultPreferences };
+  }> {
+    const preferences = await this.resolveUserPreferences(userId);
+
+    return {
+      success: true,
+      data: { preferences },
+    };
+  }
+
+  async updateUserPreferences(
+    userId: string,
+    input: {
+      notifications?: Partial<typeof this.defaultPreferences.notifications>;
+      orderPreferences?: Partial<typeof this.defaultPreferences.orderPreferences>;
+      appearance?: Partial<typeof this.defaultPreferences.appearance>;
+    },
+  ): Promise<{
+    success: boolean;
+    data: { preferences: typeof this.defaultPreferences };
+  }> {
+    const current = await this.resolveUserPreferences(userId);
+    const nextPreferences = {
+      notifications: {
+        ...current.notifications,
+        ...(input.notifications || {}),
+      },
+      orderPreferences: {
+        ...current.orderPreferences,
+        ...(input.orderPreferences || {}),
+      },
+      appearance: {
+        ...current.appearance,
+        ...(input.appearance || {}),
+      },
+    };
+
+    await this.prisma.userPreference.upsert({
+      where: { userId },
+      create: {
+        userId,
+        preferences: nextPreferences as any,
+      },
+      update: {
+        preferences: nextPreferences as any,
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      success: true,
+      data: { preferences: nextPreferences },
+    };
+  }
+
   async getAddresses(userId: string): Promise<{
     success: boolean;
     data: { addresses: AddressPayload[] };
@@ -969,6 +1044,30 @@ export class AuthServiceV2 {
       success: true,
       data: {
         addresses: addresses.map((address) => this.toAddressPayload(address)),
+      },
+    };
+  }
+
+  private async resolveUserPreferences(userId: string) {
+    const record = await this.prisma.userPreference.findUnique({
+      where: { userId },
+      select: { preferences: true },
+    });
+
+    const raw = (record?.preferences as Record<string, any> | null) || {};
+
+    return {
+      notifications: {
+        ...this.defaultPreferences.notifications,
+        ...(raw.notifications || {}),
+      },
+      orderPreferences: {
+        ...this.defaultPreferences.orderPreferences,
+        ...(raw.orderPreferences || {}),
+      },
+      appearance: {
+        ...this.defaultPreferences.appearance,
+        ...(raw.appearance || {}),
       },
     };
   }
