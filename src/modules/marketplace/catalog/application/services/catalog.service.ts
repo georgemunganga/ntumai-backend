@@ -245,6 +245,167 @@ export class CatalogService {
     };
   }
 
+  async searchMarketplace(
+    query: string,
+    page: number = 1,
+    limit: number = 20,
+    sort: string = 'rating',
+  ) {
+    const normalizedQuery = query?.trim() || '';
+    const skip = (page - 1) * limit;
+
+    let orderBy: any = { createdAt: 'desc' };
+    if (sort === 'price_asc') orderBy = { price: 'asc' };
+    if (sort === 'price_desc') orderBy = { price: 'desc' };
+    if (sort === 'rating') orderBy = { averageRating: 'desc' };
+
+    const productWhere: any = normalizedQuery
+      ? {
+          isActive: true,
+          OR: [
+            { name: { contains: normalizedQuery, mode: 'insensitive' } },
+            { description: { contains: normalizedQuery, mode: 'insensitive' } },
+            { tags: { has: normalizedQuery } },
+            {
+              Category: {
+                name: { contains: normalizedQuery, mode: 'insensitive' },
+              },
+            },
+            {
+              Store: {
+                name: { contains: normalizedQuery, mode: 'insensitive' },
+              },
+            },
+          ],
+        }
+      : { isActive: true };
+
+    const storeWhere: any = normalizedQuery
+      ? {
+          isActive: true,
+          OR: [
+            { name: { contains: normalizedQuery, mode: 'insensitive' } },
+            { description: { contains: normalizedQuery, mode: 'insensitive' } },
+            {
+              Product: {
+                some: {
+                  isActive: true,
+                  OR: [
+                    {
+                      name: { contains: normalizedQuery, mode: 'insensitive' },
+                    },
+                    {
+                      description: {
+                        contains: normalizedQuery,
+                        mode: 'insensitive',
+                      },
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        }
+      : { isActive: true };
+
+    const categoryWhere: any = normalizedQuery
+      ? {
+          isActive: true,
+          OR: [{ name: { contains: normalizedQuery, mode: 'insensitive' } }],
+        }
+      : { isActive: true };
+
+    const [products, totalProducts, stores, categories] = await Promise.all([
+      this.prisma.product.findMany({
+        where: productWhere,
+        include: {
+          Store: {
+            select: { id: true, name: true, imageUrl: true },
+          },
+          Category: {
+            select: { id: true, name: true },
+          },
+        },
+        orderBy,
+        skip,
+        take: limit,
+      }),
+      this.prisma.product.count({ where: productWhere }),
+      this.prisma.store.findMany({
+        where: storeWhere,
+        include: {
+          _count: {
+            select: { Product: true },
+          },
+        },
+        orderBy: { averageRating: 'desc' },
+        take: Math.min(limit, 10),
+      }),
+      this.prisma.category.findMany({
+        where: categoryWhere,
+        include: {
+          _count: {
+            select: { Product: true },
+          },
+        },
+        orderBy: { name: 'asc' },
+        take: Math.min(limit, 10),
+      }),
+    ]);
+
+    const mappedStores = stores.map((s) => ({
+      id: s.id,
+      name: s.name,
+      description: s.description,
+      imageUrl: s.imageUrl,
+      vendorId: s.vendorId,
+      averageRating: s.averageRating,
+      isActive: s.isActive,
+      productCount: s._count.Product,
+    }));
+
+    const mappedCategories = categories.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      imageUrl: cat.imageUrl,
+      productCount: cat._count.Product,
+    }));
+
+    const suggestions = [
+      ...mappedCategories.map((category) => ({
+        id: category.id,
+        type: 'category',
+        label: category.name,
+        subtitle: `${category.productCount} products`,
+      })),
+      ...mappedStores.map((store) => ({
+        id: store.id,
+        type: 'vendor',
+        label: store.name,
+        subtitle: store.description || 'Vendor',
+      })),
+      ...products.slice(0, 8).map((product) => ({
+        id: product.id,
+        type: 'product',
+        label: product.name,
+        subtitle: product.Category?.name || product.Store?.name || 'Product',
+      })),
+    ].slice(0, 12);
+
+    return {
+      products: products.map((p) => this.mapProductToDto(p)),
+      stores: mappedStores,
+      categories: mappedCategories,
+      suggestions,
+      pagination: {
+        page,
+        limit,
+        total: totalProducts,
+        totalPages: Math.ceil(totalProducts / limit),
+      },
+    };
+  }
+
   async getProduct(productId: string, userId?: string) {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },

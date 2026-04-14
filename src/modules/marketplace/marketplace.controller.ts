@@ -148,6 +148,30 @@ export class MarketplaceController {
   }
 
   @Public()
+  @Get('search')
+  @ApiOperation({
+    summary: 'Search marketplace products, stores, and categories',
+  })
+  @ApiQuery({ name: 'query', required: true })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'sort', required: false })
+  async searchMarketplace(
+    @Query('query') query: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('sort') sort?: string,
+  ) {
+    const result = await this.catalogService.searchMarketplace(
+      query || '',
+      parseInt(page || '1'),
+      parseInt(limit || '20'),
+      sort || 'rating',
+    );
+    return { success: true, data: result };
+  }
+
+  @Public()
   @Get('products/:productId')
   @ApiOperation({ summary: 'Get product details' })
   async getProduct(@Param('productId') productId: string, @Request() req) {
