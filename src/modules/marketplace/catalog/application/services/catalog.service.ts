@@ -251,6 +251,7 @@ export class CatalogService {
     page: number = 1,
     limit: number = 20,
     sort: string = 'rating',
+    categoryId?: string,
   ) {
     const normalizedQuery = query?.trim() || '';
     const skip = (page - 1) * limit;
@@ -263,6 +264,7 @@ export class CatalogService {
     const productWhere: any = normalizedQuery
       ? {
           isActive: true,
+          ...(categoryId ? { categoryId } : {}),
           OR: [
             { name: { contains: normalizedQuery, mode: 'insensitive' } },
             { description: { contains: normalizedQuery, mode: 'insensitive' } },
@@ -280,10 +282,23 @@ export class CatalogService {
           ],
         }
       : { isActive: true };
+    if (!normalizedQuery && categoryId) {
+      productWhere.categoryId = categoryId;
+    }
 
     const storeWhere: any = normalizedQuery
       ? {
           isActive: true,
+          ...(categoryId
+            ? {
+                Product: {
+                  some: {
+                    isActive: true,
+                    categoryId,
+                  },
+                },
+              }
+            : {}),
           OR: [
             { name: { contains: normalizedQuery, mode: 'insensitive' } },
             { description: { contains: normalizedQuery, mode: 'insensitive' } },
@@ -291,6 +306,7 @@ export class CatalogService {
               Product: {
                 some: {
                   isActive: true,
+                  ...(categoryId ? { categoryId } : {}),
                   OR: [
                     {
                       name: { contains: normalizedQuery, mode: 'insensitive' },
@@ -308,6 +324,14 @@ export class CatalogService {
           ],
         }
       : { isActive: true };
+    if (!normalizedQuery && categoryId) {
+      storeWhere.Product = {
+        some: {
+          isActive: true,
+          categoryId,
+        },
+      };
+    }
 
     const categoryWhere: any = normalizedQuery
       ? {
@@ -315,6 +339,9 @@ export class CatalogService {
           OR: [{ name: { contains: normalizedQuery, mode: 'insensitive' } }],
         }
       : { isActive: true };
+    if (categoryId) {
+      categoryWhere.id = categoryId;
+    }
 
     const [products, totalProducts, stores, categories] = await Promise.all([
       this.prisma.product.findMany({
@@ -354,16 +381,7 @@ export class CatalogService {
       }),
     ]);
 
-    const mappedStores = stores.map((s) => ({
-      id: s.id,
-      name: s.name,
-      description: s.description,
-      imageUrl: s.imageUrl,
-      vendorId: s.vendorId,
-      averageRating: s.averageRating,
-      isActive: s.isActive,
-      productCount: s._count.Product,
-    }));
+    const mappedStores = stores.map((s) => this.mapStoreToDto(s));
 
     const mappedCategories = categories.map((cat) => ({
       id: cat.id,
@@ -507,12 +525,73 @@ export class CatalogService {
   }
 
   // Stores
-  async getStores(page: number = 1, limit: number = 20) {
+  async getStores(
+    page: number = 1,
+    limit: number = 20,
+    search?: string,
+    categoryId?: string,
+  ) {
     const skip = (page - 1) * limit;
+    const normalizedSearch = search?.trim();
+    const where: any = {
+      isActive: true,
+      ...(categoryId
+        ? {
+            Product: {
+              some: {
+                isActive: true,
+                categoryId,
+              },
+            },
+          }
+        : {}),
+    };
+
+    if (normalizedSearch) {
+      where.OR = [
+        { name: { contains: normalizedSearch, mode: 'insensitive' } },
+        {
+          description: {
+            contains: normalizedSearch,
+            mode: 'insensitive',
+          },
+        },
+        {
+          Product: {
+            some: {
+              isActive: true,
+              ...(categoryId ? { categoryId } : {}),
+              OR: [
+                {
+                  name: {
+                    contains: normalizedSearch,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  description: {
+                    contains: normalizedSearch,
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  Category: {
+                    name: {
+                      contains: normalizedSearch,
+                      mode: 'insensitive',
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      ];
+    }
 
     const [stores, total] = await Promise.all([
       this.prisma.store.findMany({
-        where: { isActive: true },
+        where,
         include: {
           _count: {
             select: { Product: true },
@@ -523,21 +602,12 @@ export class CatalogService {
         take: limit,
       }),
       this.prisma.store.count({
-        where: { isActive: true },
+        where,
       }),
     ]);
 
     return {
-      stores: stores.map((s) => ({
-        id: s.id,
-        name: s.name,
-        description: s.description,
-        imageUrl: s.imageUrl,
-        vendorId: s.vendorId,
-        averageRating: s.averageRating,
-        isActive: s.isActive,
-        productCount: s._count.Product,
-      })),
+      stores: stores.map((s) => this.mapStoreToDto(s)),
       pagination: {
         page,
         limit,
@@ -561,15 +631,7 @@ export class CatalogService {
       throw new NotFoundException('Store not found');
     }
 
-    return {
-      id: store.id,
-      name: store.name,
-      description: store.description,
-      imageUrl: store.imageUrl,
-      averageRating: store.averageRating,
-      productCount: store._count.Product,
-      isActive: store.isActive,
-    };
+    return this.mapStoreToDto(store);
   }
 
   async getStoreProducts(
@@ -577,6 +639,7 @@ export class CatalogService {
     page: number = 1,
     limit: number = 20,
     sort: string = 'newest',
+    categoryId?: string,
   ) {
     const skip = (page - 1) * limit;
 
@@ -590,6 +653,7 @@ export class CatalogService {
         where: {
           storeId,
           isActive: true,
+          ...(categoryId ? { categoryId } : {}),
         },
         include: {
           Store: {
@@ -604,7 +668,7 @@ export class CatalogService {
         take: limit,
       }),
       this.prisma.product.count({
-        where: { storeId, isActive: true },
+        where: { storeId, isActive: true, ...(categoryId ? { categoryId } : {}) },
       }),
     ]);
 
@@ -640,6 +704,26 @@ export class CatalogService {
       reviewCount: product.reviewCount,
       store: product.Store,
       isFavorite: false, // Will be set by controller if user is authenticated
+    };
+  }
+
+  private mapStoreToDto(store: any) {
+    return {
+      id: store.id,
+      name: store.name,
+      description: store.description,
+      logo: store.imageUrl,
+      imageUrl: store.imageUrl,
+      vendorId: store.vendorId,
+      rating: store.averageRating,
+      averageRating: store.averageRating,
+      reviewCount: store.reviewCount ?? 0,
+      deliveryTime: store.deliveryTime ?? '30-45 min',
+      deliveryFee: store.deliveryFee ?? 0,
+      minimumOrder: store.minimumOrder ?? 0,
+      isOpen: store.isOpen ?? store.isActive,
+      isActive: store.isActive,
+      productCount: store._count?.Product ?? store.productCount ?? 0,
     };
   }
 }

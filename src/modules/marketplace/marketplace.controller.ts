@@ -156,17 +156,20 @@ export class MarketplaceController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'sort', required: false })
+  @ApiQuery({ name: 'categoryId', required: false })
   async searchMarketplace(
     @Query('query') query: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sort') sort?: string,
+    @Query('categoryId') categoryId?: string,
   ) {
     const result = await this.catalogService.searchMarketplace(
       query || '',
       parseInt(page || '1'),
       parseInt(limit || '20'),
       sort || 'rating',
+      categoryId,
     );
     return { success: true, data: result };
   }
@@ -185,13 +188,19 @@ export class MarketplaceController {
   @ApiOperation({ summary: 'Get all stores' })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'categoryId', required: false })
   async getStores(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('categoryId') categoryId?: string,
   ) {
     const result = await this.catalogService.getStores(
       parseInt(page || '1'),
       parseInt(limit || '20'),
+      search,
+      categoryId,
     );
     return { success: true, data: result };
   }
@@ -210,17 +219,20 @@ export class MarketplaceController {
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'sort', required: false })
+  @ApiQuery({ name: 'categoryId', required: false })
   async getStoreProducts(
     @Param('storeId') storeId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('sort') sort?: string,
+    @Query('categoryId') categoryId?: string,
   ) {
     const result = await this.catalogService.getStoreProducts(
       storeId,
       parseInt(page || '1'),
       parseInt(limit || '20'),
       sort || 'newest',
+      categoryId,
     );
     return { success: true, data: result };
   }
