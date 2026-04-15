@@ -14,6 +14,7 @@ import { ShiftsModule } from './modules/shifts/shifts.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { SupportModule } from './modules/support/support.module';
+import { CustomerOrdersModule } from './modules/customer-orders/customer-orders.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { SupportModule } from './modules/support/support.module';
     TrackingModule,
     PaymentsModule,
     SupportModule,
+    CustomerOrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

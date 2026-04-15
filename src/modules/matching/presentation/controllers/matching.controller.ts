@@ -5,6 +5,8 @@ import {
   Patch,
   Body,
   Param,
+  Query,
+  Request,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -30,6 +32,28 @@ import { Public } from '../../../../shared/common/decorators/public.decorator';
 @Controller('matching/bookings')
 export class MatchingController {
   constructor(private readonly matchingService: MatchingService) {}
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List bookings for the authenticated customer' })
+  @ApiResponse({
+    status: 200,
+    description: 'Bookings retrieved',
+  })
+  async listBookings(
+    @Request() req: any,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.matchingService.listCustomerBookings(
+      req.user.userId,
+      status,
+      Number(page || 1),
+      Number(limit || 20),
+    );
+  }
 
   @Post()
   @UseGuards(JwtAuthGuard)

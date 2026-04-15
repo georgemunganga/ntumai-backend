@@ -67,6 +67,51 @@ export class MatchingService {
     return this.toResponseDto(booking);
   }
 
+  async listCustomerBookings(
+    customerUserId: string,
+    status?: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<{
+    bookings: BookingResponseDto[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    const allBookings =
+      await this.bookingRepository.findByCustomerUserId(customerUserId);
+
+    const normalizedStatus = status?.trim().toLowerCase();
+    const filtered = normalizedStatus
+      ? allBookings.filter(
+          (booking) =>
+            String(booking.status).toLowerCase() === normalizedStatus,
+        )
+      : allBookings;
+
+    const sorted = [...filtered].sort(
+      (a, b) =>
+        b.toJSON().updated_at.getTime() - a.toJSON().updated_at.getTime(),
+    );
+    const total = sorted.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const start = (page - 1) * limit;
+    const paged = sorted.slice(start, start + limit);
+
+    return {
+      bookings: paged.map((booking) => this.toResponseDto(booking)),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
   async editBooking(
     bookingId: string,
     dto: EditBookingDto,

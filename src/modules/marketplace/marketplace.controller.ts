@@ -389,6 +389,19 @@ export class MarketplaceController {
 
   @UseGuards(JwtAuthGuard)
   @Roles('CUSTOMER', 'VENDOR')
+  @Get('customer/orders/:orderId/tracking')
+  @ApiOperation({ summary: 'Get marketplace order tracking' })
+  @ApiBearerAuth()
+  async getOrderTracking(@Request() req, @Param('orderId') orderId: string) {
+    const tracking = await this.orderService.getOrderTracking(
+      req.user.userId,
+      orderId,
+    );
+    return { success: true, data: tracking };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles('CUSTOMER', 'VENDOR')
   @Get('customer/orders')
   @ApiOperation({ summary: 'Get order history' })
   @ApiBearerAuth()

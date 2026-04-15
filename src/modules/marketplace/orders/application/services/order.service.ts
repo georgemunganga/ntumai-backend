@@ -6,10 +6,16 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../../../shared/infrastructure/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
+import { DeliveryService } from '../../../../deliveries/application/services/delivery.service';
+import { TrackingService } from '../../../../tracking/application/services/tracking.service';
 
 @Injectable()
 export class OrderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly deliveryService: DeliveryService,
+    private readonly trackingService: TrackingService,
+  ) {}
 
   async calculateDelivery(userId: string, addressId: string) {
     const address = await this.prisma.address.findFirst({
@@ -259,6 +265,62 @@ export class OrderService {
         total,
         totalPages: Math.ceil(total / limit),
       },
+    };
+  }
+
+  async getOrderTracking(userId: string, orderId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      include: {
+        OrderItem: {
+          include: {
+            Product: {
+              include: {
+                Store: true,
+              },
+            },
+          },
+        },
+        Address: true,
+        Payment: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const deliveries = await this.deliveryService.getMyDeliveries(
+      userId,
+      'customer',
+      1,
+      200,
+    );
+
+    const linkedDelivery = (deliveries?.data || []).find((delivery: any) => {
+      try {
+        const metadata = delivery.more_info ? JSON.parse(delivery.more_info) : {};
+        return String(metadata.marketplace_order_id || '') === String(orderId);
+      } catch {
+        return false;
+      }
+    });
+
+    const tracking = linkedDelivery
+      ? await this.trackingService.getTrackingByDelivery(linkedDelivery.id)
+      : null;
+
+    return {
+      order: this.mapOrderToDto(order),
+      linkedDelivery: linkedDelivery
+        ? {
+            id: linkedDelivery.id,
+            status: linkedDelivery.order_status,
+            riderId: linkedDelivery.rider_id,
+            updatedAt: linkedDelivery.updated_at.toISOString(),
+          }
+        : null,
+      tracking,
     };
   }
 

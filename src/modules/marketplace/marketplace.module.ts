@@ -8,10 +8,12 @@ import { PromotionService } from './promotions/application/services/promotion.se
 import { ReviewService } from './reviews/application/services/review.service';
 import { DatabaseModule } from '../../shared/database/database.module';
 import { AuthModule } from '../auth/auth.module';
+import { DeliveriesModule } from '../deliveries/deliveries.module';
+import { TrackingModule } from '../tracking/tracking.module';
 // import { AuthModule } from '../auth/auth.module'; // AuthModule is imported in app.module, no need here
 
 @Module({
-  imports: [DatabaseModule, AuthModule],
+  imports: [DatabaseModule, AuthModule, DeliveriesModule, TrackingModule],
   controllers: [MarketplaceController],
   providers: [
     CatalogService,
