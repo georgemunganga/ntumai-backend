@@ -474,6 +474,31 @@ export class MarketplaceController {
 
   @UseGuards(JwtAuthGuard)
   @Roles('VENDOR')
+  @Get('vendor/stores/me/business-hours')
+  @ApiOperation({ summary: 'Get current vendor store business hours' })
+  @ApiBearerAuth()
+  async getMyStoreBusinessHours(@Request() req) {
+    const businessHours = await this.vendorService.getMyStoreBusinessHours(
+      req.user.userId,
+    );
+    return { success: true, data: businessHours };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles('VENDOR')
+  @Put('vendor/stores/me/business-hours')
+  @ApiOperation({ summary: 'Update current vendor store business hours' })
+  @ApiBearerAuth()
+  async updateMyStoreBusinessHours(@Request() req, @Body() body: any) {
+    const businessHours = await this.vendorService.updateMyStoreBusinessHours(
+      req.user.userId,
+      body,
+    );
+    return { success: true, data: businessHours };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles('VENDOR')
   @Post('vendor/stores')
   @ApiOperation({ summary: 'Create store' })
   @ApiBearerAuth()

@@ -469,6 +469,7 @@ model Store {
   imageUrl      String?
   vendorId      String
   isActive      Boolean   @default(true)
+  autoOffline   Boolean   @default(false)
   averageRating Float?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime
@@ -476,6 +477,36 @@ model Store {
   Review        Review[]
   User          User      @relation(fields: [vendorId], references: [id])
   StoreFavorite StoreFavorite[]
+  StoreBusinessHour StoreBusinessHour[]
+  StoreHoliday      StoreHoliday[]
+}
+
+model StoreBusinessHour {
+  id        String   @id
+  storeId   String
+  dayOfWeek Int
+  isOpen    Boolean  @default(true)
+  openTime  String
+  closeTime String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, dayOfWeek])
+  @@index([storeId])
+}
+
+model StoreHoliday {
+  id          String   @id
+  storeId     String
+  name        String
+  date        DateTime
+  isRecurring Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  Store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, date])
 }
 
 model Task {

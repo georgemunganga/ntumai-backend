@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   ForbiddenException,
@@ -10,6 +11,16 @@ import { v4 as uuidv4 } from 'uuid';
 @Injectable()
 export class VendorService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly defaultBusinessHours = [
+    { dayOfWeek: 0, isOpen: false, openTime: '09:00', closeTime: '17:00' },
+    { dayOfWeek: 1, isOpen: true, openTime: '08:00', closeTime: '20:00' },
+    { dayOfWeek: 2, isOpen: true, openTime: '08:00', closeTime: '20:00' },
+    { dayOfWeek: 3, isOpen: true, openTime: '08:00', closeTime: '20:00' },
+    { dayOfWeek: 4, isOpen: true, openTime: '08:00', closeTime: '20:00' },
+    { dayOfWeek: 5, isOpen: true, openTime: '08:00', closeTime: '22:00' },
+    { dayOfWeek: 6, isOpen: true, openTime: '09:00', closeTime: '22:00' },
+  ];
 
   // Store Management
   async createStore(userId: string, storeData: any) {
@@ -110,6 +121,136 @@ export class VendorService {
       orderCount,
       createdAt: store.createdAt,
     };
+  }
+
+  async getMyStoreBusinessHours(userId: string) {
+    const store = await this.getVendorStore(userId);
+    await this.ensureDefaultBusinessHours(store.id);
+
+    const [hours, holidays] = await Promise.all([
+      (this.prisma as any).storeBusinessHour.findMany({
+        where: { storeId: store.id },
+        orderBy: { dayOfWeek: 'asc' },
+      }),
+      (this.prisma as any).storeHoliday.findMany({
+        where: { storeId: store.id },
+        orderBy: { date: 'asc' },
+      }),
+    ]);
+
+    return {
+      storeId: store.id,
+      timezone: 'Africa/Lusaka',
+      isCurrentlyOpen: this.calculateIsCurrentlyOpen(hours, holidays),
+      autoOffline: Boolean((store as any).autoOffline),
+      hours: hours.map((hour: any) => ({
+        day: hour.dayOfWeek,
+        isOpen: hour.isOpen,
+        openTime: hour.openTime,
+        closeTime: hour.closeTime,
+      })),
+      holidays: holidays.map((holiday: any) => ({
+        id: holiday.id,
+        name: holiday.name,
+        date: holiday.date,
+        isRecurring: holiday.isRecurring,
+      })),
+    };
+  }
+
+  async updateMyStoreBusinessHours(userId: string, payload: any) {
+    const store = await this.getVendorStore(userId);
+    const hours = Array.isArray(payload?.hours) ? payload.hours : [];
+    const holidays = Array.isArray(payload?.holidays) ? payload.holidays : [];
+
+    if (hours.length !== 7) {
+      throw new BadRequestException('Business hours must include all 7 days');
+    }
+
+    const normalizedHours = hours.map((hour: any) => {
+      const day = Number(hour.day ?? hour.dayOfWeek);
+      if (!Number.isInteger(day) || day < 0 || day > 6) {
+        throw new BadRequestException('Each business day must be between 0 and 6');
+      }
+
+      const openTime = String(hour.openTime || '');
+      const closeTime = String(hour.closeTime || '');
+      this.validateTime(openTime, 'openTime');
+      this.validateTime(closeTime, 'closeTime');
+
+      if (hour.isOpen !== false && openTime >= closeTime) {
+        throw new BadRequestException('Open time must be before close time');
+      }
+
+      return {
+        dayOfWeek: day,
+        isOpen: Boolean(hour.isOpen),
+        openTime,
+        closeTime,
+      };
+    });
+
+    const uniqueDays = new Set(normalizedHours.map((hour) => hour.dayOfWeek));
+    if (uniqueDays.size !== 7) {
+      throw new BadRequestException('Business hours must include each day once');
+    }
+
+    const normalizedHolidays = holidays.map((holiday: any) => {
+      const name = String(holiday.name || '').trim();
+      const date = new Date(holiday.date);
+
+      if (!name) {
+        throw new BadRequestException('Holiday name is required');
+      }
+
+      if (Number.isNaN(date.getTime())) {
+        throw new BadRequestException('Holiday date must be valid');
+      }
+
+      return {
+        id: holiday.id || uuidv4(),
+        name,
+        date,
+        isRecurring: Boolean(holiday.isRecurring),
+      };
+    });
+
+    await this.prisma.$transaction([
+      this.prisma.store.update({
+        where: { id: store.id },
+        data: {
+          autoOffline: Boolean(payload?.autoOffline),
+          updatedAt: new Date(),
+        } as any,
+      }),
+      (this.prisma as any).storeBusinessHour.deleteMany({
+        where: { storeId: store.id },
+      }),
+      (this.prisma as any).storeHoliday.deleteMany({
+        where: { storeId: store.id },
+      }),
+      (this.prisma as any).storeBusinessHour.createMany({
+        data: normalizedHours.map((hour) => ({
+          id: uuidv4(),
+          storeId: store.id,
+          ...hour,
+          updatedAt: new Date(),
+        })),
+      }),
+      ...(normalizedHolidays.length
+        ? [
+            (this.prisma as any).storeHoliday.createMany({
+              data: normalizedHolidays.map((holiday) => ({
+                ...holiday,
+                storeId: store.id,
+                updatedAt: new Date(),
+              })),
+            }),
+          ]
+        : []),
+    ]);
+
+    return this.getMyStoreBusinessHours(userId);
   }
 
   // Product Management
@@ -378,6 +519,76 @@ export class VendorService {
     }
 
     return store;
+  }
+
+  private async getVendorStore(userId: string) {
+    const store = await this.prisma.store.findFirst({
+      where: { vendorId: userId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (!store) {
+      throw new NotFoundException('Vendor store not found');
+    }
+
+    return store;
+  }
+
+  private async ensureDefaultBusinessHours(storeId: string) {
+    const existingCount = await (this.prisma as any).storeBusinessHour.count({
+      where: { storeId },
+    });
+
+    if (existingCount > 0) {
+      return;
+    }
+
+    await (this.prisma as any).storeBusinessHour.createMany({
+      data: this.defaultBusinessHours.map((hour) => ({
+        id: uuidv4(),
+        storeId,
+        ...hour,
+        updatedAt: new Date(),
+      })),
+    });
+  }
+
+  private validateTime(value: string, field: string) {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) {
+      throw new BadRequestException(`${field} must use HH:MM format`);
+    }
+  }
+
+  private calculateIsCurrentlyOpen(hours: any[], holidays: any[]) {
+    const now = new Date();
+    const day = now.getDay();
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(
+      now.getMinutes(),
+    ).padStart(2, '0')}`;
+
+    const isHoliday = holidays.some((holiday) => {
+      const date = new Date(holiday.date);
+      if (holiday.isRecurring) {
+        return (
+          date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
+        );
+      }
+
+      return date.toDateString() === now.toDateString();
+    });
+
+    if (isHoliday) {
+      return false;
+    }
+
+    const todaysHours = hours.find((hour) => hour.dayOfWeek === day);
+    if (!todaysHours?.isOpen) {
+      return false;
+    }
+
+    return (
+      currentTime >= todaysHours.openTime && currentTime <= todaysHours.closeTime
+    );
   }
 
   private async verifyProductOwnership(
