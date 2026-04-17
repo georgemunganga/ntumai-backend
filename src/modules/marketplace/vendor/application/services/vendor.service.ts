@@ -22,6 +22,93 @@ export class VendorService {
     { dayOfWeek: 6, isOpen: true, openTime: '09:00', closeTime: '22:00' },
   ];
 
+  private readonly productCategoryPresets: Record<
+    string,
+    {
+      categoryNames: string[];
+      subcategories: Array<{ key: string; label: string; iconKey?: string }>;
+    }
+  > = {
+    restaurant: {
+      categoryNames: ['Restaurants', 'Food & Beverages'],
+      subcategories: [
+        { key: 'main_dishes', label: 'Main Dishes', iconKey: 'utensils' },
+        { key: 'snacks', label: 'Snacks', iconKey: 'cookie' },
+        { key: 'beverages', label: 'Beverages', iconKey: 'cup-soda' },
+        { key: 'desserts', label: 'Desserts', iconKey: 'ice-cream' },
+        { key: 'combos', label: 'Combos', iconKey: 'package' },
+      ],
+    },
+    grocery: {
+      categoryNames: ['Groceries', 'Fresh Produce'],
+      subcategories: [
+        { key: 'fresh_produce', label: 'Fresh Produce', iconKey: 'apple' },
+        { key: 'pantry', label: 'Pantry Staples', iconKey: 'package' },
+        { key: 'drinks', label: 'Drinks', iconKey: 'cup-soda' },
+        { key: 'dairy', label: 'Dairy & Eggs', iconKey: 'milk' },
+        { key: 'household', label: 'Household', iconKey: 'home' },
+      ],
+    },
+    pharmacy: {
+      categoryNames: ['Pharmacy & Health'],
+      subcategories: [
+        { key: 'medicine', label: 'Medicine', iconKey: 'pill' },
+        { key: 'vitamins', label: 'Vitamins', iconKey: 'capsule' },
+        { key: 'first_aid', label: 'First Aid', iconKey: 'cross' },
+        { key: 'personal_care', label: 'Personal Care', iconKey: 'heart' },
+        { key: 'baby_care', label: 'Baby Care', iconKey: 'baby' },
+      ],
+    },
+    bakery: {
+      categoryNames: ['Bakery', 'Food & Beverages'],
+      subcategories: [
+        { key: 'bread', label: 'Bread', iconKey: 'sandwich' },
+        { key: 'cakes', label: 'Cakes', iconKey: 'cake' },
+        { key: 'pastries', label: 'Pastries', iconKey: 'croissant' },
+        { key: 'cookies', label: 'Cookies', iconKey: 'cookie' },
+        { key: 'drinks', label: 'Drinks', iconKey: 'cup-soda' },
+      ],
+    },
+    electronics: {
+      categoryNames: ['Electronics'],
+      subcategories: [
+        { key: 'phones', label: 'Phones', iconKey: 'smartphone' },
+        { key: 'computers', label: 'Computers', iconKey: 'laptop' },
+        { key: 'accessories', label: 'Accessories', iconKey: 'headphones' },
+        { key: 'appliances', label: 'Appliances', iconKey: 'monitor' },
+        { key: 'gaming', label: 'Gaming', iconKey: 'gamepad-2' },
+      ],
+    },
+    fashion: {
+      categoryNames: ['Fashion'],
+      subcategories: [
+        { key: 'mens_wear', label: "Men's Wear", iconKey: 'shirt' },
+        { key: 'womens_wear', label: "Women's Wear", iconKey: 'shirt' },
+        { key: 'shoes', label: 'Shoes', iconKey: 'footprints' },
+        { key: 'bags', label: 'Bags', iconKey: 'briefcase' },
+        { key: 'accessories', label: 'Accessories', iconKey: 'sparkles' },
+      ],
+    },
+    wholesale: {
+      categoryNames: ['Groceries', 'Home & Garden', 'Stationery & Office'],
+      subcategories: [
+        { key: 'bulk_food', label: 'Bulk Food', iconKey: 'package' },
+        { key: 'cleaning', label: 'Cleaning Supplies', iconKey: 'spray-can' },
+        { key: 'office', label: 'Office Supplies', iconKey: 'clipboard' },
+        { key: 'packaging', label: 'Packaging', iconKey: 'box' },
+        { key: 'general_merchandise', label: 'General Merchandise', iconKey: 'store' },
+      ],
+    },
+    other: {
+      categoryNames: ['Food & Beverages', 'Groceries', 'Electronics', 'Fashion'],
+      subcategories: [
+        { key: 'featured', label: 'Featured', iconKey: 'star' },
+        { key: 'popular', label: 'Popular', iconKey: 'trending-up' },
+        { key: 'essentials', label: 'Essentials', iconKey: 'package' },
+      ],
+    },
+  };
+
   // Store Management
   async createStore(userId: string, storeData: any) {
     // Check if user already has a store
@@ -253,6 +340,64 @@ export class VendorService {
     return this.getMyStoreBusinessHours(userId);
   }
 
+  async getMyProductCategoryOptions(userId: string) {
+    const [store, assignment, categories] = await Promise.all([
+      this.getVendorStore(userId),
+      this.prisma.userRoleAssignment.findUnique({
+        where: {
+          userId_role: {
+            userId,
+            role: 'VENDOR',
+          },
+        },
+        select: {
+          metadata: true,
+        },
+      }),
+      this.prisma.category.findMany({
+        where: { isActive: true },
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          iconKey: true,
+        },
+      }),
+    ]);
+
+    const metadata =
+      assignment?.metadata &&
+      typeof assignment.metadata === 'object' &&
+      !Array.isArray(assignment.metadata)
+        ? (assignment.metadata as Record<string, unknown>)
+        : {};
+    const onboardingData =
+      metadata.onboardingData &&
+      typeof metadata.onboardingData === 'object' &&
+      !Array.isArray(metadata.onboardingData)
+        ? (metadata.onboardingData as Record<string, unknown>)
+        : {};
+    const businessType =
+      typeof onboardingData.businessType === 'string'
+        ? onboardingData.businessType
+        : 'Other';
+    const preset = this.getProductCategoryPreset(businessType);
+    const preferredCategories = categories.filter((category) =>
+      preset.categoryNames.includes(category.name),
+    );
+
+    return {
+      storeId: store.id,
+      businessType,
+      categories:
+        preferredCategories.length > 0
+          ? preferredCategories
+          : categories.slice(0, 6),
+      suggestedSubcategories: preset.subcategories,
+      allowCustomSubcategory: true,
+    };
+  }
+
   // Product Management
   async createProduct(userId: string, storeId: string, productData: any) {
     await this.verifyStoreOwnership(userId, storeId);
@@ -271,6 +416,7 @@ export class VendorService {
         imageUrl: productData.imageUrl,
         tags: productData.tags || [],
         categoryId: productData.categoryId,
+        subcategory: this.normalizeSubcategory(productData.subcategory),
         brandId: productData.brandId,
         isActive: true,
         averageRating: 0,
@@ -299,6 +445,7 @@ export class VendorService {
       name: product.name,
       price: product.price,
       stock: product.stock,
+      subcategory: product.subcategory,
       isActive: product.isActive,
     };
   }
@@ -315,6 +462,11 @@ export class VendorService {
       where: { id: productId },
       data: {
         ...updateData,
+        ...(Object.prototype.hasOwnProperty.call(updateData, 'subcategory')
+          ? {
+              subcategory: this.normalizeSubcategory(updateData.subcategory),
+            }
+          : {}),
         updatedAt: new Date(),
       },
     });
@@ -324,6 +476,7 @@ export class VendorService {
       name: updated.name,
       description: updated.description,
       price: updated.price,
+      subcategory: updated.subcategory,
       isActive: updated.isActive,
     };
   }
@@ -611,5 +764,22 @@ export class VendorService {
     }
 
     return product;
+  }
+
+  private getProductCategoryPreset(businessType?: string) {
+    const normalized = String(businessType || 'other').trim().toLowerCase();
+    return (
+      this.productCategoryPresets[normalized] ||
+      this.productCategoryPresets.other
+    );
+  }
+
+  private normalizeSubcategory(value: unknown) {
+    if (typeof value !== 'string') {
+      return null;
+    }
+
+    const normalized = value.trim();
+    return normalized.length > 0 ? normalized : null;
   }
 }

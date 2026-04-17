@@ -389,6 +389,7 @@ model Product {
   averageRating      Float?
   reviewCount        Int              @default(0)
   categoryId         String?
+  subcategory        String?
   brandId            String?
   storeId            String
   createdAt          DateTime         @default(now())

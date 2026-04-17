@@ -558,6 +558,18 @@ export class MarketplaceController {
 
   @UseGuards(JwtAuthGuard)
   @Roles('VENDOR')
+  @Get('vendor/stores/me/product-category-options')
+  @ApiOperation({ summary: 'Get product category options for the current vendor' })
+  @ApiBearerAuth()
+  async getMyProductCategoryOptions(@Request() req) {
+    const options = await this.vendorService.getMyProductCategoryOptions(
+      req.user.userId,
+    );
+    return { success: true, data: options };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles('VENDOR')
   @Post('vendor/stores/:storeId/products')
   @ApiOperation({ summary: 'Create product' })
   @ApiBearerAuth()

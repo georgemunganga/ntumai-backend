@@ -505,6 +505,8 @@ export class CatalogService {
       tags: product.tags,
       averageRating: product.averageRating,
       reviewCount: product.reviewCount,
+      categoryId: product.categoryId,
+      subcategory: product.subcategory,
       store: product.Store,
       brand: product.Brand,
       category: product.Category,
@@ -693,6 +695,8 @@ export class CatalogService {
       discountPercentage: product.discountPercentage,
       imageUrl: product.imageUrl,
       stock: product.stock,
+      categoryId: product.categoryId,
+      subcategory: product.subcategory,
       category: product.Category
         ? {
             id: product.Category.id,

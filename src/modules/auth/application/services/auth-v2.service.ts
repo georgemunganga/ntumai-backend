@@ -39,6 +39,7 @@ type AuthUserPayload = {
   lastName?: string;
   avatar?: string;
   isVerified?: boolean;
+  businessType?: string;
 };
 
 export interface AuthStartResponse {
@@ -1941,6 +1942,25 @@ export class AuthServiceV2 {
     }
 
     const roles = Object.keys(roleStatuses) as ApiRole[];
+    const vendorAssignment = assignments.find(
+      (assignment) => this.toApiRole(assignment.role) === 'vendor',
+    );
+    const vendorMetadata =
+      vendorAssignment?.metadata &&
+      typeof vendorAssignment.metadata === 'object' &&
+      !Array.isArray(vendorAssignment.metadata)
+        ? (vendorAssignment.metadata as Record<string, unknown>)
+        : {};
+    const vendorOnboardingData =
+      vendorMetadata.onboardingData &&
+      typeof vendorMetadata.onboardingData === 'object' &&
+      !Array.isArray(vendorMetadata.onboardingData)
+        ? (vendorMetadata.onboardingData as Record<string, unknown>)
+        : {};
+    const businessType =
+      typeof vendorOnboardingData.businessType === 'string'
+        ? vendorOnboardingData.businessType
+        : undefined;
 
     return {
       id: user.id,
@@ -1956,6 +1976,7 @@ export class AuthServiceV2 {
       lastName: user.lastName ?? undefined,
       avatar: user.profileImage ?? undefined,
       isVerified: Boolean(user.isEmailVerified || user.isPhoneVerified),
+      businessType,
     };
   }
 
