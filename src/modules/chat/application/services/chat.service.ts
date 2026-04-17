@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { DeliveryService } from '../../../deliveries/application/services/delivery.service';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
+import { ChatGateway } from '../../infrastructure/websocket/chat.gateway';
 import {
   ChatContextTypeDto,
   ConversationDto,
@@ -18,6 +19,7 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly deliveryService: DeliveryService,
+    private readonly chatGateway: ChatGateway,
   ) {}
 
   async getOrCreateConversation(
@@ -168,10 +170,13 @@ export class ChatService {
       },
     });
 
+    const messageDto = this.toMessageDto(message);
+    this.chatGateway.emitMessageCreated(conversationId, messageDto);
+
     return {
       success: true,
       data: {
-        message: this.toMessageDto(message),
+        message: messageDto,
       },
     };
   }
@@ -189,6 +194,12 @@ export class ChatService {
       },
       data: { lastReadAt: readAt },
     });
+
+    this.chatGateway.emitConversationRead(
+      conversationId,
+      userId,
+      readAt.toISOString(),
+    );
 
     return {
       success: true,
