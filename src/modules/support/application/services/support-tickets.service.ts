@@ -77,6 +77,12 @@ export class SupportTicketsService {
       title: 'Support ticket received',
       message: `We received your ticket "${created.subject}" and the team will review it shortly.`,
       type: 'SYSTEM',
+      metadata: {
+        entityType: 'support_ticket',
+        entityId: created.id,
+        contextType: 'support_ticket',
+        contextId: created.id,
+      },
     });
 
     return {

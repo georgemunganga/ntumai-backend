@@ -8,6 +8,7 @@ import { PrismaService } from '../../../../shared/infrastructure/prisma.service'
 import { NotificationsGateway } from '../../infrastructure/websocket/notifications.gateway';
 
 type NotificationKind = 'ORDER_UPDATE' | 'DELIVERY_UPDATE' | 'PROMOTION' | 'SYSTEM' | 'CHAT';
+type NotificationMetadata = Record<string, unknown> | null | undefined;
 
 @Injectable()
 export class NotificationsService {
@@ -123,6 +124,7 @@ export class NotificationsService {
     title: string;
     message: string;
     type: NotificationKind;
+    metadata?: NotificationMetadata;
   }) {
     if (!input.userId) {
       throw new BadRequestException('Notification user is required');
@@ -138,6 +140,7 @@ export class NotificationsService {
         title: input.title.trim(),
         message: input.message.trim(),
         type: input.type,
+        metadata: input.metadata ?? undefined,
         isRead: false,
         updatedAt: now,
       },
@@ -163,6 +166,7 @@ export class NotificationsService {
     title: string;
     message: string;
     type: string;
+    metadata?: NotificationMetadata;
     isRead: boolean;
     createdAt: Date;
     updatedAt: Date;
@@ -173,6 +177,7 @@ export class NotificationsService {
       title: notification.title,
       message: notification.message,
       type: this.toClientType(notification.type),
+      metadata: notification.metadata || null,
       isRead: notification.isRead,
       createdAt: notification.createdAt.toISOString(),
       updatedAt: notification.updatedAt.toISOString(),

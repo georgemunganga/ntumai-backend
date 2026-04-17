@@ -54,6 +54,10 @@ export class MatchingService {
       title: 'Task created',
       message: `Your booking ${saved.booking_id} is now searching for a rider.`,
       type: 'SYSTEM',
+      metadata: {
+        entityType: 'booking',
+        entityId: saved.booking_id,
+      },
     });
 
     // Start matching process asynchronously
@@ -209,6 +213,10 @@ export class MatchingService {
           ? `A rider has accepted booking ${bookingId}.`
           : `Booking ${bookingId} was declined and is being reoffered.`,
       type: 'SYSTEM',
+      metadata: {
+        entityType: 'booking',
+        entityId: bookingId,
+      },
     });
 
     return this.toResponseDto(saved);
@@ -248,6 +256,10 @@ export class MatchingService {
       title: 'Booking progress updated',
       message: `Booking ${bookingId} moved to ${dto.stage.replace(/_/g, ' ')}.`,
       type: 'SYSTEM',
+      metadata: {
+        entityType: 'booking',
+        entityId: bookingId,
+      },
     });
 
     return this.toResponseDto(saved);
@@ -292,6 +304,10 @@ export class MatchingService {
       title: 'Booking completed',
       message: `Booking ${bookingId} has been completed.`,
       type: 'SYSTEM',
+      metadata: {
+        entityType: 'booking',
+        entityId: bookingId,
+      },
     });
 
     return this.toResponseDto(booking);

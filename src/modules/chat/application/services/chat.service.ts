@@ -195,6 +195,13 @@ export class ChatService {
             title: senderName,
             message: input.body.trim(),
             type: 'CHAT',
+            metadata: {
+              entityType: 'conversation',
+              entityId: conversation.id,
+              conversationId: conversation.id,
+              contextType: this.toDtoContextType(conversation.contextType),
+              contextId: conversation.contextId,
+            },
           }),
         ),
     );

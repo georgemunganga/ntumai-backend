@@ -18,6 +18,13 @@ export class NotificationResponseDto {
   })
   type!: 'order_update' | 'delivery' | 'promotion' | 'system' | 'chat';
 
+  @ApiProperty({
+    required: false,
+    type: Object,
+    additionalProperties: true,
+  })
+  metadata?: Record<string, unknown> | null;
+
   @ApiProperty()
   isRead!: boolean;
 

@@ -164,6 +164,11 @@ export class OrderService {
       title: 'Order placed',
       message: `Your order ${order.trackingId} has been placed successfully.`,
       type: 'ORDER_UPDATE',
+      metadata: {
+        entityType: 'order',
+        entityId: order.id,
+        trackingId: order.trackingId,
+      },
     });
 
     return payload;
@@ -209,6 +214,10 @@ export class OrderService {
       title: 'Payment received',
       message: `Payment for order ${orderId} was successful.`,
       type: 'ORDER_UPDATE',
+      metadata: {
+        entityType: 'order',
+        entityId: orderId,
+      },
     });
 
     return {
@@ -389,6 +398,11 @@ export class OrderService {
       title: 'Order cancelled',
       message: `Your order ${order.trackingId} was cancelled successfully.`,
       type: 'ORDER_UPDATE',
+      metadata: {
+        entityType: 'order',
+        entityId: order.id,
+        trackingId: order.trackingId,
+      },
     });
 
     return {

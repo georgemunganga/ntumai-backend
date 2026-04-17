@@ -242,6 +242,10 @@ export class DeliveryService {
       title: 'Delivery submitted',
       message: `Your delivery ${deliveryId} has been submitted successfully.`,
       type: 'DELIVERY_UPDATE',
+      metadata: {
+        entityType: 'delivery',
+        entityId: deliveryId,
+      },
     });
 
     return updated;
@@ -313,12 +317,20 @@ export class DeliveryService {
         title: 'Rider assigned',
         message: `A rider has accepted delivery ${deliveryId}.`,
         type: 'DELIVERY_UPDATE',
+        metadata: {
+          entityType: 'delivery',
+          entityId: deliveryId,
+        },
       }),
       this.notificationsService.createNotification({
         userId: riderId,
         title: 'Delivery accepted',
         message: `You are now assigned to delivery ${deliveryId}.`,
         type: 'DELIVERY_UPDATE',
+        metadata: {
+          entityType: 'delivery',
+          entityId: deliveryId,
+        },
       }),
     ]);
 
@@ -349,6 +361,10 @@ export class DeliveryService {
       title: 'Delivery in transit',
       message: `Delivery ${deliveryId} is now on the way.`,
       type: 'DELIVERY_UPDATE',
+      metadata: {
+        entityType: 'delivery',
+        entityId: deliveryId,
+      },
     });
 
     return updated;
@@ -391,6 +407,10 @@ export class DeliveryService {
           title: 'Delivery cancelled',
           message: `Delivery ${deliveryId} was cancelled.`,
           type: 'DELIVERY_UPDATE',
+          metadata: {
+            entityType: 'delivery',
+            entityId: deliveryId,
+          },
         }),
       ),
     );

@@ -236,6 +236,7 @@ model Notification {
   title     String
   message   String
   type      NotificationType
+  metadata  Json?
   isRead    Boolean          @default(false)
   createdAt DateTime         @default(now())
   updatedAt DateTime
