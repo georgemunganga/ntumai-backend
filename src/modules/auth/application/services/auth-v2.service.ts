@@ -528,6 +528,26 @@ export class AuthServiceV2 {
       onboardingData: payload,
     });
 
+    const existingStore = await this.prisma.store.findFirst({
+      where: { vendorId: userId },
+      select: { id: true },
+    });
+
+    if (!existingStore) {
+      await this.prisma.store.create({
+        data: {
+          id: randomUUID(),
+          vendorId: userId,
+          name: payload.businessName.trim(),
+          description: payload.description?.trim() || null,
+          imageUrl: null,
+          isActive: false,
+          averageRating: 0,
+          updatedAt: new Date(),
+        },
+      });
+    }
+
     return {
       success: true,
       data: {
