@@ -10,6 +10,7 @@ import { DeliveryService } from '../../../../deliveries/application/services/del
 import { TrackingService } from '../../../../tracking/application/services/tracking.service';
 import { ChatService } from '../../../../chat/application/services/chat.service';
 import { ChatContextTypeDto } from '../../../../chat/application/dtos/chat.dto';
+import { NotificationsService } from '../../../../notifications/application/services/notifications.service';
 
 @Injectable()
 export class OrderService {
@@ -18,6 +19,7 @@ export class OrderService {
     private readonly deliveryService: DeliveryService,
     private readonly trackingService: TrackingService,
     private readonly chatService: ChatService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async calculateDelivery(userId: string, addressId: string) {
@@ -155,7 +157,16 @@ export class OrderService {
       where: { id: cart.id },
     });
 
-    return this.mapOrderToDto(order);
+    const payload = this.mapOrderToDto(order);
+
+    await this.notificationsService.createNotification({
+      userId,
+      title: 'Order placed',
+      message: `Your order ${order.trackingId} has been placed successfully.`,
+      type: 'ORDER_UPDATE',
+    });
+
+    return payload;
   }
 
   async processPayment(userId: string, orderId: string, paymentDetails?: any) {
@@ -191,6 +202,13 @@ export class OrderService {
         status: 'ACCEPTED',
         updatedAt: new Date(),
       },
+    });
+
+    await this.notificationsService.createNotification({
+      userId,
+      title: 'Payment received',
+      message: `Payment for order ${orderId} was successful.`,
+      type: 'ORDER_UPDATE',
     });
 
     return {
@@ -364,6 +382,13 @@ export class OrderService {
         status: 'CANCELLED',
         updatedAt: new Date(),
       },
+    });
+
+    await this.notificationsService.createNotification({
+      userId,
+      title: 'Order cancelled',
+      message: `Your order ${order.trackingId} was cancelled successfully.`,
+      type: 'ORDER_UPDATE',
     });
 
     return {

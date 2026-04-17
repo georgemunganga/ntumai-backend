@@ -7,9 +7,10 @@ import { MatchingGateway } from './infrastructure/websocket/matching.gateway';
 import { BOOKING_REPOSITORY } from './domain/repositories/booking.repository.interface';
 import { DatabaseModule } from '../../shared/database/database.module';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [DatabaseModule, AuthModule],
+  imports: [DatabaseModule, AuthModule, NotificationsModule],
   controllers: [MatchingController],
   providers: [
     MatchingService,

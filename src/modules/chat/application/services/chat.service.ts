@@ -6,6 +6,7 @@ import {
 import { DeliveryService } from '../../../deliveries/application/services/delivery.service';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 import { ChatGateway } from '../../infrastructure/websocket/chat.gateway';
+import { NotificationsService } from '../../../notifications/application/services/notifications.service';
 import {
   ChatContextTypeDto,
   ConversationDto,
@@ -20,6 +21,7 @@ export class ChatService {
     private readonly prisma: PrismaService,
     private readonly deliveryService: DeliveryService,
     private readonly chatGateway: ChatGateway,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async getOrCreateConversation(
@@ -151,7 +153,10 @@ export class ChatService {
     conversationId: string,
     input: SendConversationMessageDto,
   ) {
-    await this.requireConversationParticipant(userId, conversationId);
+    const conversation = await this.requireConversationParticipant(
+      userId,
+      conversationId,
+    );
 
     const message = await (this.prisma as any).conversationMessage.create({
       data: {
@@ -172,6 +177,27 @@ export class ChatService {
 
     const messageDto = this.toMessageDto(message);
     this.chatGateway.emitMessageCreated(conversationId, messageDto);
+
+    const senderName =
+      messageDto.senderName ||
+      [message.sender?.firstName, message.sender?.lastName]
+        .filter(Boolean)
+        .join(' ')
+        .trim() ||
+      'New message';
+
+    await Promise.all(
+      (conversation.participants || [])
+        .filter((participant: any) => participant.userId !== userId)
+        .map((participant: any) =>
+          this.notificationsService.createNotification({
+            userId: participant.userId,
+            title: senderName,
+            message: input.body.trim(),
+            type: 'CHAT',
+          }),
+        ),
+    );
 
     return {
       success: true,

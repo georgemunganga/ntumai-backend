@@ -11,6 +11,7 @@ import { AuthModule } from '../auth/auth.module';
 import { DeliveriesModule } from '../deliveries/deliveries.module';
 import { TrackingModule } from '../tracking/tracking.module';
 import { ChatModule } from '../chat/chat.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 // import { AuthModule } from '../auth/auth.module'; // AuthModule is imported in app.module, no need here
 
 @Module({
@@ -20,6 +21,7 @@ import { ChatModule } from '../chat/chat.module';
     DeliveriesModule,
     TrackingModule,
     ChatModule,
+    NotificationsModule,
   ],
   controllers: [MarketplaceController],
   providers: [

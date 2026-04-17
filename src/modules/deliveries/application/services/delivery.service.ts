@@ -19,6 +19,7 @@ import {
   SetPaymentMethodDto,
 } from '../dtos/create-delivery.dto';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
+import { NotificationsService } from '../../../notifications/application/services/notifications.service';
 // import { PricingCalculatorService } from '../../../pricing/application/services/pricing-calculator.service'; // Removed due to missing PricingModule
 
 @Injectable()
@@ -27,6 +28,7 @@ export class DeliveryService {
     @Inject(DELIVERY_REPOSITORY)
     private readonly deliveryRepository: IDeliveryRepository,
     private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
     // @Inject(PricingCalculatorService)
     // private readonly pricingService: PricingCalculatorService, // Removed due to missing PricingModule
   ) {}
@@ -233,8 +235,16 @@ export class DeliveryService {
 
     // For now, just mark as submitted
     delivery.updated_at = new Date();
+    const updated = await this.deliveryRepository.update(deliveryId, delivery);
 
-    return this.deliveryRepository.update(deliveryId, delivery);
+    await this.notificationsService.createNotification({
+      userId,
+      title: 'Delivery submitted',
+      message: `Your delivery ${deliveryId} has been submitted successfully.`,
+      type: 'DELIVERY_UPDATE',
+    });
+
+    return updated;
   }
 
   /**
@@ -295,7 +305,24 @@ export class DeliveryService {
     }
 
     delivery.assignRider(riderId);
-    return this.deliveryRepository.update(deliveryId, delivery);
+    const updated = await this.deliveryRepository.update(deliveryId, delivery);
+
+    await Promise.all([
+      this.notificationsService.createNotification({
+        userId: delivery.created_by_user_id,
+        title: 'Rider assigned',
+        message: `A rider has accepted delivery ${deliveryId}.`,
+        type: 'DELIVERY_UPDATE',
+      }),
+      this.notificationsService.createNotification({
+        userId: riderId,
+        title: 'Delivery accepted',
+        message: `You are now assigned to delivery ${deliveryId}.`,
+        type: 'DELIVERY_UPDATE',
+      }),
+    ]);
+
+    return updated;
   }
 
   /**
@@ -315,7 +342,16 @@ export class DeliveryService {
     }
 
     delivery.markAsDelivery();
-    return this.deliveryRepository.update(deliveryId, delivery);
+    const updated = await this.deliveryRepository.update(deliveryId, delivery);
+
+    await this.notificationsService.createNotification({
+      userId: delivery.created_by_user_id,
+      title: 'Delivery in transit',
+      message: `Delivery ${deliveryId} is now on the way.`,
+      type: 'DELIVERY_UPDATE',
+    });
+
+    return updated;
   }
 
   /**
@@ -342,8 +378,24 @@ export class DeliveryService {
       cancellation_reason: reason,
       cancelled_at: new Date().toISOString(),
     });
+    const updated = await this.deliveryRepository.update(deliveryId, delivery);
 
-    return this.deliveryRepository.update(deliveryId, delivery);
+    const recipientIds = Array.from(
+      new Set([delivery.created_by_user_id, delivery.rider_id].filter(Boolean)),
+    ) as string[];
+
+    await Promise.all(
+      recipientIds.map((recipientId) =>
+        this.notificationsService.createNotification({
+          userId: recipientId,
+          title: 'Delivery cancelled',
+          message: `Delivery ${deliveryId} was cancelled.`,
+          type: 'DELIVERY_UPDATE',
+        }),
+      ),
+    );
+
+    return updated;
   }
 
   /**

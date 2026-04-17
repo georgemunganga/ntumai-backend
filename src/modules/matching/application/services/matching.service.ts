@@ -19,6 +19,7 @@ import {
   CreateBookingResponseDto,
   RiderInfoDto,
 } from '../dtos/booking.dto';
+import { NotificationsService } from '../../../notifications/application/services/notifications.service';
 
 @Injectable()
 export class MatchingService {
@@ -27,6 +28,7 @@ export class MatchingService {
     private readonly bookingRepository: IBookingRepository,
     @Inject('MATCHING_ENGINE')
     private readonly matchingEngine: IMatchingEngine,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createBooking(
@@ -46,6 +48,13 @@ export class MatchingService {
 
     // Save booking
     const saved = await this.bookingRepository.save(booking);
+
+    await this.notificationsService.createNotification({
+      userId: dto.customer_user_id,
+      title: 'Task created',
+      message: `Your booking ${saved.booking_id} is now searching for a rider.`,
+      type: 'SYSTEM',
+    });
 
     // Start matching process asynchronously
     this.startMatchingProcess(saved.booking_id, dto).catch((err) => {
@@ -189,6 +198,19 @@ export class MatchingService {
     }
 
     const saved = await this.bookingRepository.save(booking);
+    const bookingData = booking.toJSON();
+
+    await this.notificationsService.createNotification({
+      userId: bookingData.customer_user_id,
+      title:
+        dto.decision === 'accept' ? 'Booking accepted' : 'Booking reoffered',
+      message:
+        dto.decision === 'accept'
+          ? `A rider has accepted booking ${bookingId}.`
+          : `Booking ${bookingId} was declined and is being reoffered.`,
+      type: 'SYSTEM',
+    });
+
     return this.toResponseDto(saved);
   }
 
@@ -216,9 +238,17 @@ export class MatchingService {
 
     booking.updateProgress(newStatus);
     const saved = await this.bookingRepository.save(booking);
+    const bookingData = booking.toJSON();
 
     // Emit booking.progress event
     console.log('Booking progress updated:', bookingId, dto.stage);
+
+    await this.notificationsService.createNotification({
+      userId: bookingData.customer_user_id,
+      title: 'Booking progress updated',
+      message: `Booking ${bookingId} moved to ${dto.stage.replace(/_/g, ' ')}.`,
+      type: 'SYSTEM',
+    });
 
     return this.toResponseDto(saved);
   }
@@ -255,6 +285,14 @@ export class MatchingService {
 
     // Emit booking.completed event with wait times
     console.log('Booking completed:', bookingId, booking.wait_times);
+    const bookingData = booking.toJSON();
+
+    await this.notificationsService.createNotification({
+      userId: bookingData.customer_user_id,
+      title: 'Booking completed',
+      message: `Booking ${bookingId} has been completed.`,
+      type: 'SYSTEM',
+    });
 
     return this.toResponseDto(booking);
   }
