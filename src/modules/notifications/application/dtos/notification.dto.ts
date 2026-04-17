@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class NotificationResponseDto {
   @ApiProperty()
@@ -49,4 +50,23 @@ export class NotificationMutationResponseDto {
 
   @ApiProperty()
   unreadCount!: number;
+}
+
+export class RegisterDeviceDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  deviceId!: string;
+
+  @ApiProperty({ enum: ['android', 'ios', 'web'] })
+  @IsString()
+  @IsIn(['android', 'ios', 'web'])
+  platform!: 'android' | 'ios' | 'web';
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(512)
+  pushToken!: string;
 }

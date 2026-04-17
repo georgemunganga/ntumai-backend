@@ -2,8 +2,10 @@ import {
   Controller,
   Delete,
   Get,
+  Body,
   Param,
   Patch,
+  Post,
   Query,
   Req,
   UseGuards,
@@ -19,6 +21,7 @@ import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard
 import {
   NotificationListResponseDto,
   NotificationMutationResponseDto,
+  RegisterDeviceDto,
 } from '../../application/dtos/notification.dto';
 import { NotificationsService } from '../../application/services/notifications.service';
 
@@ -68,5 +71,15 @@ export class NotificationsController {
   })
   async remove(@Req() req: any, @Param('id') id: string) {
     return this.notificationsService.remove(req.user.userId, id);
+  }
+
+  @Post('register-device')
+  @ApiOperation({ summary: 'Register or refresh a push token for this device' })
+  @ApiResponse({
+    status: 200,
+    type: NotificationMutationResponseDto,
+  })
+  async registerDevice(@Req() req: any, @Body() dto: RegisterDeviceDto) {
+    return this.notificationsService.registerDevice(req.user.userId, dto);
   }
 }
