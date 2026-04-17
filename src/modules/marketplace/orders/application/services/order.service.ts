@@ -8,6 +8,8 @@ import { PrismaService } from '../../../../../shared/infrastructure/prisma.servi
 import { v4 as uuidv4 } from 'uuid';
 import { DeliveryService } from '../../../../deliveries/application/services/delivery.service';
 import { TrackingService } from '../../../../tracking/application/services/tracking.service';
+import { ChatService } from '../../../../chat/application/services/chat.service';
+import { ChatContextTypeDto } from '../../../../chat/application/dtos/chat.dto';
 
 @Injectable()
 export class OrderService {
@@ -15,6 +17,7 @@ export class OrderService {
     private readonly prisma: PrismaService,
     private readonly deliveryService: DeliveryService,
     private readonly trackingService: TrackingService,
+    private readonly chatService: ChatService,
   ) {}
 
   async calculateDelivery(userId: string, addressId: string) {
@@ -258,7 +261,7 @@ export class OrderService {
     ]);
 
     return {
-      orders: orders.map((o) => this.mapOrderToDto(o)),
+      orders: await Promise.all(orders.map((o) => this.mapOrderToDto(o))),
       pagination: {
         page,
         limit,
@@ -311,7 +314,7 @@ export class OrderService {
       : null;
 
     return {
-      order: this.mapOrderToDto(order),
+      order: await this.mapOrderToDto(order),
       linkedDelivery: linkedDelivery
         ? {
             id: linkedDelivery.id,
@@ -476,10 +479,16 @@ export class OrderService {
     };
   }
 
-  private mapOrderToDto(order: any) {
+  private async mapOrderToDto(order: any) {
+    const conversationId = await this.chatService.findExistingConversationId(
+      ChatContextTypeDto.MARKETPLACE_ORDER,
+      order.id,
+    );
+
     return {
       id: order.id,
       trackingId: order.trackingId,
+      conversationId,
       status: order.status,
       subtotal: order.subtotal,
       discountAmount: order.discountAmount,

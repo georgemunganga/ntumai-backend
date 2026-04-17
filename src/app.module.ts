@@ -15,6 +15,7 @@ import { TrackingModule } from './modules/tracking/tracking.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { SupportModule } from './modules/support/support.module';
 import { CustomerOrdersModule } from './modules/customer-orders/customer-orders.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { CustomerOrdersModule } from './modules/customer-orders/customer-orders.
     PaymentsModule,
     SupportModule,
     CustomerOrdersModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

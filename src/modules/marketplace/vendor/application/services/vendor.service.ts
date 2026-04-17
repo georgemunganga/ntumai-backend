@@ -7,10 +7,15 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../../../shared/infrastructure/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
+import { ChatService } from '../../../../chat/application/services/chat.service';
+import { ChatContextTypeDto } from '../../../../chat/application/dtos/chat.dto';
 
 @Injectable()
 export class VendorService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly chatService: ChatService,
+  ) {}
 
   private readonly defaultBusinessHours = [
     { dayOfWeek: 0, isOpen: false, openTime: '09:00', closeTime: '17:00' },
@@ -628,26 +633,40 @@ export class VendorService {
     ]);
 
     return {
-      orders: orders.map((order) => ({
-        id: order.id,
-        trackingId: order.trackingId,
-        status: order.status,
-        totalAmount: order.totalAmount,
-        customer: {
-          name: `${order.User.firstName} ${order.User.lastName}`,
-          phone: order.User.phone,
-        },
-        items: order.OrderItem.map((item) => ({
-          product: item.Product.name,
-          quantity: item.quantity,
-          price: item.price,
+      orders: await Promise.all(
+        orders.map(async (order) => ({
+          id: order.id,
+          trackingId: order.trackingId,
+          conversationId: await this.chatService.findExistingConversationId(
+            ChatContextTypeDto.MARKETPLACE_ORDER,
+            order.id,
+          ),
+          status: order.status,
+          totalAmount: order.totalAmount,
+          customer: {
+            id: order.User.id,
+            name: `${order.User.firstName} ${order.User.lastName}`,
+            phone: order.User.phone,
+          },
+          items: order.OrderItem.map((item) => ({
+            id: item.id,
+            name: item.Product.name,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+          deliveryAddress:
+            order.Address.address || order.Address.city
+              ? `${order.Address.address}, ${order.Address.city}`
+              : undefined,
+          paymentMethod: undefined,
+          subtotal: order.subtotal,
+          deliveryFee: order.deliveryFee,
+          tax: order.tax,
+          itemCount: order.OrderItem.length,
+          createdAt: order.createdAt,
+          updatedAt: order.updatedAt,
         })),
-        deliveryAddress: {
-          address: order.Address.address,
-          city: order.Address.city,
-        },
-        createdAt: order.createdAt,
-      })),
+      ),
       pagination: {
         page,
         limit,

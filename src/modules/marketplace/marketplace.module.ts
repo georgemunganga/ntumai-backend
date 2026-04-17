@@ -10,10 +10,17 @@ import { DatabaseModule } from '../../shared/database/database.module';
 import { AuthModule } from '../auth/auth.module';
 import { DeliveriesModule } from '../deliveries/deliveries.module';
 import { TrackingModule } from '../tracking/tracking.module';
+import { ChatModule } from '../chat/chat.module';
 // import { AuthModule } from '../auth/auth.module'; // AuthModule is imported in app.module, no need here
 
 @Module({
-  imports: [DatabaseModule, AuthModule, DeliveriesModule, TrackingModule],
+  imports: [
+    DatabaseModule,
+    AuthModule,
+    DeliveriesModule,
+    TrackingModule,
+    ChatModule,
+  ],
   controllers: [MarketplaceController],
   providers: [
     CatalogService,

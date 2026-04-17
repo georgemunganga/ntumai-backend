@@ -18,6 +18,7 @@ import {
   AttachPricingDto,
   SetPaymentMethodDto,
 } from '../dtos/create-delivery.dto';
+import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 // import { PricingCalculatorService } from '../../../pricing/application/services/pricing-calculator.service'; // Removed due to missing PricingModule
 
 @Injectable()
@@ -25,6 +26,7 @@ export class DeliveryService {
   constructor(
     @Inject(DELIVERY_REPOSITORY)
     private readonly deliveryRepository: IDeliveryRepository,
+    private readonly prisma: PrismaService,
     // @Inject(PricingCalculatorService)
     // private readonly pricingService: PricingCalculatorService, // Removed due to missing PricingModule
   ) {}
@@ -244,10 +246,17 @@ export class DeliveryService {
     page: number = 1,
     size: number = 20,
   ): Promise<any> {
-    return this.deliveryRepository.findAll(
+    const result = await this.deliveryRepository.findAll(
       { created_by_user_id: userId, placed_by_role: role },
       { page, size },
     );
+
+    const deliveries = Array.isArray(result?.data) ? result.data : [];
+    for (const delivery of deliveries) {
+      (delivery as any).conversationId = await this.findConversationId(delivery.id);
+    }
+
+    return result;
   }
 
   /**
@@ -345,6 +354,7 @@ export class DeliveryService {
     if (!delivery) {
       throw new NotFoundException('Delivery not found');
     }
+    (delivery as any).conversationId = await this.findConversationId(delivery.id);
     return delivery;
   }
 
@@ -406,5 +416,19 @@ export class DeliveryService {
         'scheduled_at must be within 48 hours from now',
       );
     }
+  }
+
+  private async findConversationId(contextId: string): Promise<string | null> {
+    const conversation = await (this.prisma as any).conversation.findUnique({
+      where: {
+        contextType_contextId: {
+          contextType: 'DELIVERY',
+          contextId,
+        },
+      },
+      select: { id: true },
+    });
+
+    return conversation?.id ?? null;
   }
 }

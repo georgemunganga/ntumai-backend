@@ -10,7 +10,7 @@ model Address {
   id           String      @id @default(uuid())
   userId       String
   type         AddressType @default(HOME)
-  label        String?     // Custom label like "Home", "Office"
+  label        String? // Custom label like "Home", "Office"
   address      String
   city         String
   state        String
@@ -18,9 +18,9 @@ model Address {
   postalCode   String?
   latitude     Float
   longitude    Float
-  instructions String?     // Delivery instructions
-  contactName  String?     // Contact person name
-  contactPhone String?     // Contact phone number
+  instructions String? // Delivery instructions
+  contactName  String? // Contact person name
+  contactPhone String? // Contact phone number
   isDefault    Boolean     @default(false)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
@@ -56,16 +56,16 @@ model Brand {
 }
 
 model Cart {
-  id              String        @id
-  userId          String        @unique
-  storeId         String?       // For single-store cart policy
-  discountCodeId  String?       // Applied discount code
-  discountAmount  Float         @default(0)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime
-  User            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  DiscountCode    DiscountCode? @relation(fields: [discountCodeId], references: [id])
-  CartItem        CartItem[]
+  id             String        @id
+  userId         String        @unique
+  storeId        String? // For single-store cart policy
+  discountCodeId String? // Applied discount code
+  discountAmount Float         @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  User           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  DiscountCode   DiscountCode? @relation(fields: [discountCodeId], references: [id])
+  CartItem       CartItem[]
 }
 
 model CartItem {
@@ -73,9 +73,9 @@ model CartItem {
   cartId         String
   productId      String
   quantity       Int
-  price          Float    // Price at time of adding to cart
+  price          Float // Price at time of adding to cart
   variantOptions Json?
-  note           String?  // Customer note for this item
+  note           String? // Customer note for this item
   createdAt      DateTime @default(now())
   updatedAt      DateTime
   Cart           Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
@@ -102,6 +102,53 @@ model Chat {
   createdAt DateTime @default(now())
   updatedAt DateTime
   User      User     @relation(fields: [userId], references: [id])
+}
+
+model Conversation {
+  id           String                    @id @default(uuid())
+  contextType  ChatContextType
+  contextId    String
+  status       String                    @default("active")
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  participants ConversationParticipant[]
+  messages     ConversationMessage[]
+
+  @@unique([contextType, contextId])
+  @@index([updatedAt])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String       @id @default(uuid())
+  conversationId String
+  userId         String
+  role           String?
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId, joinedAt])
+  @@map("conversation_participants")
+}
+
+model ConversationMessage {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  body           String
+  messageType    String       @default("text")
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([senderId, createdAt])
+  @@map("conversation_messages")
 }
 
 model DeliveryAssignment {
@@ -142,11 +189,11 @@ model DiscountCode {
   isActive      Boolean      @default(true)
   startDate     DateTime
   endDate       DateTime
-  expiresAt     DateTime?    // Optional expiration date
+  expiresAt     DateTime? // Optional expiration date
   createdAt     DateTime     @default(now())
   updatedAt     DateTime
   Order         Order[]
-  Cart          Cart[]  // Carts using this discount
+  Cart          Cart[] // Carts using this discount
 }
 
 model Favorite {
@@ -165,8 +212,8 @@ model StoreFavorite {
   userId    String
   storeId   String
   createdAt DateTime @default(now())
-  store      Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, storeId])
   @@index([userId])
@@ -237,9 +284,9 @@ model OTPVerification {
 model OtpChallenge {
   id                String         @id @default(uuid())
   challengeId       String         @unique @default(uuid())
-  identifier        String         // email or phone
+  identifier        String // email or phone
   identifierType    IdentifierType
-  otpCodeHash       String         // hashed OTP code
+  otpCodeHash       String // hashed OTP code
   purpose           OtpPurpose
   attempts          Int            @default(0)
   maxAttempts       Int            @default(5)
@@ -259,18 +306,18 @@ model OtpChallenge {
 
 // Auth Module: Refresh Token for JWT token management
 model RefreshToken {
-  id         String    @id @default(uuid())
-  tokenHash  String    @unique // hashed refresh token
-  userId     String
-  deviceId   String?
-  ipAddress  String?
-  userAgent  String?
-  expiresAt  DateTime
-  isRevoked  Boolean   @default(false)
-  revokedAt  DateTime?
-  createdAt  DateTime  @default(now())
-  
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid())
+  tokenHash String    @unique // hashed refresh token
+  userId    String
+  deviceId  String?
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  isRevoked Boolean   @default(false)
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRevoked])
   @@index([tokenHash])
@@ -284,11 +331,11 @@ model UserRoleAssignment {
   userId    String
   role      UserRole
   active    Boolean  @default(true)
-  metadata  Json?    // Store role-specific data like storeName for VENDOR
+  metadata  Json? // Store role-specific data like storeName for VENDOR
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, role])
   @@index([userId, active])
@@ -297,17 +344,17 @@ model UserRoleAssignment {
 
 // User Module: Push tokens for notifications
 model PushToken {
-  id         String   @id @default(uuid())
-  userId     String
-  deviceId   String
-  platform   String   // android, ios, web
-  pushToken  String
-  isActive   Boolean  @default(true)
-  lastSeen   DateTime @default(now())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  userId    String
+  deviceId  String
+  platform  String // android, ios, web
+  pushToken String
+  isActive  Boolean  @default(true)
+  lastSeen  DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, deviceId])
   @@index([userId, isActive])
@@ -316,13 +363,13 @@ model PushToken {
 
 // User Module: User preferences
 model UserPreference {
-  id           String   @id @default(uuid())
-  userId       String   @unique
-  preferences  Json     // Store all preferences as JSON
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  preferences Json // Store all preferences as JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_preferences")
 }
@@ -402,7 +449,7 @@ model Product {
   Store              Store            @relation(fields: [storeId], references: [id])
   ProductVariant     ProductVariant[]
   Review             Review[]
-  Wishlist           Wishlist[]       // Marketplace Module relation
+  Wishlist           Wishlist[] // Marketplace Module relation
 }
 
 model ProductVariant {
@@ -435,13 +482,13 @@ model Review {
   userId                     String
   entityType                 ReviewEntityType
   entityId                   String
-  productId                  String?          // For product reviews
-  storeId                    String?          // For store reviews
-  orderId                    String?          // For order reviews
+  productId                  String? // For product reviews
+  storeId                    String? // For store reviews
+  orderId                    String? // For order reviews
   rating                     Int
   comment                    String?
   images                     String[]         @default([]) // Review images
-  helpfulCount               Int              @default(0)  // Helpful votes
+  helpfulCount               Int              @default(0) // Helpful votes
   createdAt                  DateTime         @default(now())
   updatedAt                  DateTime
   User_Review_entityIdToUser User             @relation("Review_entityIdToUser", fields: [entityId], references: [id], map: "Review_Driver_fkey")
@@ -464,20 +511,20 @@ model Reward {
 }
 
 model Store {
-  id            String    @id
-  name          String
-  description   String?
-  imageUrl      String?
-  vendorId      String
-  isActive      Boolean   @default(true)
-  autoOffline   Boolean   @default(false)
-  averageRating Float?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime
-  Product       Product[]
-  Review        Review[]
-  User          User      @relation(fields: [vendorId], references: [id])
-  StoreFavorite StoreFavorite[]
+  id                String              @id
+  name              String
+  description       String?
+  imageUrl          String?
+  vendorId          String
+  isActive          Boolean             @default(true)
+  autoOffline       Boolean             @default(false)
+  averageRating     Float?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime
+  Product           Product[]
+  Review            Review[]
+  User              User                @relation(fields: [vendorId], references: [id])
+  StoreFavorite     StoreFavorite[]
   StoreBusinessHour StoreBusinessHour[]
   StoreHoliday      StoreHoliday[]
 }
@@ -523,19 +570,19 @@ model Task {
 }
 
 model User {
-  id                           String               @id
-  email                        String?              @unique
-  phone                        String?              @unique
+  id                           String                    @id
+  email                        String?                   @unique
+  phone                        String?                   @unique
   countryCode                  String?
   password                     String
   firstName                    String
   lastName                     String
   profileImage                 String?
-  role                         UserRole             @default(CUSTOMER)
-  isEmailVerified              Boolean              @default(false)
-  isPhoneVerified              Boolean              @default(false)
+  role                         UserRole                  @default(CUSTOMER)
+  isEmailVerified              Boolean                   @default(false)
+  isPhoneVerified              Boolean                   @default(false)
   lastLoginAt                  DateTime?
-  createdAt                    DateTime             @default(now())
+  createdAt                    DateTime                  @default(now())
   updatedAt                    DateTime
   Address                      Address[]
   Cart                         Cart?
@@ -547,20 +594,22 @@ model User {
   Notification                 Notification[]
   CustomerPaymentMethod        CustomerPaymentMethod[]
   Order                        Order[]
-  Review_Review_entityIdToUser Review[]             @relation("Review_entityIdToUser")
-  Review_Review_userIdToUser   Review[]             @relation("Review_userIdToUser")
+  Review_Review_entityIdToUser Review[]                  @relation("Review_entityIdToUser")
+  Review_Review_userIdToUser   Review[]                  @relation("Review_userIdToUser")
   Reward                       Reward[]
   Store                        Store[]
   Task                         Task[]
-  RefreshToken                 RefreshToken[]       // Auth Module relation
+  RefreshToken                 RefreshToken[] // Auth Module relation
   UserRoleAssignment           UserRoleAssignment[] // User Module relation
-  PushToken                    PushToken[]          // User Module relation
-  UserPreference               UserPreference?      // User Module relation
+  PushToken                    PushToken[] // User Module relation
+  UserPreference               UserPreference? // User Module relation
   SupportTicket                SupportTicket[]
-  GiftCard                     GiftCard[]           // Marketplace Module relation
-  GiftCardSent                 GiftCard[]           @relation("GiftCardSender") // Marketplace Module relation
-  Wishlist                     Wishlist[]           // Marketplace Module relation
+  GiftCard                     GiftCard[] // Marketplace Module relation
+  GiftCardSent                 GiftCard[]                @relation("GiftCardSender") // Marketplace Module relation
+  Wishlist                     Wishlist[] // Marketplace Module relation
   StoreFavorite                StoreFavorite[]
+  ConversationParticipant      ConversationParticipant[]
+  ConversationMessage          ConversationMessage[]
 }
 
 model SupportTicket {
@@ -573,7 +622,7 @@ model SupportTicket {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
 
-  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([status])
@@ -582,24 +631,24 @@ model SupportTicket {
 
 // Marketplace Module: Gift Cards
 model GiftCard {
-  id            String   @id @default(uuid())
-  code          String   @unique
-  amount        Float
-  balance       Float
-  senderUserId  String?
+  id              String    @id @default(uuid())
+  code            String    @unique
+  amount          Float
+  balance         Float
+  senderUserId    String?
   recipientUserId String?
-  recipientEmail String?
-  recipientPhone String?
-  message       String?
-  designId      String?
-  isRedeemed    Boolean  @default(false)
-  redeemedAt    DateTime?
-  expiresAt     DateTime
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  sender        User?    @relation("GiftCardSender", fields: [senderUserId], references: [id])
-  recipient     User?    @relation(fields: [recipientUserId], references: [id])
+  recipientEmail  String?
+  recipientPhone  String?
+  message         String?
+  designId        String?
+  isRedeemed      Boolean   @default(false)
+  redeemedAt      DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sender    User? @relation("GiftCardSender", fields: [senderUserId], references: [id])
+  recipient User? @relation(fields: [recipientUserId], references: [id])
 
   @@index([code])
   @@index([recipientEmail])
@@ -615,9 +664,9 @@ model Wishlist {
   note      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([userId, productId])
   @@index([userId])
@@ -662,6 +711,13 @@ enum NotificationType {
   PROMOTION
   SYSTEM
   CHAT
+}
+
+enum ChatContextType {
+  MARKETPLACE_ORDER
+  DELIVERY
+  BOOKING
+  SUPPORT_TICKET
 }
 
 enum OTPType {
@@ -775,13 +831,11 @@ enum UserRole {
   ADMIN
 }
 
-
-
 // Shifts Module: Rider shift management
 model Shift {
   id                       String    @id
   rider_user_id            String
-  status                   String    // active, paused, ended
+  status                   String // active, paused, ended
   vehicle_type             String
   start_time               DateTime
   end_time                 DateTime?
@@ -806,7 +860,7 @@ model Shift {
 model Booking {
   booking_id         String    @id
   delivery_id        String
-  status             String    // pending, searching, offered, accepted, en_route, arrived_pickup, picked_up, en_route_dropoff, delivered, cancelled
+  status             String // pending, searching, offered, accepted, en_route, arrived_pickup, picked_up, en_route_dropoff, delivered, cancelled
   vehicle_type       String
   pickup             Json
   dropoffs           Json
@@ -832,14 +886,14 @@ model Booking {
 
 // Tracking Module: Real-time tracking events
 model TrackingEvent {
-  id             String    @id
-  booking_id     String
-  delivery_id    String
-  event_type     String    // booking_created, rider_assigned, en_route_to_pickup, etc.
-  location       Json?
-  rider_user_id  String?
-  metadata       Json      @default("{}")
-  timestamp      DateTime  @default(now())
+  id            String   @id
+  booking_id    String
+  delivery_id   String
+  event_type    String // booking_created, rider_assigned, en_route_to_pickup, etc.
+  location      Json?
+  rider_user_id String?
+  metadata      Json     @default("{}")
+  timestamp     DateTime @default(now())
 
   @@index([booking_id, timestamp])
   @@index([delivery_id, timestamp])
@@ -848,20 +902,20 @@ model TrackingEvent {
 
 // Orders Module: Unified order history (marketplace + deliveries)
 model UnifiedOrder {
-  id                    String    @id
-  user_id               String
-  type                  String    // marketplace, delivery
-  status                String    // pending, confirmed, in_progress, completed, cancelled
-  marketplace_order_id  String?
-  delivery_id           String?
-  booking_id            String?
-  total_amount          Float
-  currency              String
-  items_summary         String
-  delivery_address      String?
-  created_at            DateTime  @default(now())
-  updated_at            DateTime  @updatedAt
-  completed_at          DateTime?
+  id                   String    @id
+  user_id              String
+  type                 String // marketplace, delivery
+  status               String // pending, confirmed, in_progress, completed, cancelled
+  marketplace_order_id String?
+  delivery_id          String?
+  booking_id           String?
+  total_amount         Float
+  currency             String
+  items_summary        String
+  delivery_address     String?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+  completed_at         DateTime?
 
   @@index([user_id, created_at])
   @@index([type, status])
