@@ -694,13 +694,59 @@ export class VendorService {
   }
 
   private async getVendorStore(userId: string) {
-    const store = await this.prisma.store.findFirst({
+    let store = await this.prisma.store.findFirst({
       where: { vendorId: userId },
       orderBy: { createdAt: 'asc' },
     });
 
     if (!store) {
-      throw new NotFoundException('Vendor store not found');
+      const assignment = await this.prisma.userRoleAssignment.findUnique({
+        where: {
+          userId_role: {
+            userId,
+            role: 'VENDOR',
+          },
+        },
+        select: {
+          metadata: true,
+        },
+      });
+
+      const metadata =
+        assignment?.metadata && typeof assignment.metadata === 'object'
+          ? (assignment.metadata as Record<string, unknown>)
+          : null;
+      const onboardingData =
+        metadata?.onboardingData &&
+        typeof metadata.onboardingData === 'object' &&
+        !Array.isArray(metadata.onboardingData)
+          ? (metadata.onboardingData as Record<string, unknown>)
+          : null;
+      const businessName =
+        typeof onboardingData?.businessName === 'string'
+          ? onboardingData.businessName.trim()
+          : '';
+      const description =
+        typeof onboardingData?.description === 'string'
+          ? onboardingData.description.trim()
+          : '';
+
+      if (!businessName) {
+        throw new NotFoundException('Vendor store not found');
+      }
+
+      store = await this.prisma.store.create({
+        data: {
+          id: uuidv4(),
+          vendorId: userId,
+          name: businessName,
+          description: description || null,
+          imageUrl: null,
+          isActive: false,
+          averageRating: 0,
+          updatedAt: new Date(),
+        },
+      });
     }
 
     return store;
