@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 import { CommunicationsService } from '../../../communications/communications.service';
+import { NotificationsService } from '../../../notifications/application/services/notifications.service';
 import {
   CreateSupportTicketDto,
   SupportTicketCategoryDto,
@@ -14,6 +15,7 @@ export class SupportTicketsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly communicationsService: CommunicationsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async list(userId: string) {
@@ -69,6 +71,13 @@ export class SupportTicketsService {
           );
         });
     }
+
+    await this.notificationsService.createNotification({
+      userId,
+      title: 'Support ticket received',
+      message: `We received your ticket "${created.subject}" and the team will review it shortly.`,
+      type: 'SYSTEM',
+    });
 
     return {
       success: true,
