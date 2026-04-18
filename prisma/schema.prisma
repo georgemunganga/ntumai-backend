@@ -500,30 +500,30 @@ model Promotion {
 }
 
 model Review {
-  id        String           @id
-  userId    String
-  entityType ReviewEntityType
-  entityId  String
-  productId String? // For product reviews
-  storeId   String? // For store reviews
-  orderId   String? // For order reviews
-  driverId  String? // For tasker/driver reviews
-  customerId String? // For customer reviews from taskers
-  contextType String?
-  contextId String?
-  metadata  Json?
-  rating    Int
-  comment   String?
-  images    String[]         @default([]) // Review images
-  helpfulCount Int           @default(0) // Helpful votes
-  createdAt DateTime         @default(now())
-  updatedAt DateTime
-  order     Order?           @relation(fields: [orderId], references: [id])
-  product   Product?         @relation(fields: [productId], references: [id])
-  store     Store?           @relation(fields: [storeId], references: [id])
-  reviewer  User             @relation("ReviewAuthor", fields: [userId], references: [id])
-  driver    User?            @relation("ReviewDriver", fields: [driverId], references: [id])
-  customer  User?            @relation("ReviewCustomer", fields: [customerId], references: [id])
+  id           String           @id
+  userId       String
+  entityType   ReviewEntityType
+  entityId     String
+  productId    String? // For product reviews
+  storeId      String? // For store reviews
+  orderId      String? // For order reviews
+  driverId     String? // For tasker/driver reviews
+  customerId   String? // For customer reviews from taskers
+  contextType  String?
+  contextId    String?
+  metadata     Json?
+  rating       Int
+  comment      String?
+  images       String[]         @default([]) // Review images
+  helpfulCount Int              @default(0) // Helpful votes
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime
+  order        Order?           @relation(fields: [orderId], references: [id])
+  product      Product?         @relation(fields: [productId], references: [id])
+  store        Store?           @relation(fields: [storeId], references: [id])
+  reviewer     User             @relation("ReviewAuthor", fields: [userId], references: [id])
+  driver       User?            @relation("ReviewDriver", fields: [driverId], references: [id])
+  customer     User?            @relation("ReviewCustomer", fields: [customerId], references: [id])
 }
 
 model Reward {
@@ -598,48 +598,48 @@ model Task {
 }
 
 model User {
-  id                           String                    @id
-  email                        String?                   @unique
-  phone                        String?                   @unique
-  countryCode                  String?
-  password                     String
-  firstName                    String
-  lastName                     String
-  profileImage                 String?
-  role                         UserRole                  @default(CUSTOMER)
-  isEmailVerified              Boolean                   @default(false)
-  isPhoneVerified              Boolean                   @default(false)
-  lastLoginAt                  DateTime?
-  createdAt                    DateTime                  @default(now())
-  updatedAt                    DateTime
-  Address                      Address[]
-  Cart                         Cart?
-  Chat                         Chat[]
-  DeliveryAssignment           DeliveryAssignment[]
-  DeviceSession                DeviceSession[]
-  Favorite                     Favorite[]
-  LoyaltyPoint                 LoyaltyPoint[]
-  Notification                 Notification[]
-  CustomerPaymentMethod        CustomerPaymentMethod[]
-  Order                        Order[]
-  reviewsAuthored              Review[]                  @relation("ReviewAuthor")
-  driverReviewsReceived        Review[]                  @relation("ReviewDriver")
-  customerReviewsReceived      Review[]                  @relation("ReviewCustomer")
-  Reward                       Reward[]
-  Store                        Store[]
-  Task                         Task[]
-  RefreshToken                 RefreshToken[] // Auth Module relation
-  UserRoleAssignment           UserRoleAssignment[] // User Module relation
-  PushToken                    PushToken[] // User Module relation
-  PayoutRequest                PayoutRequest[]
-  UserPreference               UserPreference? // User Module relation
-  SupportTicket                SupportTicket[]
-  GiftCard                     GiftCard[] // Marketplace Module relation
-  GiftCardSent                 GiftCard[]                @relation("GiftCardSender") // Marketplace Module relation
-  Wishlist                     Wishlist[] // Marketplace Module relation
-  StoreFavorite                StoreFavorite[]
-  ConversationParticipant      ConversationParticipant[]
-  ConversationMessage          ConversationMessage[]
+  id                      String                    @id
+  email                   String?                   @unique
+  phone                   String?                   @unique
+  countryCode             String?
+  password                String
+  firstName               String
+  lastName                String
+  profileImage            String?
+  role                    UserRole                  @default(CUSTOMER)
+  isEmailVerified         Boolean                   @default(false)
+  isPhoneVerified         Boolean                   @default(false)
+  lastLoginAt             DateTime?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime
+  Address                 Address[]
+  Cart                    Cart?
+  Chat                    Chat[]
+  DeliveryAssignment      DeliveryAssignment[]
+  DeviceSession           DeviceSession[]
+  Favorite                Favorite[]
+  LoyaltyPoint            LoyaltyPoint[]
+  Notification            Notification[]
+  CustomerPaymentMethod   CustomerPaymentMethod[]
+  Order                   Order[]
+  reviewsAuthored         Review[]                  @relation("ReviewAuthor")
+  driverReviewsReceived   Review[]                  @relation("ReviewDriver")
+  customerReviewsReceived Review[]                  @relation("ReviewCustomer")
+  Reward                  Reward[]
+  Store                   Store[]
+  Task                    Task[]
+  RefreshToken            RefreshToken[] // Auth Module relation
+  UserRoleAssignment      UserRoleAssignment[] // User Module relation
+  PushToken               PushToken[] // User Module relation
+  PayoutRequest           PayoutRequest[]
+  UserPreference          UserPreference? // User Module relation
+  SupportTicket           SupportTicket[]
+  GiftCard                GiftCard[] // Marketplace Module relation
+  GiftCardSent            GiftCard[]                @relation("GiftCardSender") // Marketplace Module relation
+  Wishlist                Wishlist[] // Marketplace Module relation
+  StoreFavorite           StoreFavorite[]
+  ConversationParticipant ConversationParticipant[]
+  ConversationMessage     ConversationMessage[]
 }
 
 model SupportTicket {
@@ -967,4 +967,54 @@ model UnifiedOrder {
   @@index([marketplace_order_id])
   @@index([delivery_id])
   @@map("unified_orders")
+}
+
+model DeliveryRecord {
+  id                     String               @id
+  created_by_user_id     String
+  placed_by_role         String
+  vehicle_type           String
+  courier_comment        String?
+  is_scheduled           Boolean              @default(false)
+  scheduled_at           DateTime?
+  order_status           String               @default("booked")
+  payment_method         String?
+  payment_calc_payload   Json?
+  payment_calc_sig       String?
+  payment_currency       String?
+  payment_amount         Float?
+  payment_expires_at     DateTime?
+  more_info              String?
+  rider_id               String?
+  ready_token            String?
+  ready_token_expires_at DateTime?
+  created_at             DateTime             @default(now())
+  updated_at             DateTime             @updatedAt
+  stops                  DeliveryStopRecord[]
+
+  @@index([created_by_user_id, placed_by_role, created_at])
+  @@index([rider_id, created_at])
+  @@index([order_status, created_at])
+  @@index([vehicle_type, order_status])
+  @@map("deliveries")
+}
+
+model DeliveryStopRecord {
+  id             String         @id
+  delivery_id    String
+  type           String
+  sequence       Int
+  contact_name   String?
+  contact_phone  String?
+  notes          String?
+  geo            Json?
+  address        Json?
+  completed_at   DateTime?
+  proof_photo_id String?
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @updatedAt
+  delivery       DeliveryRecord @relation(fields: [delivery_id], references: [id], onDelete: Cascade)
+
+  @@index([delivery_id, sequence])
+  @@map("delivery_stops")
 }
