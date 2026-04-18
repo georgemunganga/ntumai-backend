@@ -334,12 +334,12 @@ export class RiderDeliveryController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Accept Delivery',
-    description: 'Rider accepts a delivery',
+    summary: 'Accept delivery offer',
+    description: 'Rider accepts a delivery offer',
   })
   @ApiResponse({
     status: 200,
-    description: 'Delivery accepted',
+    description: 'Delivery offer accepted',
   })
   async acceptDelivery(
     @Param('id') id: string,

@@ -532,13 +532,13 @@ export class CommunicationsService {
   ): Promise<void> {
     await this.sendEmail({
       to: input.to,
-      subject: `Tasker assigned for order ${input.orderId}`,
+      subject: `Tasker accepted order ${input.orderId}`,
       template: 'tasker-assigned-email',
       context: {
         firstName: input.firstName,
         preheader:
           input.preheader ||
-          `A rider or tasker has been assigned to order ${input.orderId}.`,
+          `A rider or tasker has accepted order ${input.orderId}.`,
         details: this.buildDetails([
           ['Order ID', input.orderId],
           ['Tasker', input.taskerName],
