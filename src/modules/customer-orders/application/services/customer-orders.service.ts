@@ -25,6 +25,12 @@ type FeedItem = {
   taskerName?: string | null;
   itemCount?: number;
   addressSummary?: string | null;
+  taskPreview?: {
+    substitutionPreference?: string | null;
+    recipientName?: string | null;
+    accountNumber?: string | null;
+    referenceNumber?: string | null;
+  } | null;
   isTrackable: boolean;
   isCancelable: boolean;
   isRateable: boolean;
@@ -196,6 +202,7 @@ export class CustomerOrdersService {
   }
 
   private toTaskFeedItem(booking: any): FeedItem {
+    const metadata = booking.metadata || {};
     const pickupAddress = booking.pickup?.address || null;
     const dropoffAddress = Array.isArray(booking.dropoffs)
       ? booking.dropoffs.map((item: any) => item.address).filter(Boolean)[0] || null
@@ -218,6 +225,12 @@ export class CustomerOrdersService {
       trackingId: booking.delivery_id || null,
       taskerName: booking.rider?.name || null,
       addressSummary: dropoffAddress,
+      taskPreview: {
+        substitutionPreference: metadata.substitutionPreference || null,
+        recipientName: metadata.recipientName || null,
+        accountNumber: metadata.accountNumber || null,
+        referenceNumber: metadata.referenceNumber || null,
+      },
       isTrackable: true,
       isCancelable: !this.isHistoryStatus(status),
       isRateable: status === 'completed',
