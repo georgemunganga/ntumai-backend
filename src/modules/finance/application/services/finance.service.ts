@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { NotificationsService } from '../../../notifications/application/services/notifications.service';
@@ -11,6 +12,7 @@ import {
   FinanceSummaryResponseDto,
   FinanceTransactionDto,
   PayoutRequestDto,
+  UpdatePayoutRequestStatusDto,
 } from '../dtos/finance.dto';
 
 type FinanceRole = 'customer' | 'tasker' | 'vendor';
@@ -425,6 +427,57 @@ export class FinanceService {
     return this.toPayoutDto(request);
   }
 
+  async updatePayoutRequestStatus(
+    adminUserId: string,
+    payoutRequestId: string,
+    input: UpdatePayoutRequestStatusDto,
+  ): Promise<PayoutRequestDto> {
+    const request = await (this.prisma as any).payoutRequest.findUnique({
+      where: { id: payoutRequestId },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Payout request not found');
+    }
+
+    const nextStatus = input.status.toUpperCase();
+    const updated = await (this.prisma as any).payoutRequest.update({
+      where: { id: payoutRequestId },
+      data: {
+        status: nextStatus,
+        notes: input.notes?.trim() || request.notes,
+        processedAt:
+          nextStatus === 'PAID' || nextStatus === 'REJECTED' || nextStatus === 'CANCELLED'
+            ? new Date()
+            : request.processedAt,
+        metadata: {
+          ...(request.metadata && typeof request.metadata === 'object' ? request.metadata : {}),
+          lastUpdatedBy: adminUserId,
+        },
+      },
+    });
+
+    if (input.notifyUser !== false) {
+      await this.notificationsService.createNotification({
+        userId: updated.userId,
+        title: this.getPayoutNotificationTitle(input.status),
+        message: this.getPayoutNotificationMessage(updated.amount, input.status),
+        type: 'SYSTEM',
+        metadata: {
+          targetRole: String(updated.role).toLowerCase(),
+          notificationType: 'payout_update',
+          payoutRequestId: updated.id,
+          financeRole: String(updated.role).toLowerCase(),
+          payoutStatus: String(updated.status).toLowerCase(),
+          entityType: 'payout_request',
+          entityId: updated.id,
+        },
+      });
+    }
+
+    return this.toPayoutDto(updated);
+  }
+
   private toPayoutDto(request: any): PayoutRequestDto {
     return {
       id: request.id,
@@ -457,6 +510,36 @@ export class FinanceService {
           ? request.destination
           : undefined,
     };
+  }
+
+  private getPayoutNotificationTitle(status: string) {
+    switch (status) {
+      case 'paid':
+        return 'Payout completed';
+      case 'processing':
+        return 'Payout processing';
+      case 'rejected':
+        return 'Payout rejected';
+      case 'cancelled':
+        return 'Payout cancelled';
+      default:
+        return 'Payout updated';
+    }
+  }
+
+  private getPayoutNotificationMessage(amount: number, status: string) {
+    switch (status) {
+      case 'paid':
+        return `Your payout of K${amount.toFixed(2)} has been completed.`;
+      case 'processing':
+        return `Your payout of K${amount.toFixed(2)} is now being processed.`;
+      case 'rejected':
+        return `Your payout of K${amount.toFixed(2)} was rejected.`;
+      case 'cancelled':
+        return `Your payout of K${amount.toFixed(2)} was cancelled.`;
+      default:
+        return `Your payout request for K${amount.toFixed(2)} was updated.`;
+    }
   }
 
   private async assertRoleAccess(userId: string, role: FinanceRole) {

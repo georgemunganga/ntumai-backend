@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsIn,
   IsNotEmpty,
   IsNumber,
@@ -142,4 +143,21 @@ export class FinanceRoleQueryDto {
   @ApiProperty({ enum: ['customer', 'tasker', 'vendor'] })
   @IsIn(['customer', 'tasker', 'vendor'])
   role!: 'customer' | 'tasker' | 'vendor';
+}
+
+export class UpdatePayoutRequestStatusDto {
+  @ApiProperty({ enum: ['processing', 'paid', 'rejected', 'cancelled'] })
+  @IsIn(['processing', 'paid', 'rejected', 'cancelled'])
+  status!: 'processing' | 'paid' | 'rejected' | 'cancelled';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(280)
+  notes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  notifyUser?: boolean;
 }

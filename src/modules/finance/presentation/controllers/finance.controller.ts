@@ -2,10 +2,13 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  Patch,
   Post,
   Query,
   Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -22,6 +25,7 @@ import {
   FinanceTransactionListResponseDto,
   PayoutRequestDto,
   PayoutRequestListResponseDto,
+  UpdatePayoutRequestStatusDto,
 } from '../../application/dtos/finance.dto';
 import { FinanceService } from '../../application/services/finance.service';
 
@@ -77,5 +81,24 @@ export class FinanceController {
     @Body() dto: CreatePayoutRequestInputDto,
   ) {
     return this.financeService.createPayoutRequest(req.user.userId, dto);
+  }
+
+  @Patch('payout-requests/:id/status')
+  @ApiOperation({ summary: 'Admin: update payout request status' })
+  @ApiResponse({ status: 200, type: PayoutRequestDto })
+  async updatePayoutRequestStatus(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: UpdatePayoutRequestStatusDto,
+  ) {
+    if (String(req.user.activeRole || '').toLowerCase() !== 'admin') {
+      throw new ForbiddenException('Admin role required');
+    }
+
+    return this.financeService.updatePayoutRequestStatus(
+      req.user.userId,
+      id,
+      dto,
+    );
   }
 }
