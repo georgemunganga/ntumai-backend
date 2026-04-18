@@ -78,6 +78,32 @@ export class CreateBookingDto {
   metadata?: Record<string, any>;
 }
 
+export class EstimateBookingDto {
+  @ApiProperty({
+    example: 'motorbike',
+    enum: ['motorbike', 'bicycle', 'walking', 'truck'],
+  })
+  @IsString()
+  @IsEnum(['motorbike', 'bicycle', 'walking', 'truck'])
+  vehicle_type: string;
+
+  @ApiProperty()
+  @ValidateNested()
+  @Type(() => BookingStopDto)
+  pickup: BookingStopDto;
+
+  @ApiProperty({ type: [BookingStopDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BookingStopDto)
+  dropoffs: BookingStopDto[];
+
+  @ApiPropertyOptional({ example: 0, default: 0 })
+  @IsOptional()
+  @IsNumber()
+  waiting_minutes?: number;
+}
+
 export class EditBookingDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -180,6 +206,12 @@ export class BookingResponseDto {
   rider: RiderInfoDto | null;
 
   @ApiProperty()
+  customer_name: string;
+
+  @ApiProperty()
+  customer_phone: string;
+
+  @ApiProperty()
   wait_times: {
     pickup_sec: number;
     dropoff_sec: number;
@@ -193,6 +225,9 @@ export class BookingResponseDto {
 
   @ApiProperty()
   updated_at: string;
+
+  @ApiPropertyOptional()
+  metadata?: Record<string, any>;
 }
 
 export class CreateBookingResponseDto {

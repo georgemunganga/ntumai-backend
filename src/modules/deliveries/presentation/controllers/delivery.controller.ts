@@ -27,6 +27,7 @@ import {
   SetPaymentMethodDto,
   CancelDeliveryDto,
   AcceptDeliveryDto,
+  EstimateDeliveryPricingDto,
 } from '../../application/dtos/create-delivery.dto';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
 import { Public } from '../../../../shared/common/decorators/public.decorator';
@@ -273,6 +274,24 @@ export class DeliveryController {
   })
   async getDeliveryLimits(): Promise<any> {
     return this.deliveryService.getConfig();
+  }
+
+  @Post('config/estimate')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Estimate Delivery Pricing',
+    description:
+      'Calculate a backend-owned delivery quote using route distance and pricing rules.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Delivery estimate calculated successfully',
+  })
+  async estimatePricing(
+    @Body() dto: EstimateDeliveryPricingDto,
+  ): Promise<any> {
+    return this.deliveryService.estimatePricing(dto);
   }
 }
 

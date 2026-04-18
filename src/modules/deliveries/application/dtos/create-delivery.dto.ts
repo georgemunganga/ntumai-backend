@@ -224,6 +224,38 @@ export class AttachPricingDto {
   calc_sig: string;
 }
 
+export class EstimateDeliveryPricingDto {
+  @ApiProperty({ enum: VehicleType, example: VehicleType.MOTORBIKE })
+  @IsEnum(VehicleType)
+  vehicle_type: VehicleType;
+
+  @ApiProperty({
+    type: [GeoDto],
+    description: 'Ordered route points for pricing calculation',
+    example: [
+      { lat: -15.3875, lng: 28.3228 },
+      { lat: -15.4067, lng: 28.2871 },
+    ],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => GeoDto)
+  points: GeoDto[];
+
+  @ApiPropertyOptional({
+    enum: ['small', 'medium', 'large'],
+    example: 'medium',
+  })
+  @IsOptional()
+  @IsString()
+  parcel_size?: 'small' | 'medium' | 'large';
+
+  @ApiPropertyOptional({ example: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  fragile?: boolean;
+}
+
 export class SetPaymentMethodDto {
   @ApiProperty({ enum: PaymentMethod, example: PaymentMethod.MOBILE_MONEY })
   @IsEnum(PaymentMethod)

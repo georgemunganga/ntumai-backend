@@ -139,18 +139,16 @@ export class CustomerOrdersService {
       order.address?.city ||
       null;
     const status = linkedDelivery
-      ? this.normalizeDeliveryStatus(linkedDelivery.order_status)
+      ? this.normalizeDeliveryStatus(linkedDelivery.order_status, linkedDelivery.rider_id)
       : this.normalizeMarketplaceStatus(order.status);
 
     return {
       id: String(order.id),
       type: 'marketplace',
       title: vendorName,
-      subtitle: linkedDelivery
-        ? 'Marketplace order in delivery'
-        : `${itemCount} item${itemCount === 1 ? '' : 's'}`,
+      subtitle: this.toMarketplaceSubtitle(status, itemCount, linkedDelivery),
       status,
-      statusLabel: this.toStatusLabel(status),
+      statusLabel: this.toMarketplaceStatusLabel(status),
       createdAt: order.createdAt,
       updatedAt: linkedDelivery?.updated_at?.toISOString?.() || order.updatedAt,
       amount: Number(order.totalAmount || 0),
@@ -173,14 +171,14 @@ export class CustomerOrdersService {
     const stops = Array.isArray(delivery.stops) ? delivery.stops : [];
     const pickup = stops.find((stop: any) => stop.type === 'pickup');
     const dropoff = stops.find((stop: any) => stop.type !== 'pickup');
-    const status = this.normalizeDeliveryStatus(delivery.order_status);
+    const status = this.normalizeDeliveryStatus(delivery.order_status, delivery.rider_id);
     return {
       id: String(delivery.id),
       type: 'delivery',
       title: 'Parcel delivery',
-      subtitle: pickup?.address || delivery.vehicle_type || 'Customer delivery',
+      subtitle: this.toDeliverySubtitle(status, pickup?.address, delivery.vehicle_type),
       status,
-      statusLabel: this.toStatusLabel(status),
+      statusLabel: this.toDeliveryStatusLabel(status),
       createdAt: delivery.created_at.toISOString(),
       updatedAt: delivery.updated_at.toISOString(),
       amount: Number(delivery.payment?.amount || 0),
@@ -206,10 +204,10 @@ export class CustomerOrdersService {
     return {
       id: String(booking.booking_id),
       type: 'task',
-      title: 'Task request',
-      subtitle: pickupAddress || booking.vehicle_type || 'Customer task',
+      title: booking.metadata?.title || 'Task request',
+      subtitle: this.toTaskSubtitle(status, pickupAddress, booking.vehicle_type),
       status,
-      statusLabel: this.toStatusLabel(status),
+      statusLabel: this.toTaskStatusLabel(status),
       createdAt: booking.created_at,
       updatedAt: booking.updated_at,
       amount: 0,
@@ -260,10 +258,10 @@ export class CustomerOrdersService {
     }
   }
 
-  private normalizeDeliveryStatus(status?: string) {
+  private normalizeDeliveryStatus(status?: string, riderId?: string | null) {
     switch (String(status || '').toLowerCase()) {
       case 'booked':
-        return 'pending';
+        return riderId ? 'accepted' : 'pending';
       case 'delivery':
         return 'in_transit';
       case 'delivered':
@@ -302,6 +300,127 @@ export class CustomerOrdersService {
       .split('_')
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
+  }
+
+  private toMarketplaceStatusLabel(status: string) {
+    switch (status) {
+      case 'pending':
+        return 'Order Received';
+      case 'accepted':
+        return 'Vendor Confirmed';
+      case 'preparing':
+        return 'Preparing';
+      case 'ready':
+        return 'Ready for Pickup';
+      case 'in_transit':
+        return 'On the Way';
+      case 'delivered':
+        return 'Delivered';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return this.toStatusLabel(status);
+    }
+  }
+
+  private toDeliveryStatusLabel(status: string) {
+    switch (status) {
+      case 'pending':
+        return 'Booked';
+      case 'accepted':
+        return 'Rider Assigned';
+      case 'in_transit':
+        return 'In Transit';
+      case 'delivered':
+        return 'Delivered';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return this.toStatusLabel(status);
+    }
+  }
+
+  private toTaskStatusLabel(status: string) {
+    switch (status) {
+      case 'pending':
+        return 'Matching Tasker';
+      case 'in_transit':
+        return 'Task In Progress';
+      case 'completed':
+        return 'Task Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return this.toStatusLabel(status);
+    }
+  }
+
+  private toMarketplaceSubtitle(
+    status: string,
+    itemCount: number,
+    linkedDelivery?: any,
+  ) {
+    switch (status) {
+      case 'pending':
+        return `${itemCount} item${itemCount === 1 ? '' : 's'} placed`;
+      case 'accepted':
+        return 'Vendor confirmed your order';
+      case 'preparing':
+        return 'Vendor is preparing your order';
+      case 'ready':
+        return 'Ready for rider pickup';
+      case 'in_transit':
+        return linkedDelivery ? 'Rider is bringing your order' : 'Order in transit';
+      case 'delivered':
+      case 'completed':
+        return 'Order delivered successfully';
+      case 'cancelled':
+        return 'Order was cancelled';
+      default:
+        return `${itemCount} item${itemCount === 1 ? '' : 's'}`;
+    }
+  }
+
+  private toDeliverySubtitle(
+    status: string,
+    pickupAddress?: string | null,
+    vehicleType?: string | null,
+  ) {
+    switch (status) {
+      case 'pending':
+        return pickupAddress || 'Waiting for rider assignment';
+      case 'accepted':
+        return 'Rider has been assigned';
+      case 'in_transit':
+        return 'Package is on the move';
+      case 'delivered':
+        return 'Package delivered';
+      case 'cancelled':
+        return 'Delivery was cancelled';
+      default:
+        return pickupAddress || vehicleType || 'Customer delivery';
+    }
+  }
+
+  private toTaskSubtitle(
+    status: string,
+    pickupAddress?: string | null,
+    vehicleType?: string | null,
+  ) {
+    switch (status) {
+      case 'pending':
+        return 'Looking for a tasker';
+      case 'in_transit':
+        return 'Tasker is working on your task';
+      case 'completed':
+        return 'Task completed';
+      case 'cancelled':
+        return 'Task was cancelled';
+      default:
+        return pickupAddress || vehicleType || 'Customer task';
+    }
   }
 
   private isHistoryStatus(status: string) {

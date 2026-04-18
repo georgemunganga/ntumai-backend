@@ -18,6 +18,7 @@ import {
 import { MatchingService } from '../../application/services/matching.service';
 import {
   CreateBookingDto,
+  EstimateBookingDto,
   EditBookingDto,
   CancelBookingDto,
   RespondToOfferDto,
@@ -32,6 +33,36 @@ import { Public } from '../../../../shared/common/decorators/public.decorator';
 @Controller('matching/bookings')
 export class MatchingController {
   constructor(private readonly matchingService: MatchingService) {}
+
+  @Get('rider/offers')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List booking offers for the authenticated rider' })
+  @ApiResponse({
+    status: 200,
+    description: 'Rider booking offers retrieved',
+  })
+  async listRiderOffers(@Request() req: any) {
+    return {
+      bookings: await this.matchingService.listRiderOffers(req.user.userId),
+    };
+  }
+
+  @Get('rider/active')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List active bookings for the authenticated rider' })
+  @ApiResponse({
+    status: 200,
+    description: 'Rider active bookings retrieved',
+  })
+  async listRiderActive(@Request() req: any) {
+    return {
+      bookings: await this.matchingService.listRiderActiveBookings(
+        req.user.userId,
+      ),
+    };
+  }
 
   @Get()
   @UseGuards(JwtAuthGuard)
@@ -53,6 +84,18 @@ export class MatchingController {
       Number(page || 1),
       Number(limit || 20),
     );
+  }
+
+  @Post('config/estimate')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Estimate booking or errand service pricing' })
+  @ApiResponse({
+    status: 200,
+    description: 'Booking estimate calculated',
+  })
+  async estimateBooking(@Body() dto: EstimateBookingDto) {
+    return this.matchingService.estimateBooking(dto);
   }
 
   @Post()

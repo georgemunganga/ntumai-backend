@@ -11,6 +11,7 @@ import { Booking, BookingStatus } from '../../domain/entities/booking.entity';
 import type { IMatchingEngine } from '../../infrastructure/adapters/matching-engine.interface';
 import {
   CreateBookingDto,
+  EstimateBookingDto,
   EditBookingDto,
   CancelBookingDto,
   RespondToOfferDto,
@@ -20,6 +21,7 @@ import {
   RiderInfoDto,
 } from '../dtos/booking.dto';
 import { NotificationsService } from '../../../notifications/application/services/notifications.service';
+import { MatchingGateway } from '../../infrastructure/websocket/matching.gateway';
 
 @Injectable()
 export class MatchingService {
@@ -29,6 +31,7 @@ export class MatchingService {
     @Inject('MATCHING_ENGINE')
     private readonly matchingEngine: IMatchingEngine,
     private readonly notificationsService: NotificationsService,
+    private readonly matchingGateway: MatchingGateway,
   ) {}
 
   async createBooking(
@@ -52,11 +55,13 @@ export class MatchingService {
     await this.notificationsService.createNotification({
       userId: dto.customer_user_id,
       title: 'Task created',
-      message: `Your booking ${saved.booking_id} is now searching for a rider.`,
+      message: `Your task ${saved.booking_id} is now searching for a tasker.`,
       type: 'SYSTEM',
       metadata: {
         entityType: 'booking',
         entityId: saved.booking_id,
+        sourceStatus: 'searching',
+        statusLabel: 'Matching Tasker',
       },
     });
 
@@ -69,6 +74,41 @@ export class MatchingService {
       booking_id: saved.booking_id,
       status: 'searching',
       estimated_search_sec: 45,
+    };
+  }
+
+  estimateBooking(dto: EstimateBookingDto) {
+    const routePoints = [dto.pickup, ...(dto.dropoffs || [])].map((stop) => stop.geo);
+    if (routePoints.length < 2) {
+      throw new BadRequestException('Pickup and at least one dropoff are required');
+    }
+
+    const pricingConfig = this.getBookingPricingConfig();
+    const vehicleConfig = pricingConfig.vehicles[dto.vehicle_type];
+    if (!vehicleConfig) {
+      throw new BadRequestException('Unsupported vehicle type');
+    }
+
+    const distanceKm = Number(this.calculateRouteDistanceKm(routePoints).toFixed(2));
+    const waitingMinutes = Math.max(0, Number(dto.waiting_minutes || 0));
+    const waitingBlocks = Math.ceil(waitingMinutes / pricingConfig.waiting_block_minutes);
+    const waitingFee = waitingBlocks * pricingConfig.waiting_fee_per_block;
+    const routeBase = vehicleConfig.base_fare + distanceKm * vehicleConfig.per_km;
+    const routeCharge = Math.max(vehicleConfig.minimum_fare, routeBase);
+    const total = Number((routeCharge + waitingFee).toFixed(2));
+
+    return {
+      currency: 'ZMW',
+      distance_km: distanceKm,
+      waiting_minutes: waitingMinutes,
+      service_estimate: total,
+      pricing_rules: pricingConfig,
+      breakdown: {
+        base_fare: vehicleConfig.base_fare,
+        route_charge: Number(routeCharge.toFixed(2)),
+        minimum_fare_applied: routeCharge === vehicleConfig.minimum_fare,
+        waiting_fee: waitingFee,
+      },
     };
   }
 
@@ -123,6 +163,56 @@ export class MatchingService {
         totalPages,
       },
     };
+  }
+
+  async listRiderOffers(riderUserId: string): Promise<BookingResponseDto[]> {
+    const offeredBookings = await this.bookingRepository.findBookingsByStatus(
+      BookingStatus.OFFERED,
+    );
+
+    return offeredBookings
+      .filter((booking) => {
+        const data = booking.toJSON();
+        return Array.isArray(data.offer?.offered_to)
+          ? data.offer.offered_to.includes(riderUserId)
+          : false;
+      })
+      .sort(
+        (a, b) =>
+          b.toJSON().updated_at.getTime() - a.toJSON().updated_at.getTime(),
+      )
+      .map((booking) => this.toResponseDto(booking));
+  }
+
+  async listRiderActiveBookings(
+    riderUserId: string,
+  ): Promise<BookingResponseDto[]> {
+    const activeBookings = await this.bookingRepository.findActiveBookings();
+
+    return activeBookings
+      .filter((booking) => {
+        const data = booking.toJSON();
+        const rider =
+          data.rider && typeof data.rider === 'object'
+            ? (data.rider as { user_id?: string | null })
+            : null;
+
+        return (
+          rider?.user_id === riderUserId &&
+          [
+            BookingStatus.ACCEPTED,
+            BookingStatus.EN_ROUTE,
+            BookingStatus.ARRIVED_PICKUP,
+            BookingStatus.PICKED_UP,
+            BookingStatus.EN_ROUTE_DROPOFF,
+          ].includes(data.status)
+        );
+      })
+      .sort(
+        (a, b) =>
+          b.toJSON().updated_at.getTime() - a.toJSON().updated_at.getTime(),
+      )
+      .map((booking) => this.toResponseDto(booking));
   }
 
   async editBooking(
@@ -207,17 +297,34 @@ export class MatchingService {
     await this.notificationsService.createNotification({
       userId: bookingData.customer_user_id,
       title:
-        dto.decision === 'accept' ? 'Booking accepted' : 'Booking reoffered',
+        dto.decision === 'accept' ? 'Tasker assigned' : 'Matching tasker',
       message:
         dto.decision === 'accept'
-          ? `A rider has accepted booking ${bookingId}.`
-          : `Booking ${bookingId} was declined and is being reoffered.`,
+          ? `A tasker has accepted task ${bookingId}.`
+          : `Task ${bookingId} was declined and is being reoffered.`,
       type: 'SYSTEM',
       metadata: {
         entityType: 'booking',
         entityId: bookingId,
+        sourceStatus: dto.decision === 'accept' ? 'accepted' : 'searching',
+        statusLabel:
+          dto.decision === 'accept' ? 'Tasker Assigned' : 'Matching Tasker',
       },
     });
+
+    if (dto.decision === 'accept') {
+      this.matchingGateway.emitBookingAccepted(bookingData.customer_user_id, {
+        bookingId,
+        rider: bookingData.rider,
+        status: bookingData.status,
+      });
+    } else {
+      this.matchingGateway.emitBookingRejected(
+        bookingData.customer_user_id,
+        bookingId,
+        'Rider declined offer',
+      );
+    }
 
     return this.toResponseDto(saved);
   }
@@ -251,14 +358,18 @@ export class MatchingService {
     // Emit booking.progress event
     console.log('Booking progress updated:', bookingId, dto.stage);
 
+    const progressNotification = this.toBookingProgressNotification(dto.stage);
+
     await this.notificationsService.createNotification({
       userId: bookingData.customer_user_id,
-      title: 'Booking progress updated',
-      message: `Booking ${bookingId} moved to ${dto.stage.replace(/_/g, ' ')}.`,
+      title: progressNotification.title,
+      message: progressNotification.message(bookingId),
       type: 'SYSTEM',
       metadata: {
         entityType: 'booking',
         entityId: bookingId,
+        sourceStatus: dto.stage,
+        statusLabel: progressNotification.statusLabel,
       },
     });
 
@@ -301,16 +412,128 @@ export class MatchingService {
 
     await this.notificationsService.createNotification({
       userId: bookingData.customer_user_id,
-      title: 'Booking completed',
-      message: `Booking ${bookingId} has been completed.`,
+      title: 'Task completed',
+      message: `Task ${bookingId} has been completed.`,
       type: 'SYSTEM',
       metadata: {
         entityType: 'booking',
         entityId: bookingId,
+        sourceStatus: 'completed',
+        statusLabel: 'Task Completed',
       },
     });
 
     return this.toResponseDto(booking);
+  }
+
+  private getBookingPricingConfig() {
+    return {
+      currency: 'ZMW',
+      pricing_model: 'errand_service_plus_distance',
+      waiting_block_minutes: 15,
+      waiting_fee_per_block: 20,
+      vehicles: {
+        walking: {
+          base_fare: 20,
+          per_km: 6,
+          minimum_fare: 27,
+        },
+        bicycle: {
+          base_fare: 20,
+          per_km: 6,
+          minimum_fare: 27,
+        },
+        motorbike: {
+          base_fare: 50,
+          per_km: 6,
+          minimum_fare: 50,
+        },
+        truck: {
+          base_fare: 100,
+          per_km: 10,
+          minimum_fare: 100,
+        },
+      },
+    };
+  }
+
+  private calculateRouteDistanceKm(points: Array<{ lat: number; lng: number }>): number {
+    let total = 0;
+    for (let index = 1; index < points.length; index += 1) {
+      total += this.calculateDistanceKm(points[index - 1], points[index]);
+    }
+    return total;
+  }
+
+  private calculateDistanceKm(
+    origin: { lat: number; lng: number },
+    destination: { lat: number; lng: number },
+  ): number {
+    const earthRadiusKm = 6371;
+    const dLat = this.toRadians(destination.lat - origin.lat);
+    const dLng = this.toRadians(destination.lng - origin.lng);
+    const lat1 = this.toRadians(origin.lat);
+    const lat2 = this.toRadians(destination.lat);
+
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.sin(dLng / 2) *
+        Math.sin(dLng / 2) *
+        Math.cos(lat1) *
+        Math.cos(lat2);
+
+    return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  private toRadians(value: number): number {
+    return (value * Math.PI) / 180;
+  }
+
+  private toBookingProgressNotification(stage: string) {
+    switch (stage) {
+      case 'en_route':
+        return {
+          title: 'Tasker on the way',
+          statusLabel: 'Tasker On the Way',
+          message: (bookingId: string) =>
+            `Your tasker is on the way for task ${bookingId}.`,
+        };
+      case 'arrived_pickup':
+        return {
+          title: 'Tasker arrived',
+          statusLabel: 'Tasker Arrived',
+          message: (bookingId: string) =>
+            `Your tasker has arrived for task ${bookingId}.`,
+        };
+      case 'picked_up':
+        return {
+          title: 'Task in progress',
+          statusLabel: 'Task In Progress',
+          message: (bookingId: string) =>
+            `Task ${bookingId} is now in progress.`,
+        };
+      case 'en_route_dropoff':
+        return {
+          title: 'Heading to you',
+          statusLabel: 'Heading to You',
+          message: (bookingId: string) =>
+            `Your tasker is heading to you for task ${bookingId}.`,
+        };
+      case 'delivered':
+        return {
+          title: 'Task delivered',
+          statusLabel: 'Delivered',
+          message: (bookingId: string) =>
+            `Task ${bookingId} has been delivered.`,
+        };
+      default:
+        return {
+          title: 'Task update',
+          statusLabel: 'Task Update',
+          message: (bookingId: string) =>
+            `Task ${bookingId} moved to ${stage.replace(/_/g, ' ')}.`,
+        };
+    }
   }
 
   private async startMatchingProcess(
@@ -323,6 +546,7 @@ export class MatchingService {
     // Start searching
     booking.startSearching();
     await this.bookingRepository.save(booking);
+    this.matchingGateway.emitMatchingInProgress(dto.customer_user_id, bookingId);
 
     // Find candidates using matching engine
     const candidates = await this.matchingEngine.findCandidates({
@@ -334,13 +558,53 @@ export class MatchingService {
 
     if (candidates.length === 0) {
       console.log('No riders available for booking:', bookingId);
+      this.matchingGateway.emitMatchingFailed(
+        dto.customer_user_id,
+        bookingId,
+        'No riders available right now',
+      );
       return;
     }
 
     // Offer to first candidate
     const firstCandidate = candidates[0];
     booking.offerToRider(firstCandidate.user_id, 45);
-    await this.bookingRepository.save(booking);
+    const saved = await this.bookingRepository.save(booking);
+
+    await this.notificationsService.createNotification({
+      userId: firstCandidate.user_id,
+      title: 'New task offer',
+      message: `${dto.customer_name} needs help with a task near you.`,
+      type: 'SYSTEM',
+      metadata: {
+        entityType: 'booking',
+        entityId: saved.booking_id,
+        targetRole: 'tasker',
+        notificationType: 'job_offer',
+        jobId: saved.booking_id,
+        jobType: 'task',
+        contextType: 'booking',
+        contextId: saved.booking_id,
+        customerName: dto.customer_name,
+        customerPhone: dto.customer_phone,
+        pickupAddress: dto.pickup.address,
+        dropoffAddress: dto.dropoffs?.[0]?.address,
+        title: dto.metadata?.title,
+        description: dto.metadata?.description,
+        estimatedEarnings:
+          dto.metadata?.budgetMax ??
+          dto.metadata?.budget?.max ??
+          dto.metadata?.commitmentAmount ??
+          0,
+      },
+    });
+
+    this.matchingGateway.emitBookingRequest(firstCandidate.user_id, {
+      booking: this.toResponseDto(saved),
+      customer_name: dto.customer_name,
+      customer_phone: dto.customer_phone,
+      metadata: dto.metadata || {},
+    });
 
     // Emit booking.offered event
     console.log('Booking offered to riders:', bookingId, candidates);
@@ -367,7 +631,42 @@ export class MatchingService {
 
     if (newCandidates.length > 0) {
       booking.offerToRider(newCandidates[0].user_id, 45);
-      await this.bookingRepository.save(booking);
+      const saved = await this.bookingRepository.save(booking);
+
+      await this.notificationsService.createNotification({
+        userId: newCandidates[0].user_id,
+        title: 'New task offer',
+        message: `${bookingData.customer_name} needs help with a task near you.`,
+        type: 'SYSTEM',
+        metadata: {
+          entityType: 'booking',
+          entityId: saved.booking_id,
+          targetRole: 'tasker',
+          notificationType: 'job_offer',
+          jobId: saved.booking_id,
+          jobType: 'task',
+          contextType: 'booking',
+          contextId: saved.booking_id,
+          customerName: bookingData.customer_name,
+          customerPhone: bookingData.customer_phone,
+          pickupAddress: bookingData.pickup?.address,
+          dropoffAddress: bookingData.dropoffs?.[0]?.address,
+          title: bookingData.metadata?.title,
+          description: bookingData.metadata?.description,
+          estimatedEarnings:
+            bookingData.metadata?.budgetMax ??
+            bookingData.metadata?.budget?.max ??
+            bookingData.metadata?.commitmentAmount ??
+            0,
+        },
+      });
+
+      this.matchingGateway.emitBookingRequest(newCandidates[0].user_id, {
+        booking: this.toResponseDto(saved),
+        customer_name: bookingData.customer_name,
+        customer_phone: bookingData.customer_phone,
+        metadata: bookingData.metadata || {},
+      });
     }
   }
 
@@ -381,10 +680,13 @@ export class MatchingService {
       pickup: data.pickup as any,
       dropoffs: data.dropoffs as any,
       rider: data.rider as any,
+      customer_name: data.customer_name,
+      customer_phone: data.customer_phone,
       wait_times: data.wait_times,
       can_user_edit: data.can_user_edit,
       created_at: data.created_at.toISOString(),
       updated_at: data.updated_at.toISOString(),
+      metadata: data.metadata,
     };
   }
 }

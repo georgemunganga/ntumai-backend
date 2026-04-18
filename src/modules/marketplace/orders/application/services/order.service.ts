@@ -11,6 +11,7 @@ import { TrackingService } from '../../../../tracking/application/services/track
 import { ChatService } from '../../../../chat/application/services/chat.service';
 import { ChatContextTypeDto } from '../../../../chat/application/dtos/chat.dto';
 import { NotificationsService } from '../../../../notifications/application/services/notifications.service';
+import { VehicleType } from '../../../../deliveries/application/dtos/create-delivery.dto';
 
 @Injectable()
 export class OrderService {
@@ -31,14 +32,85 @@ export class OrderService {
       throw new NotFoundException('Address not found');
     }
 
-    // Simple delivery fee calculation (can be enhanced with distance-based pricing)
-    const deliveryFee = 50; // Base fee in currency minor units
-    const estimatedDeliveryTime = new Date(Date.now() + 45 * 60 * 1000); // 45 minutes
+    const cart = await this.prisma.cart.findUnique({
+      where: { userId },
+      select: { storeId: true },
+    });
+
+    if (!cart?.storeId) {
+      throw new BadRequestException('Cart is empty');
+    }
+
+    const quote = await this.calculateMarketplaceDeliveryQuote(
+      userId,
+      addressId,
+      cart.storeId,
+    );
 
     return {
-      deliveryFee,
-      estimatedDeliveryTime,
+      deliveryFee: quote.calc_payload.total,
+      estimatedDeliveryTime: new Date(
+        Date.now() + quote.estimated_duration_minutes * 60 * 1000,
+      ),
+      distanceKm: quote.distance_km,
     };
+  }
+
+  private async calculateMarketplaceDeliveryQuote(
+    userId: string,
+    addressId: string,
+    storeId: string,
+  ) {
+    const [address, store] = await Promise.all([
+      this.prisma.address.findFirst({
+        where: { id: addressId, userId },
+      }),
+      this.prisma.store.findUnique({
+        where: { id: storeId },
+        select: {
+          vendorId: true,
+        },
+      }),
+    ]);
+
+    if (!address) {
+      throw new NotFoundException('Address not found');
+    }
+
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    const vendorAddress = await this.prisma.address.findFirst({
+      where: { userId: store.vendorId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: {
+        latitude: true,
+        longitude: true,
+      },
+    });
+
+    if (!vendorAddress) {
+      return this.deliveryService.estimatePricing({
+        vehicle_type: VehicleType.MOTORBIKE,
+        points: [
+          { lat: address.latitude, lng: address.longitude },
+          { lat: address.latitude, lng: address.longitude },
+        ],
+        parcel_size: 'medium',
+        fragile: false,
+      });
+    }
+
+    return this.deliveryService.estimatePricing({
+      vehicle_type: VehicleType.MOTORBIKE,
+      points: [
+        { lat: vendorAddress.latitude, lng: vendorAddress.longitude },
+        { lat: address.latitude, lng: address.longitude },
+      ],
+      parcel_size: 'medium',
+      fragile: false,
+    });
   }
 
   async createOrder(
@@ -65,6 +137,10 @@ export class OrderService {
       throw new BadRequestException('Cart is empty');
     }
 
+    if (!cart.storeId) {
+      throw new BadRequestException('Cart store is missing');
+    }
+
     // Verify address
     const address = await this.prisma.address.findFirst({
       where: { id: addressId, userId },
@@ -89,8 +165,12 @@ export class OrderService {
       0,
     );
     const discountAmount = cart.discountAmount || 0;
-    const deliveryCalc = await this.calculateDelivery(userId, addressId);
-    const deliveryFee = deliveryCalc.deliveryFee;
+    const deliveryCalc = await this.calculateMarketplaceDeliveryQuote(
+      userId,
+      addressId,
+      cart.storeId,
+    );
+    const deliveryFee = deliveryCalc.calc_payload.total;
     const tax = subtotal * 0.16; // 16% VAT
     const totalAmount = subtotal - discountAmount + deliveryFee + tax;
 
@@ -168,6 +248,8 @@ export class OrderService {
         entityType: 'order',
         entityId: order.id,
         trackingId: order.trackingId,
+        sourceStatus: 'PENDING',
+        statusLabel: 'Order Received',
       },
     });
 
@@ -211,12 +293,15 @@ export class OrderService {
 
     await this.notificationsService.createNotification({
       userId,
-      title: 'Payment received',
-      message: `Payment for order ${orderId} was successful.`,
+      title: 'Order confirmed',
+      message: `Your order ${order.trackingId || orderId} is confirmed and queued for preparation.`,
       type: 'ORDER_UPDATE',
       metadata: {
         entityType: 'order',
         entityId: orderId,
+        trackingId: order.trackingId || null,
+        sourceStatus: 'ACCEPTED',
+        statusLabel: 'Vendor Confirmed',
       },
     });
 
@@ -402,6 +487,8 @@ export class OrderService {
         entityType: 'order',
         entityId: order.id,
         trackingId: order.trackingId,
+        sourceStatus: 'CANCELLED',
+        statusLabel: 'Cancelled',
       },
     });
 

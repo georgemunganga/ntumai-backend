@@ -383,6 +383,45 @@ export class ChatService {
         ].filter(Boolean) as Array<{ userId: string; role: string }>;
       }
 
+      case 'BOOKING': {
+        const booking = await this.prisma.booking.findUnique({
+          where: { booking_id: contextId },
+        });
+
+        if (!booking) {
+          throw new NotFoundException('Booking not found');
+        }
+
+        const rider = booking.rider && typeof booking.rider === 'object'
+          ? (booking.rider as { user_id?: string | null })
+          : null;
+
+        const participantIds = new Set<string>(
+          [booking.customer_user_id, rider?.user_id].filter(Boolean) as string[],
+        );
+
+        if (!participantIds.has(userId)) {
+          throw new ForbiddenException(
+            'You do not have access to this booking conversation',
+          );
+        }
+
+        return [
+          booking.customer_user_id
+            ? {
+                userId: booking.customer_user_id,
+                role: 'CUSTOMER',
+              }
+            : null,
+          rider?.user_id
+            ? {
+                userId: rider.user_id,
+                role: 'DRIVER',
+              }
+            : null,
+        ].filter(Boolean) as Array<{ userId: string; role: string }>;
+      }
+
       case 'SUPPORT_TICKET': {
         const ticket = await (this.prisma as any).supportTicket.findUnique({
           where: { id: contextId },
