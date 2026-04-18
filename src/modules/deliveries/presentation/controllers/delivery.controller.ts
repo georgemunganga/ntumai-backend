@@ -367,4 +367,27 @@ export class RiderDeliveryController {
   ): Promise<any> {
     return this.deliveryService.markAsDelivery(id, req.user.userId);
   }
+
+  @Post(':id/rate-customer')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Rate customer',
+    description: 'Rider rates the customer after a completed delivery',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Customer rating submitted',
+  })
+  async rateCustomer(
+    @Param('id') id: string,
+    @Body() body: { rating: number; comment?: string },
+    @Request() req: any,
+  ): Promise<any> {
+    return {
+      success: true,
+      data: await this.deliveryService.rateCustomer(id, req.user.userId, body),
+    };
+  }
 }

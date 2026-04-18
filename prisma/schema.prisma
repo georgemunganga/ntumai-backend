@@ -508,6 +508,7 @@ model Review {
   storeId   String? // For store reviews
   orderId   String? // For order reviews
   driverId  String? // For tasker/driver reviews
+  customerId String? // For customer reviews from taskers
   contextType String?
   contextId String?
   rating    Int
@@ -521,6 +522,7 @@ model Review {
   store     Store?           @relation(fields: [storeId], references: [id])
   reviewer  User             @relation("ReviewAuthor", fields: [userId], references: [id])
   driver    User?            @relation("ReviewDriver", fields: [driverId], references: [id])
+  customer  User?            @relation("ReviewCustomer", fields: [customerId], references: [id])
 }
 
 model Reward {
@@ -621,6 +623,7 @@ model User {
   Order                        Order[]
   reviewsAuthored              Review[]                  @relation("ReviewAuthor")
   driverReviewsReceived        Review[]                  @relation("ReviewDriver")
+  customerReviewsReceived      Review[]                  @relation("ReviewCustomer")
   Reward                       Reward[]
   Store                        Store[]
   Task                         Task[]
@@ -822,6 +825,7 @@ enum ReviewEntityType {
   PRODUCT
   STORE
   DRIVER
+  CUSTOMER
   ORDER
 }
 

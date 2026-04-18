@@ -4,7 +4,9 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import { BOOKING_REPOSITORY } from '../../domain/repositories/booking.repository.interface';
 import type { IBookingRepository } from '../../domain/repositories/booking.repository.interface';
 import { Booking, BookingStatus } from '../../domain/entities/booking.entity';
@@ -22,6 +24,7 @@ import {
 } from '../dtos/booking.dto';
 import { NotificationsService } from '../../../notifications/application/services/notifications.service';
 import { MatchingGateway } from '../../infrastructure/websocket/matching.gateway';
+import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 
 @Injectable()
 export class MatchingService {
@@ -32,6 +35,7 @@ export class MatchingService {
     private readonly matchingEngine: IMatchingEngine,
     private readonly notificationsService: NotificationsService,
     private readonly matchingGateway: MatchingGateway,
+    private readonly prisma: PrismaService,
   ) {}
 
   async createBooking(
@@ -213,6 +217,73 @@ export class MatchingService {
           b.toJSON().updated_at.getTime() - a.toJSON().updated_at.getTime(),
       )
       .map((booking) => this.toResponseDto(booking));
+  }
+
+  async rateCustomer(
+    bookingId: string,
+    riderUserId: string,
+    input: { rating: number; comment?: string },
+  ) {
+    const booking = await this.bookingRepository.findById(bookingId);
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const data = booking.toJSON();
+    const assignedRiderId =
+      data.rider && typeof data.rider === 'object'
+        ? (data.rider as { user_id?: string | null }).user_id
+        : null;
+
+    if (String(assignedRiderId || '') !== String(riderUserId)) {
+      throw new ForbiddenException('Not assigned to this booking');
+    }
+
+    const status = String(data.status || '').toLowerCase();
+    if (!['completed', 'delivered'].includes(status)) {
+      throw new ConflictException('Can only rate customers for completed tasks');
+    }
+
+    const customerId = String(data.customer_user_id || '');
+    if (!customerId) {
+      throw new NotFoundException('No customer is linked to this booking');
+    }
+
+    const existingReview = await this.prisma.review.findFirst({
+      where: {
+        userId: riderUserId,
+        entityType: 'CUSTOMER',
+        customerId,
+        contextType: 'booking',
+        contextId: bookingId,
+      },
+    });
+
+    if (existingReview) {
+      throw new ConflictException('You have already rated this customer');
+    }
+
+    const review = await this.prisma.review.create({
+      data: {
+        id: uuidv4(),
+        userId: riderUserId,
+        entityType: 'CUSTOMER',
+        entityId: customerId,
+        customerId,
+        contextType: 'booking',
+        contextId: bookingId,
+        rating: input.rating,
+        comment: input.comment?.trim() || undefined,
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      reviewId: review.id,
+      rating: review.rating,
+      comment: review.comment,
+      customerId,
+    };
   }
 
   async editBooking(

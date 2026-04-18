@@ -191,6 +191,29 @@ export class MatchingController {
     return this.matchingService.updateProgress(bookingId, dto);
   }
 
+  @Post(':bookingId/rate-customer')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Rider rates customer after completed task' })
+  @ApiResponse({
+    status: 200,
+    description: 'Customer rating submitted',
+  })
+  async rateCustomer(
+    @Param('bookingId') bookingId: string,
+    @Body() body: { rating: number; comment?: string },
+    @Request() req: any,
+  ) {
+    return {
+      success: true,
+      data: await this.matchingService.rateCustomer(
+        bookingId,
+        req.user.userId,
+        body,
+      ),
+    };
+  }
+
   @Get(':bookingId/timers')
   @Public()
   @ApiOperation({ summary: 'Get wait timers' })

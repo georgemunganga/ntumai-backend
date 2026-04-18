@@ -4,9 +4,11 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { createHmac } from 'crypto';
 import { nanoid } from 'nanoid';
+import { v4 as uuidv4 } from 'uuid';
 import { DELIVERY_REPOSITORY } from '../../domain/repositories/delivery.repository.interface';
 import type { IDeliveryRepository } from '../../domain/repositories/delivery.repository.interface';
 import {
@@ -470,6 +472,69 @@ export class DeliveryService {
     });
 
     return updated;
+  }
+
+  async rateCustomer(
+    deliveryId: string,
+    riderId: string,
+    input: { rating: number; comment?: string },
+  ) {
+    const delivery = await this.deliveryRepository.findById(deliveryId);
+    if (!delivery) {
+      throw new NotFoundException('Delivery not found');
+    }
+
+    if (delivery.rider_id !== riderId) {
+      throw new ForbiddenException('Not assigned to this delivery');
+    }
+
+    const status = String(delivery.order_status || '').toLowerCase();
+    if (!['delivered', 'completed'].includes(status)) {
+      throw new ConflictException(
+        'Can only rate customers for completed deliveries',
+      );
+    }
+
+    const customerId = String(delivery.created_by_user_id || '');
+    if (!customerId) {
+      throw new NotFoundException('No customer is linked to this delivery');
+    }
+
+    const existingReview = await this.prisma.review.findFirst({
+      where: {
+        userId: riderId,
+        entityType: 'CUSTOMER',
+        customerId,
+        contextType: 'delivery',
+        contextId: deliveryId,
+      },
+    });
+
+    if (existingReview) {
+      throw new ConflictException('You have already rated this customer');
+    }
+
+    const review = await this.prisma.review.create({
+      data: {
+        id: uuidv4(),
+        userId: riderId,
+        entityType: 'CUSTOMER',
+        entityId: customerId,
+        customerId,
+        contextType: 'delivery',
+        contextId: deliveryId,
+        rating: input.rating,
+        comment: input.comment?.trim() || undefined,
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      reviewId: review.id,
+      rating: review.rating,
+      comment: review.comment,
+      customerId,
+    };
   }
 
   /**
