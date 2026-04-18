@@ -689,6 +689,26 @@ export class MarketplaceController {
     return { success: true, data: result };
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Roles('VENDOR')
+  @Patch('vendor/stores/:storeId/orders/:orderId/status')
+  @ApiOperation({ summary: 'Update vendor store order status' })
+  @ApiBearerAuth()
+  async updateStoreOrderStatus(
+    @Request() req,
+    @Param('storeId') storeId: string,
+    @Param('orderId') orderId: string,
+    @Body() body: { status: 'ACCEPTED' | 'PREPARING' | 'PACKING' | 'OUT_FOR_DELIVERY' },
+  ) {
+    const order = await this.vendorService.updateStoreOrderStatus(
+      req.user.userId,
+      storeId,
+      orderId,
+      body.status,
+    );
+    return { success: true, data: { order } };
+  }
+
   // ===== PROMOTIONS & GIFT CARDS =====
 
   @Public()

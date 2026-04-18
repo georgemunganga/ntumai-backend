@@ -265,9 +265,16 @@ export class CustomerOrdersService {
       order.address?.address ||
       order.address?.city ||
       null;
-    const status = linkedDelivery
-      ? this.normalizeDeliveryStatus(linkedDelivery.order_status, linkedDelivery.rider_id)
-      : this.normalizeMarketplaceStatus(order.status);
+    const linkedDeliveryStatus = this.normalizeDeliveryStatus(
+      linkedDelivery?.order_status,
+      linkedDelivery?.rider_id,
+    );
+    const marketplaceStatus = this.normalizeMarketplaceStatus(order.status);
+    const status =
+      linkedDelivery &&
+      ['in_transit', 'delivered', 'cancelled'].includes(linkedDeliveryStatus)
+        ? linkedDeliveryStatus
+        : marketplaceStatus;
 
     return {
       id: String(order.id),
@@ -376,8 +383,11 @@ export class CustomerOrdersService {
         return 'accepted';
       case 'PREPARING':
         return 'preparing';
+      case 'PACKING':
       case 'READY':
         return 'ready';
+      case 'OUT_FOR_DELIVERY':
+        return 'in_transit';
       case 'IN_TRANSIT':
       case 'DELIVERY':
         return 'in_transit';

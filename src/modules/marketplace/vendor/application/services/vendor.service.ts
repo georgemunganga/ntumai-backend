@@ -9,12 +9,18 @@ import { PrismaService } from '../../../../../shared/infrastructure/prisma.servi
 import { v4 as uuidv4 } from 'uuid';
 import { ChatService } from '../../../../chat/application/services/chat.service';
 import { ChatContextTypeDto } from '../../../../chat/application/dtos/chat.dto';
+import { NotificationsService } from '../../../../notifications/application/services/notifications.service';
+import { TrackingService } from '../../../../tracking/application/services/tracking.service';
+import { DeliveryService } from '../../../../deliveries/application/services/delivery.service';
 
 @Injectable()
 export class VendorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly chatService: ChatService,
+    private readonly notificationsService: NotificationsService,
+    private readonly trackingService: TrackingService,
+    private readonly deliveryService: DeliveryService,
   ) {}
 
   private readonly defaultBusinessHours = [
@@ -676,7 +682,206 @@ export class VendorService {
     };
   }
 
+  async updateStoreOrderStatus(
+    userId: string,
+    storeId: string,
+    orderId: string,
+    nextStatus: 'ACCEPTED' | 'PREPARING' | 'PACKING' | 'OUT_FOR_DELIVERY',
+  ) {
+    await this.verifyStoreOwnership(userId, storeId);
+
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: orderId,
+        OrderItem: {
+          some: {
+            Product: {
+              storeId,
+            },
+          },
+        },
+      },
+      include: {
+        OrderItem: {
+          where: {
+            Product: {
+              storeId,
+            },
+          },
+          include: {
+            Product: true,
+          },
+        },
+        Address: true,
+        User: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(order.status)) {
+      throw new ConflictException('This order can no longer be updated');
+    }
+
+    const transitionMap: Record<string, string[]> = {
+      PENDING: ['ACCEPTED'],
+      ACCEPTED: ['PREPARING'],
+      PREPARING: ['PACKING'],
+      PACKING: ['OUT_FOR_DELIVERY'],
+    };
+
+    const allowed = transitionMap[order.status] || [];
+    if (!allowed.includes(nextStatus)) {
+      throw new BadRequestException(
+        `Cannot move order from ${order.status} to ${nextStatus}`,
+      );
+    }
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: nextStatus,
+        updatedAt: new Date(),
+      },
+      include: {
+        OrderItem: {
+          where: {
+            Product: {
+              storeId,
+            },
+          },
+          include: {
+            Product: true,
+          },
+        },
+        Address: true,
+        User: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    const linkedDelivery =
+      await this.deliveryService.findLinkedMarketplaceDelivery(orderId);
+    if (linkedDelivery && nextStatus === 'OUT_FOR_DELIVERY') {
+      await this.trackingService.createEvent({
+        booking_id: '',
+        delivery_id: linkedDelivery.id,
+        event_type: 'en_route_to_dropoff',
+      });
+    }
+
+    await this.notificationsService.createNotification({
+      userId: order.userId,
+      title: this.getVendorOrderStatusTitle(nextStatus),
+      message: this.getVendorOrderStatusMessage(
+        updated.trackingId || updated.id,
+        nextStatus,
+      ),
+      type: 'ORDER_UPDATE',
+      metadata: {
+        entityType: 'order',
+        entityId: updated.id,
+        trackingId: updated.trackingId || null,
+        sourceStatus: nextStatus,
+        statusLabel: this.getVendorOrderStatusLabel(nextStatus),
+      },
+    });
+
+    return {
+      id: updated.id,
+      trackingId: updated.trackingId,
+      conversationId: await this.chatService.findExistingConversationId(
+        ChatContextTypeDto.MARKETPLACE_ORDER,
+        updated.id,
+      ),
+      status: updated.status,
+      totalAmount: updated.totalAmount,
+      customer: {
+        id: updated.User.id,
+        name: `${updated.User.firstName} ${updated.User.lastName}`,
+        phone: updated.User.phone,
+      },
+      items: updated.OrderItem.map((item) => ({
+        id: item.id,
+        name: item.Product.name,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      deliveryAddress:
+        updated.Address.address || updated.Address.city
+          ? `${updated.Address.address}, ${updated.Address.city}`
+          : undefined,
+      paymentMethod: undefined,
+      subtotal: updated.subtotal,
+      deliveryFee: updated.deliveryFee,
+      tax: updated.tax,
+      itemCount: updated.OrderItem.length,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
   // Helper methods
+  private getVendorOrderStatusLabel(status: string) {
+    switch (status) {
+      case 'ACCEPTED':
+        return 'Vendor Confirmed';
+      case 'PREPARING':
+        return 'Preparing';
+      case 'PACKING':
+        return 'Ready for Pickup';
+      case 'OUT_FOR_DELIVERY':
+        return 'On the Way';
+      default:
+        return status;
+    }
+  }
+
+  private getVendorOrderStatusTitle(status: string) {
+    switch (status) {
+      case 'ACCEPTED':
+        return 'Order accepted';
+      case 'PREPARING':
+        return 'Order preparing';
+      case 'PACKING':
+        return 'Order ready for pickup';
+      case 'OUT_FOR_DELIVERY':
+        return 'Order handed off';
+      default:
+        return 'Order update';
+    }
+  }
+
+  private getVendorOrderStatusMessage(trackingId: string, status: string) {
+    switch (status) {
+      case 'ACCEPTED':
+        return `Your order ${trackingId} has been accepted by the vendor.`;
+      case 'PREPARING':
+        return `Your order ${trackingId} is now being prepared.`;
+      case 'PACKING':
+        return `Your order ${trackingId} is ready for pickup.`;
+      case 'OUT_FOR_DELIVERY':
+        return `Your order ${trackingId} has been handed off for delivery.`;
+      default:
+        return `Your order ${trackingId} has been updated.`;
+    }
+  }
+
   private async verifyStoreOwnership(userId: string, storeId: string) {
     const store = await this.prisma.store.findUnique({
       where: { id: storeId },

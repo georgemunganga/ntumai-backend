@@ -158,9 +158,14 @@ export class TrackingService {
           })
         : null;
 
-    const rawStatus = String(
-      delivery?.order_status || order?.status || tracking?.current_status || 'pending',
+    const deliveryStatus = String(
+      delivery?.order_status || tracking?.current_status || '',
     ).toLowerCase();
+    const orderStatus = String(order?.status || 'pending').toLowerCase();
+    const rawStatus =
+      ['delivery', 'in_transit', 'delivered', 'cancelled'].includes(deliveryStatus)
+        ? deliveryStatus
+        : orderStatus;
 
     return {
       tracking_id: trackingId,
@@ -208,12 +213,15 @@ export class TrackingService {
       case 'booked':
         return 'Booked';
       case 'confirmed':
+      case 'accepted':
         return 'Confirmed';
       case 'preparing':
         return 'Preparing';
+      case 'packing':
       case 'ready_for_pickup':
       case 'ready':
         return 'Ready for pickup';
+      case 'out_for_delivery':
       case 'delivery':
       case 'in_transit':
       case 'en_route_to_dropoff':
