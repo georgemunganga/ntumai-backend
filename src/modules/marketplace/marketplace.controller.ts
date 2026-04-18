@@ -709,6 +709,26 @@ export class MarketplaceController {
     return { success: true, data: { order } };
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Roles('VENDOR')
+  @Post('vendor/stores/:storeId/orders/:orderId/cancel')
+  @ApiOperation({ summary: 'Cancel vendor store order' })
+  @ApiBearerAuth()
+  async cancelStoreOrder(
+    @Request() req,
+    @Param('storeId') storeId: string,
+    @Param('orderId') orderId: string,
+    @Body() body: { reason?: string },
+  ) {
+    const order = await this.vendorService.cancelStoreOrder(
+      req.user.userId,
+      storeId,
+      orderId,
+      body?.reason,
+    );
+    return { success: true, data: { order } };
+  }
+
   // ===== PROMOTIONS & GIFT CARDS =====
 
   @Public()

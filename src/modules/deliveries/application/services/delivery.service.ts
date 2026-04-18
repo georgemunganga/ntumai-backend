@@ -555,6 +555,37 @@ export class DeliveryService {
       throw new ForbiddenException('Not authorized to cancel this delivery');
     }
 
+    return this.cancelDeliveryRecord(
+      delivery,
+      reason,
+      [delivery.created_by_user_id, delivery.rider_id],
+    );
+  }
+
+  async cancelLinkedMarketplaceDelivery(
+    deliveryId: string,
+    reason: string,
+  ): Promise<DeliveryOrder> {
+    const delivery = await this.deliveryRepository.findById(deliveryId);
+    if (!delivery) {
+      throw new NotFoundException('Delivery not found');
+    }
+
+    return this.cancelDeliveryRecord(delivery, reason, [
+      delivery.created_by_user_id,
+      delivery.rider_id,
+    ]);
+  }
+
+  private async cancelDeliveryRecord(
+    delivery: DeliveryOrder,
+    reason: string,
+    recipients: Array<string | null | undefined>,
+  ): Promise<DeliveryOrder> {
+    if (this.isDeliveryCancelled(delivery)) {
+      return delivery;
+    }
+
     // Store cancellation info
     delivery.more_info = JSON.stringify({
       ...(delivery.more_info ? JSON.parse(delivery.more_info) : {}),
@@ -562,10 +593,10 @@ export class DeliveryService {
       cancellation_reason: reason,
       cancelled_at: new Date().toISOString(),
     });
-    const updated = await this.deliveryRepository.update(deliveryId, delivery);
+    const updated = await this.deliveryRepository.update(delivery.id, delivery);
 
     const recipientIds = Array.from(
-      new Set([delivery.created_by_user_id, delivery.rider_id].filter(Boolean)),
+      new Set(recipients.filter(Boolean)),
     ) as string[];
 
     await Promise.all(
@@ -573,11 +604,11 @@ export class DeliveryService {
         this.notificationsService.createNotification({
           userId: recipientId,
           title: 'Delivery cancelled',
-          message: `Delivery ${deliveryId} was cancelled.`,
+          message: `Delivery ${delivery.id} was cancelled.`,
           type: 'DELIVERY_UPDATE',
           metadata: {
             entityType: 'delivery',
-            entityId: deliveryId,
+            entityId: delivery.id,
             sourceStatus: 'cancelled',
             statusLabel: 'Cancelled',
           },
@@ -621,6 +652,15 @@ export class DeliveryService {
         }
       }) || null
     );
+  }
+
+  private isDeliveryCancelled(delivery: DeliveryOrder): boolean {
+    try {
+      const metadata = delivery.more_info ? JSON.parse(delivery.more_info) : {};
+      return Boolean(metadata?.cancelled);
+    } catch {
+      return false;
+    }
   }
 
   /**

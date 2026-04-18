@@ -836,6 +836,157 @@ export class VendorService {
     };
   }
 
+  async cancelStoreOrder(
+    userId: string,
+    storeId: string,
+    orderId: string,
+    reason?: string,
+  ) {
+    await this.verifyStoreOwnership(userId, storeId);
+
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: orderId,
+        OrderItem: {
+          some: {
+            Product: {
+              storeId,
+            },
+          },
+        },
+      },
+      include: {
+        OrderItem: {
+          where: {
+            Product: {
+              storeId,
+            },
+          },
+          include: {
+            Product: true,
+          },
+        },
+        Address: true,
+        User: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    if (!['PENDING', 'ACCEPTED', 'PREPARING'].includes(order.status)) {
+      throw new ConflictException('This order cannot be cancelled at this stage');
+    }
+
+    for (const item of order.OrderItem) {
+      await this.prisma.product.update({
+        where: { id: item.productId },
+        data: {
+          stock: {
+            increment: item.quantity,
+          },
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status: 'CANCELLED',
+        updatedAt: new Date(),
+      },
+      include: {
+        OrderItem: {
+          where: {
+            Product: {
+              storeId,
+            },
+          },
+          include: {
+            Product: true,
+          },
+        },
+        Address: true,
+        User: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+          },
+        },
+      },
+    });
+
+    const linkedDelivery =
+      await this.deliveryService.findLinkedMarketplaceDelivery(orderId);
+    if (linkedDelivery) {
+      await this.deliveryService.cancelLinkedMarketplaceDelivery(
+        linkedDelivery.id,
+        reason || 'Vendor cancelled the order before handoff',
+      );
+    }
+
+    await this.notificationsService.createNotification({
+      userId: order.userId,
+      title: order.status === 'PENDING' ? 'Order rejected' : 'Order cancelled',
+      message:
+        order.status === 'PENDING'
+          ? `Your order ${updated.trackingId || updated.id} could not be accepted by the vendor.`
+          : `Your order ${updated.trackingId || updated.id} was cancelled by the vendor.`,
+      type: 'ORDER_UPDATE',
+      metadata: {
+        entityType: 'order',
+        entityId: updated.id,
+        trackingId: updated.trackingId || null,
+        sourceStatus: 'CANCELLED',
+        statusLabel: 'Cancelled',
+      },
+    });
+
+    return {
+      id: updated.id,
+      trackingId: updated.trackingId,
+      conversationId: await this.chatService.findExistingConversationId(
+        ChatContextTypeDto.MARKETPLACE_ORDER,
+        updated.id,
+      ),
+      status: updated.status,
+      totalAmount: updated.totalAmount,
+      customer: {
+        id: updated.User.id,
+        name: `${updated.User.firstName} ${updated.User.lastName}`,
+        phone: updated.User.phone,
+      },
+      items: updated.OrderItem.map((item) => ({
+        id: item.id,
+        name: item.Product.name,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      deliveryAddress:
+        updated.Address.address || updated.Address.city
+          ? `${updated.Address.address}, ${updated.Address.city}`
+          : undefined,
+      paymentMethod: undefined,
+      subtotal: updated.subtotal,
+      deliveryFee: updated.deliveryFee,
+      tax: updated.tax,
+      itemCount: updated.OrderItem.length,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
   // Helper methods
   private getVendorOrderStatusLabel(status: string) {
     switch (status) {
