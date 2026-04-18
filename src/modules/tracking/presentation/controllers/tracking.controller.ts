@@ -5,6 +5,7 @@ import {
   CreateTrackingEventDto,
   TrackingEventResponseDto,
   TrackingTimelineDto,
+  PublicTrackingResponseDto,
 } from '../../application/dtos/tracking.dto';
 import { Public } from '../../../../shared/common/decorators/public.decorator';
 
@@ -51,6 +52,19 @@ export class TrackingController {
     @Param('deliveryId') deliveryId: string,
   ): Promise<TrackingTimelineDto> {
     return this.trackingService.getTrackingByDelivery(deliveryId);
+  }
+
+  @Get('public/:trackingId')
+  @ApiOperation({ summary: 'Get public tracking by delivery ID or order tracking code' })
+  @ApiResponse({
+    status: 200,
+    description: 'Public tracking retrieved',
+    type: PublicTrackingResponseDto,
+  })
+  async getPublicTracking(
+    @Param('trackingId') trackingId: string,
+  ): Promise<PublicTrackingResponseDto> {
+    return this.trackingService.getPublicTracking(trackingId);
   }
 
   @Get('booking/:bookingId/location')

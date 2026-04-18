@@ -510,6 +510,29 @@ export class DeliveryService {
     return delivery;
   }
 
+  async findLinkedMarketplaceDelivery(
+    marketplaceOrderId: string,
+  ): Promise<DeliveryOrder | null> {
+    const result = await this.deliveryRepository.findAll(
+      {},
+      { page: 1, size: 10000 },
+    );
+
+    return (
+      result.data.find((delivery) => {
+        try {
+          const metadata = delivery.more_info ? JSON.parse(delivery.more_info) : {};
+          return (
+            String(metadata?.marketplace_order_id || '') ===
+            String(marketplaceOrderId)
+          );
+        } catch {
+          return false;
+        }
+      }) || null
+    );
+  }
+
   /**
    * Get config/limits
    */

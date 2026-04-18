@@ -6,9 +6,10 @@ import { TrackingGateway } from './infrastructure/websocket/tracking.gateway';
 import { TRACKING_REPOSITORY } from './domain/repositories/tracking.repository.interface';
 import { DatabaseModule } from '../../shared/database/database.module';
 import { AuthModule } from '../auth/auth.module';
+import { DeliveriesModule } from '../deliveries/deliveries.module';
 
 @Module({
-  imports: [DatabaseModule, AuthModule],
+  imports: [DatabaseModule, AuthModule, DeliveriesModule],
   controllers: [TrackingController],
   providers: [
     TrackingService,

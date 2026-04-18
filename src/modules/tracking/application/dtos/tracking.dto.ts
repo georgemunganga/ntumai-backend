@@ -108,3 +108,60 @@ export class TrackingTimelineDto {
   @ApiProperty()
   current_status: string;
 }
+
+export class PublicTrackingPartyDto {
+  @ApiPropertyOptional()
+  name?: string | null;
+
+  @ApiPropertyOptional()
+  phone?: string | null;
+
+  @ApiPropertyOptional()
+  avatar?: string | null;
+}
+
+export class PublicTrackingStopDto {
+  @ApiProperty()
+  type: string;
+
+  @ApiProperty()
+  sequence: number;
+
+  @ApiPropertyOptional()
+  address?: string | null;
+
+  @ApiPropertyOptional({ type: GeoLocationDto })
+  geo?: GeoLocationDto | null;
+}
+
+export class PublicTrackingResponseDto {
+  @ApiProperty()
+  tracking_id: string;
+
+  @ApiProperty({ enum: ['delivery', 'marketplace'] })
+  source: 'delivery' | 'marketplace';
+
+  @ApiProperty()
+  status: string;
+
+  @ApiProperty()
+  status_label: string;
+
+  @ApiPropertyOptional()
+  eta?: string | null;
+
+  @ApiPropertyOptional()
+  order_number?: string | null;
+
+  @ApiPropertyOptional()
+  delivery_id?: string | null;
+
+  @ApiPropertyOptional({ type: PublicTrackingPartyDto })
+  rider?: PublicTrackingPartyDto | null;
+
+  @ApiProperty({ type: [PublicTrackingStopDto] })
+  stops: PublicTrackingStopDto[];
+
+  @ApiPropertyOptional({ type: TrackingTimelineDto })
+  tracking?: TrackingTimelineDto | null;
+}

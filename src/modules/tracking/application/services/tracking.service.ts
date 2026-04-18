@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { TRACKING_REPOSITORY } from '../../domain/repositories/tracking.repository.interface';
 import type { ITrackingRepository } from '../../domain/repositories/tracking.repository.interface';
 import {
@@ -9,13 +9,18 @@ import {
   CreateTrackingEventDto,
   TrackingEventResponseDto,
   TrackingTimelineDto,
+  PublicTrackingResponseDto,
 } from '../dtos/tracking.dto';
+import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
+import { DeliveryService } from '../../../deliveries/application/services/delivery.service';
 
 @Injectable()
 export class TrackingService {
   constructor(
     @Inject(TRACKING_REPOSITORY)
     private readonly trackingRepository: ITrackingRepository,
+    private readonly prisma: PrismaService,
+    private readonly deliveryService: DeliveryService,
   ) {}
 
   async createEvent(
@@ -86,6 +91,173 @@ export class TrackingService {
       location: latestLocation.location,
       timestamp: latestLocation.timestamp.toISOString(),
     };
+  }
+
+  async getPublicTracking(trackingId: string): Promise<PublicTrackingResponseDto> {
+    const directDelivery = await this.deliveryService
+      .getDeliveryById(trackingId)
+      .catch(() => null);
+
+    if (directDelivery) {
+      return this.buildPublicResponse({
+        trackingId,
+        source: 'delivery',
+        delivery: directDelivery,
+        order: null,
+      });
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { trackingId },
+      include: {
+        Address: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Tracking item not found');
+    }
+
+    const linkedDelivery = await this.deliveryService.findLinkedMarketplaceDelivery(
+      order.id,
+    );
+
+    return this.buildPublicResponse({
+      trackingId: order.trackingId,
+      source: 'marketplace',
+      delivery: linkedDelivery,
+      order,
+    });
+  }
+
+  private async buildPublicResponse({
+    trackingId,
+    source,
+    delivery,
+    order,
+  }: {
+    trackingId: string;
+    source: 'delivery' | 'marketplace';
+    delivery: any | null;
+    order: any | null;
+  }): Promise<PublicTrackingResponseDto> {
+    const tracking = delivery
+      ? await this.getTrackingByDelivery(delivery.id).catch(() => null)
+      : null;
+
+    const rider =
+      delivery?.rider_id != null
+        ? await this.prisma.user.findUnique({
+            where: { id: delivery.rider_id },
+            select: {
+              firstName: true,
+              lastName: true,
+              phone: true,
+              profileImage: true,
+            },
+          })
+        : null;
+
+    const rawStatus = String(
+      delivery?.order_status || order?.status || tracking?.current_status || 'pending',
+    ).toLowerCase();
+
+    return {
+      tracking_id: trackingId,
+      source,
+      status: rawStatus,
+      status_label: this.toPublicStatusLabel(rawStatus, Boolean(delivery?.rider_id)),
+      eta: null,
+      order_number: order?.trackingId || null,
+      delivery_id: delivery?.id || null,
+      rider: rider
+        ? {
+            name: `${rider.firstName || ''} ${rider.lastName || ''}`.trim() || null,
+            phone: rider.phone || null,
+            avatar: rider.profileImage || null,
+          }
+        : null,
+      stops: Array.isArray(delivery?.stops)
+        ? delivery.stops.map((stop: any) => ({
+            type: stop.type,
+            sequence: stop.sequence,
+            address: this.formatStopAddress(stop),
+            geo: stop.geo || null,
+          }))
+        : order?.Address
+          ? [
+              {
+                type: 'dropoff',
+                sequence: 1,
+                address: this.formatAddress(order.Address),
+                geo: {
+                  lat: order.Address.latitude,
+                  lng: order.Address.longitude,
+                },
+              },
+            ]
+          : [],
+      tracking,
+    };
+  }
+
+  private toPublicStatusLabel(status: string, hasRider: boolean): string {
+    if (status === 'booked' && hasRider) return 'Rider assigned';
+    switch (status) {
+      case 'pending':
+      case 'booked':
+        return 'Booked';
+      case 'confirmed':
+        return 'Confirmed';
+      case 'preparing':
+        return 'Preparing';
+      case 'ready_for_pickup':
+      case 'ready':
+        return 'Ready for pickup';
+      case 'delivery':
+      case 'in_transit':
+      case 'en_route_to_dropoff':
+        return 'In transit';
+      case 'arrived_at_dropoff':
+        return 'Arriving';
+      case 'delivered':
+      case 'completed':
+        return 'Delivered';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return 'Tracking update';
+    }
+  }
+
+  private formatAddress(address: any): string | null {
+    if (!address) return null;
+    return [
+      address.address,
+      address.city,
+      address.state,
+      address.country,
+    ]
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  private formatStopAddress(stop: any): string | null {
+    if (!stop) return null;
+    if (typeof stop.address === 'string') {
+      return stop.address;
+    }
+    if (stop.address) {
+      return [
+        stop.address.line1,
+        stop.address.city,
+        stop.address.province,
+        stop.address.country,
+      ]
+        .filter(Boolean)
+        .join(', ');
+    }
+    return null;
   }
 
   private toResponseDto(event: TrackingEvent): TrackingEventResponseDto {
