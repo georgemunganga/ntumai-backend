@@ -444,6 +444,7 @@ export class OrderService {
       where: { id: orderId, userId },
       include: {
         OrderItem: true,
+        Payment: true,
       },
     });
 
@@ -478,10 +479,14 @@ export class OrderService {
       },
     });
 
+    const refundResult = await this.refundPaidPayments(order.id);
+
     await this.notificationsService.createNotification({
       userId,
       title: 'Order cancelled',
-      message: `Your order ${order.trackingId} was cancelled successfully.`,
+      message: refundResult.refunded
+        ? `Your order ${order.trackingId} was cancelled. K${refundResult.amount.toFixed(2)} has been marked for refund.`
+        : `Your order ${order.trackingId} was cancelled successfully.`,
       type: 'ORDER_UPDATE',
       metadata: {
         entityType: 'order',
@@ -489,12 +494,19 @@ export class OrderService {
         trackingId: order.trackingId,
         sourceStatus: 'CANCELLED',
         statusLabel: 'Cancelled',
+        notificationType: refundResult.refunded
+          ? 'order_cancelled_refund'
+          : 'order_cancelled',
+        refundAmount: refundResult.refunded ? refundResult.amount : 0,
       },
     });
 
     return {
       success: true,
-      message: 'Order cancelled successfully',
+      message: refundResult.refunded
+        ? 'Order cancelled and refund recorded'
+        : 'Order cancelled successfully',
+      refund: refundResult,
     };
   }
 
@@ -666,6 +678,40 @@ export class OrderService {
         })) || [],
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
+    };
+  }
+
+  private async refundPaidPayments(orderId: string) {
+    const paidPayments = await this.prisma.payment.findMany({
+      where: {
+        orderId,
+        status: 'PAID',
+      },
+    });
+
+    if (paidPayments.length === 0) {
+      return { refunded: false, amount: 0 };
+    }
+
+    const totalAmount = paidPayments.reduce(
+      (sum, payment) => sum + payment.amount,
+      0,
+    );
+
+    await this.prisma.payment.updateMany({
+      where: {
+        orderId,
+        status: 'PAID',
+      },
+      data: {
+        status: 'REFUNDED',
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      refunded: true,
+      amount: totalAmount,
     };
   }
 }

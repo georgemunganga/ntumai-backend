@@ -713,6 +713,7 @@ export class VendorService {
           },
         },
         Address: true,
+        Payment: true,
         User: {
           select: {
             id: true,
@@ -916,6 +917,7 @@ export class VendorService {
           },
         },
         Address: true,
+        Payment: true,
         User: {
           select: {
             id: true,
@@ -936,11 +938,14 @@ export class VendorService {
       );
     }
 
+    const refundResult = await this.refundPaidPayments(updated.id);
+
     await this.notificationsService.createNotification({
       userId: order.userId,
       title: order.status === 'PENDING' ? 'Order rejected' : 'Order cancelled',
-      message:
-        order.status === 'PENDING'
+      message: refundResult.refunded
+        ? `Your order ${updated.trackingId || updated.id} was cancelled by the vendor. K${refundResult.amount.toFixed(2)} has been marked for refund.`
+        : order.status === 'PENDING'
           ? `Your order ${updated.trackingId || updated.id} could not be accepted by the vendor.`
           : `Your order ${updated.trackingId || updated.id} was cancelled by the vendor.`,
       type: 'ORDER_UPDATE',
@@ -950,6 +955,10 @@ export class VendorService {
         trackingId: updated.trackingId || null,
         sourceStatus: 'CANCELLED',
         statusLabel: 'Cancelled',
+        notificationType: refundResult.refunded
+          ? 'order_cancelled_refund'
+          : 'order_cancelled',
+        refundAmount: refundResult.refunded ? refundResult.amount : 0,
       },
     });
 
@@ -1031,6 +1040,40 @@ export class VendorService {
       default:
         return `Your order ${trackingId} has been updated.`;
     }
+  }
+
+  private async refundPaidPayments(orderId: string) {
+    const paidPayments = await this.prisma.payment.findMany({
+      where: {
+        orderId,
+        status: 'PAID',
+      },
+    });
+
+    if (paidPayments.length === 0) {
+      return { refunded: false, amount: 0 };
+    }
+
+    const totalAmount = paidPayments.reduce(
+      (sum, payment) => sum + payment.amount,
+      0,
+    );
+
+    await this.prisma.payment.updateMany({
+      where: {
+        orderId,
+        status: 'PAID',
+      },
+      data: {
+        status: 'REFUNDED',
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      refunded: true,
+      amount: totalAmount,
+    };
   }
 
   private async verifyStoreOwnership(userId: string, storeId: string) {
