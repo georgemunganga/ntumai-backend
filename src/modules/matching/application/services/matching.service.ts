@@ -249,9 +249,15 @@ export class MatchingService {
 
     booking.cancel(dto.reason);
     const saved = await this.bookingRepository.save(booking);
+    const bookingData = booking.toJSON();
 
     // Emit booking.cancelled event
     console.log('Booking cancelled:', bookingId, dto.reason);
+    this.matchingGateway.emitBookingCancelled(
+      bookingData.customer_user_id,
+      bookingId,
+      dto.reason,
+    );
 
     return this.toResponseDto(saved);
   }
@@ -357,6 +363,12 @@ export class MatchingService {
 
     // Emit booking.progress event
     console.log('Booking progress updated:', bookingId, dto.stage);
+    this.matchingGateway.emitBookingProgress(bookingData.customer_user_id, {
+      bookingId,
+      status: bookingData.status,
+      stage: dto.stage,
+      rider: bookingData.rider,
+    });
 
     const progressNotification = this.toBookingProgressNotification(dto.stage);
 
@@ -421,6 +433,13 @@ export class MatchingService {
         sourceStatus: 'completed',
         statusLabel: 'Task Completed',
       },
+    });
+
+    this.matchingGateway.emitBookingCompleted(bookingData.customer_user_id, {
+      bookingId,
+      status: bookingData.status,
+      rider: bookingData.rider,
+      waitTimes: bookingData.wait_times,
     });
 
     return this.toResponseDto(booking);

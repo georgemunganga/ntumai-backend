@@ -168,6 +168,38 @@ export class MatchingGateway
     );
   }
 
+  emitBookingProgress(customerId: string, payload: any) {
+    this.server.to(`customer:${customerId}`).emit('booking:progress', {
+      ...payload,
+      timestamp: new Date().toISOString(),
+    });
+    this.server.to(`booking:${payload.bookingId}`).emit('booking:progress', {
+      ...payload,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  emitBookingCompleted(customerId: string, payload: any) {
+    this.server.to(`customer:${customerId}`).emit('booking:completed', {
+      ...payload,
+      timestamp: new Date().toISOString(),
+    });
+    this.server.to(`booking:${payload.bookingId}`).emit('booking:completed', {
+      ...payload,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  emitBookingCancelled(customerId: string, bookingId: string, reason?: string) {
+    const payload = {
+      bookingId,
+      reason,
+      timestamp: new Date().toISOString(),
+    };
+    this.server.to(`customer:${customerId}`).emit('booking:cancelled', payload);
+    this.server.to(`booking:${bookingId}`).emit('booking:cancelled', payload);
+  }
+
   // Emit matching in progress
   emitMatchingInProgress(customerId: string, bookingId: string) {
     this.server.to(`customer:${customerId}`).emit('matching:in_progress', {
