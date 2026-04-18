@@ -17,6 +17,7 @@ import { SupportModule } from './modules/support/support.module';
 import { CustomerOrdersModule } from './modules/customer-orders/customer-orders.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { FinanceModule } from './modules/finance/finance.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     CustomerOrdersModule,
     ChatModule,
     NotificationsModule,
+    FinanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
