@@ -375,7 +375,7 @@ export class MatchingService {
     await this.notificationsService.createNotification({
       userId: bookingData.customer_user_id,
       title:
-        dto.decision === 'accept' ? 'Tasker assigned' : 'Matching tasker',
+        dto.decision === 'accept' ? 'Task offer accepted' : 'Matching tasker',
       message:
         dto.decision === 'accept'
           ? `A tasker has accepted task ${bookingId}.`
@@ -386,7 +386,7 @@ export class MatchingService {
         entityId: bookingId,
         sourceStatus: dto.decision === 'accept' ? 'accepted' : 'searching',
         statusLabel:
-          dto.decision === 'accept' ? 'Tasker Assigned' : 'Matching Tasker',
+          dto.decision === 'accept' ? 'Tasker Accepted' : 'Matching Tasker',
       },
     });
 

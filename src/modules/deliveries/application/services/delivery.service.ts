@@ -412,26 +412,26 @@ export class DeliveryService {
     await Promise.all([
       this.notificationsService.createNotification({
         userId: delivery.created_by_user_id,
-        title: 'Rider assigned',
+        title: 'Delivery offer accepted',
         message: `A rider has accepted delivery ${deliveryId}.`,
         type: 'DELIVERY_UPDATE',
         metadata: {
           entityType: 'delivery',
           entityId: deliveryId,
           sourceStatus: 'booked',
-          statusLabel: 'Rider Assigned',
+          statusLabel: 'Rider Accepted',
         },
       }),
       this.notificationsService.createNotification({
         userId: riderId,
-        title: 'Delivery accepted',
-        message: `You are now assigned to delivery ${deliveryId}.`,
+        title: 'Delivery offer accepted',
+        message: `You accepted delivery ${deliveryId}.`,
         type: 'DELIVERY_UPDATE',
         metadata: {
           entityType: 'delivery',
           entityId: deliveryId,
           sourceStatus: 'booked',
-          statusLabel: 'Delivery Accepted',
+          statusLabel: 'Offer Accepted',
         },
       }),
     ]);

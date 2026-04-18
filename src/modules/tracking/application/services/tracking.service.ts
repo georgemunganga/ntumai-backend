@@ -207,7 +207,7 @@ export class TrackingService {
   }
 
   private toPublicStatusLabel(status: string, hasRider: boolean): string {
-    if (status === 'booked' && hasRider) return 'Rider assigned';
+    if (status === 'booked' && hasRider) return 'Rider accepted';
     switch (status) {
       case 'pending':
       case 'booked':

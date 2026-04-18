@@ -536,7 +536,7 @@ export class CustomerOrdersService {
       case 'pending':
         return pickupAddress || 'Waiting for rider assignment';
       case 'accepted':
-        return 'Rider has been assigned';
+        return 'Rider accepted the delivery offer';
       case 'in_transit':
         return 'Package is on the move';
       case 'delivered':
