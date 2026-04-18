@@ -477,7 +477,7 @@ export class DeliveryService {
   async rateCustomer(
     deliveryId: string,
     riderId: string,
-    input: { rating: number; comment?: string },
+    input: { rating: number; comment?: string; metadata?: Record<string, any> },
   ) {
     const delivery = await this.deliveryRepository.findById(deliveryId);
     if (!delivery) {
@@ -523,6 +523,7 @@ export class DeliveryService {
         customerId,
         contextType: 'delivery',
         contextId: deliveryId,
+        metadata: input.metadata,
         rating: input.rating,
         comment: input.comment?.trim() || undefined,
         updatedAt: new Date(),

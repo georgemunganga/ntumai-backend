@@ -511,6 +511,7 @@ model Review {
   customerId String? // For customer reviews from taskers
   contextType String?
   contextId String?
+  metadata  Json?
   rating    Int
   comment   String?
   images    String[]         @default([]) // Review images

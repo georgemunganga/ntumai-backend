@@ -222,7 +222,7 @@ export class MatchingService {
   async rateCustomer(
     bookingId: string,
     riderUserId: string,
-    input: { rating: number; comment?: string },
+    input: { rating: number; comment?: string; metadata?: Record<string, any> },
   ) {
     const booking = await this.bookingRepository.findById(bookingId);
     if (!booking) {
@@ -272,6 +272,7 @@ export class MatchingService {
         customerId,
         contextType: 'booking',
         contextId: bookingId,
+        metadata: input.metadata,
         rating: input.rating,
         comment: input.comment?.trim() || undefined,
         updatedAt: new Date(),

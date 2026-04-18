@@ -138,7 +138,7 @@ export class CustomerOrdersService {
   async rateDeliveryTasker(
     userId: string,
     deliveryId: string,
-    input: { rating: number; comment?: string },
+    input: { rating: number; comment?: string; metadata?: Record<string, any> },
   ) {
     const delivery = await this.deliveryService.getMyDeliveryOrThrow(
       deliveryId,
@@ -168,7 +168,7 @@ export class CustomerOrdersService {
   async rateBookingTasker(
     userId: string,
     bookingId: string,
-    input: { rating: number; comment?: string },
+    input: { rating: number; comment?: string; metadata?: Record<string, any> },
   ) {
     const booking = await this.matchingService.getBooking(bookingId);
     if (String(booking.customer_user_id) !== String(userId)) {
@@ -200,6 +200,7 @@ export class CustomerOrdersService {
       comment?: string;
       deliveryId?: string;
       bookingId?: string;
+      metadata?: Record<string, any>;
     },
   ) {
     const existingReview = await this.prisma.review.findFirst({
@@ -235,6 +236,7 @@ export class CustomerOrdersService {
             ? 'booking'
             : undefined,
         contextId: input.deliveryId || input.bookingId || undefined,
+        metadata: input.metadata,
         updatedAt: new Date(),
       },
     });
