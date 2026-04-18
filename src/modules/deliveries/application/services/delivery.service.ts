@@ -345,6 +345,30 @@ export class DeliveryService {
     return result;
   }
 
+  async getMyDeliveryOrThrow(
+    deliveryId: string,
+    userId: string,
+    role: string,
+  ): Promise<any> {
+    const delivery = await this.deliveryRepository.findById(deliveryId);
+    if (!delivery) {
+      throw new NotFoundException('Delivery not found');
+    }
+
+    if (
+      String(delivery.created_by_user_id) !== String(userId) ||
+      String(delivery.placed_by_role || '').toLowerCase() !==
+        String(role || '').toLowerCase()
+    ) {
+      throw new NotFoundException('Delivery not found');
+    }
+
+    return {
+      ...delivery,
+      conversationId: await this.findConversationId(delivery.id),
+    };
+  }
+
   /**
    * Get nearby deliveries for riders
    */

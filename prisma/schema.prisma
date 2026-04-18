@@ -500,24 +500,27 @@ model Promotion {
 }
 
 model Review {
-  id                         String           @id
-  userId                     String
-  entityType                 ReviewEntityType
-  entityId                   String
-  productId                  String? // For product reviews
-  storeId                    String? // For store reviews
-  orderId                    String? // For order reviews
-  rating                     Int
-  comment                    String?
-  images                     String[]         @default([]) // Review images
-  helpfulCount               Int              @default(0) // Helpful votes
-  createdAt                  DateTime         @default(now())
-  updatedAt                  DateTime
-  User_Review_entityIdToUser User             @relation("Review_entityIdToUser", fields: [entityId], references: [id], map: "Review_Driver_fkey")
-  Order                      Order            @relation(fields: [entityId], references: [id], map: "Review_Order_fkey")
-  Product                    Product          @relation(fields: [entityId], references: [id], map: "Review_Product_fkey")
-  Store                      Store            @relation(fields: [entityId], references: [id], map: "Review_Store_fkey")
-  User_Review_userIdToUser   User             @relation("Review_userIdToUser", fields: [userId], references: [id])
+  id        String           @id
+  userId    String
+  entityType ReviewEntityType
+  entityId  String
+  productId String? // For product reviews
+  storeId   String? // For store reviews
+  orderId   String? // For order reviews
+  driverId  String? // For tasker/driver reviews
+  contextType String?
+  contextId String?
+  rating    Int
+  comment   String?
+  images    String[]         @default([]) // Review images
+  helpfulCount Int           @default(0) // Helpful votes
+  createdAt DateTime         @default(now())
+  updatedAt DateTime
+  order     Order?           @relation(fields: [orderId], references: [id])
+  product   Product?         @relation(fields: [productId], references: [id])
+  store     Store?           @relation(fields: [storeId], references: [id])
+  reviewer  User             @relation("ReviewAuthor", fields: [userId], references: [id])
+  driver    User?            @relation("ReviewDriver", fields: [driverId], references: [id])
 }
 
 model Reward {
@@ -616,8 +619,8 @@ model User {
   Notification                 Notification[]
   CustomerPaymentMethod        CustomerPaymentMethod[]
   Order                        Order[]
-  Review_Review_entityIdToUser Review[]                  @relation("Review_entityIdToUser")
-  Review_Review_userIdToUser   Review[]                  @relation("Review_userIdToUser")
+  reviewsAuthored              Review[]                  @relation("ReviewAuthor")
+  driverReviewsReceived        Review[]                  @relation("ReviewDriver")
   Reward                       Reward[]
   Store                        Store[]
   Task                         Task[]

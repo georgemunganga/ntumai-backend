@@ -55,7 +55,7 @@ export class ReviewService {
         updatedAt: new Date(),
       },
       include: {
-        User_Review_userIdToUser: {
+        reviewer: {
           select: {
             id: true,
             firstName: true,
@@ -86,7 +86,7 @@ export class ReviewService {
           entityType: 'PRODUCT',
         },
         include: {
-          User_Review_userIdToUser: {
+          reviewer: {
             select: {
               id: true,
               firstName: true,
@@ -157,7 +157,7 @@ export class ReviewService {
         updatedAt: new Date(),
       },
       include: {
-        User_Review_userIdToUser: {
+        reviewer: {
           select: {
             id: true,
             firstName: true,
@@ -184,7 +184,7 @@ export class ReviewService {
           entityType: 'STORE',
         },
         include: {
-          User_Review_userIdToUser: {
+          reviewer: {
             select: {
               id: true,
               firstName: true,
@@ -587,9 +587,9 @@ export class ReviewService {
     return {
       id: review.id,
       user: {
-        id: review.User_Review_userIdToUser.id,
-        name: `${review.User_Review_userIdToUser.firstName} ${review.User_Review_userIdToUser.lastName}`,
-        profileImage: review.User_Review_userIdToUser.profileImage,
+        id: review.reviewer.id,
+        name: `${review.reviewer.firstName} ${review.reviewer.lastName}`,
+        profileImage: review.reviewer.profileImage,
       },
       rating: review.rating,
       comment: review.comment,

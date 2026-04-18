@@ -1,4 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
+import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 import { DeliveryService } from '../../../deliveries/application/services/delivery.service';
 import { MatchingService } from '../../../matching/application/services/matching.service';
 import { OrderService } from '../../../marketplace/orders/application/services/order.service';
@@ -40,6 +46,7 @@ type FeedItem = {
 @Injectable()
 export class CustomerOrdersService {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly orderService: OrderService,
     private readonly deliveryService: DeliveryService,
     private readonly matchingService: MatchingService,
@@ -125,6 +132,118 @@ export class CustomerOrdersService {
           totalPages,
         },
       },
+    };
+  }
+
+  async rateDeliveryTasker(
+    userId: string,
+    deliveryId: string,
+    input: { rating: number; comment?: string },
+  ) {
+    const delivery = await this.deliveryService.getMyDeliveryOrThrow(
+      deliveryId,
+      userId,
+      'customer',
+    );
+
+    const deliveryStatus = String(
+      delivery.order_status || delivery.status || '',
+    ).toLowerCase();
+    if (!['delivered', 'completed'].includes(deliveryStatus)) {
+      throw new ConflictException('Can only rate taskers for completed deliveries');
+    }
+
+    const riderId = delivery.rider_id || delivery.rider?.id || delivery.rider?.user_id;
+    if (!riderId) {
+      throw new NotFoundException('No tasker is linked to this delivery');
+    }
+
+    return this.createDriverReview(userId, String(riderId), {
+      rating: input.rating,
+      comment: input.comment,
+      deliveryId,
+    });
+  }
+
+  async rateBookingTasker(
+    userId: string,
+    bookingId: string,
+    input: { rating: number; comment?: string },
+  ) {
+    const booking = await this.matchingService.getBooking(bookingId);
+    if (String(booking.customer_user_id) !== String(userId)) {
+      throw new NotFoundException('Task not found');
+    }
+
+    const status = String(booking.status || '').toLowerCase();
+    if (!['completed', 'delivered'].includes(status)) {
+      throw new ConflictException('Can only rate taskers for completed tasks');
+    }
+
+    const riderId = booking.rider?.user_id;
+    if (!riderId) {
+      throw new NotFoundException('No tasker is linked to this task');
+    }
+
+    return this.createDriverReview(userId, String(riderId), {
+      rating: input.rating,
+      comment: input.comment,
+      bookingId,
+    });
+  }
+
+  private async createDriverReview(
+    userId: string,
+    driverId: string,
+    input: {
+      rating: number;
+      comment?: string;
+      deliveryId?: string;
+      bookingId?: string;
+    },
+  ) {
+    const existingReview = await this.prisma.review.findFirst({
+      where: {
+        userId,
+        entityType: 'DRIVER',
+        driverId,
+        contextType: input.deliveryId
+          ? 'delivery'
+          : input.bookingId
+            ? 'booking'
+            : undefined,
+        contextId: input.deliveryId || input.bookingId || undefined,
+      },
+    });
+
+    if (existingReview) {
+      throw new ConflictException('You have already rated this tasker');
+    }
+
+    const review = await this.prisma.review.create({
+      data: {
+        id: uuidv4(),
+        userId,
+        entityType: 'DRIVER',
+        entityId: driverId,
+        driverId,
+        rating: input.rating,
+        comment: input.comment?.trim() || undefined,
+        contextType: input.deliveryId
+          ? 'delivery'
+          : input.bookingId
+            ? 'booking'
+            : undefined,
+        contextId: input.deliveryId || input.bookingId || undefined,
+        updatedAt: new Date(),
+      },
+    });
+
+    return {
+      reviewId: review.id,
+      rating: review.rating,
+      comment: input.comment || review.comment || undefined,
+      driverId,
     };
   }
 

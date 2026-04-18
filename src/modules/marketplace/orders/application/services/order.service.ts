@@ -516,6 +516,18 @@ export class OrderService {
       throw new ConflictException('Can only rate delivered orders');
     }
 
+    const existingReview = await this.prisma.review.findFirst({
+      where: {
+        userId,
+        entityType: 'ORDER',
+        entityId: orderId,
+      },
+    });
+
+    if (existingReview) {
+      throw new ConflictException('You have already rated this order');
+    }
+
     // Create review for the order
     const review = await this.prisma.review.create({
       data: {
@@ -524,6 +536,8 @@ export class OrderService {
         entityId: orderId,
         entityType: 'ORDER',
         orderId,
+        contextType: 'order',
+        contextId: orderId,
         rating,
         comment,
         updatedAt: new Date(),

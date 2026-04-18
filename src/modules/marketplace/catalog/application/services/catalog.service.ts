@@ -444,7 +444,7 @@ export class CatalogService {
           take: 5,
           orderBy: { createdAt: 'desc' },
           include: {
-            User_Review_userIdToUser: {
+            reviewer: {
               select: {
                 id: true,
                 firstName: true,
@@ -517,8 +517,8 @@ export class CatalogService {
         comment: r.comment,
         createdAt: r.createdAt,
         user: {
-          name: `${r.User_Review_userIdToUser.firstName} ${r.User_Review_userIdToUser.lastName}`,
-          profileImage: r.User_Review_userIdToUser.profileImage,
+          name: `${r.reviewer.firstName} ${r.reviewer.lastName}`,
+          profileImage: r.reviewer.profileImage,
         },
       })),
       isFavorite,

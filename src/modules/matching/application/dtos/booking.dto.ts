@@ -209,6 +209,9 @@ export class BookingResponseDto {
   customer_name: string;
 
   @ApiProperty()
+  customer_user_id: string;
+
+  @ApiProperty()
   customer_phone: string;
 
   @ApiProperty()

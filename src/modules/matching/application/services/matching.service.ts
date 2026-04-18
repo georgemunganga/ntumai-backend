@@ -700,6 +700,7 @@ export class MatchingService {
       dropoffs: data.dropoffs as any,
       rider: data.rider as any,
       customer_name: data.customer_name,
+      customer_user_id: data.customer_user_id,
       customer_phone: data.customer_phone,
       wait_times: data.wait_times,
       can_user_edit: data.can_user_edit,

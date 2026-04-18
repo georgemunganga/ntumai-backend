@@ -1,6 +1,9 @@
 import {
+  Body,
   Controller,
   Get,
+  Param,
+  Post,
   Query,
   Req,
   UseGuards,
@@ -44,5 +47,39 @@ export class CustomerOrdersController {
       page: Number(page || 1),
       limit: Number(limit || 20),
     });
+  }
+
+  @Post('deliveries/:deliveryId/rate-tasker')
+  @ApiOperation({ summary: 'Rate tasker for a completed delivery' })
+  @ApiResponse({ status: 200, description: 'Tasker rating submitted successfully' })
+  async rateDeliveryTasker(
+    @Req() req: any,
+    @Param('deliveryId') deliveryId: string,
+    @Body() body: { rating: number; comment?: string },
+  ) {
+    const result = await this.customerOrdersService.rateDeliveryTasker(
+      req.user.userId,
+      deliveryId,
+      body,
+    );
+
+    return { success: true, data: result };
+  }
+
+  @Post('bookings/:bookingId/rate-tasker')
+  @ApiOperation({ summary: 'Rate tasker for a completed task booking' })
+  @ApiResponse({ status: 200, description: 'Tasker rating submitted successfully' })
+  async rateBookingTasker(
+    @Req() req: any,
+    @Param('bookingId') bookingId: string,
+    @Body() body: { rating: number; comment?: string },
+  ) {
+    const result = await this.customerOrdersService.rateBookingTasker(
+      req.user.userId,
+      bookingId,
+      body,
+    );
+
+    return { success: true, data: result };
   }
 }
