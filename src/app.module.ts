@@ -18,6 +18,7 @@ import { CustomerOrdersModule } from './modules/customer-orders/customer-orders.
 import { ChatModule } from './modules/chat/chat.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { ComplianceModule } from './modules/compliance/compliance.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { FinanceModule } from './modules/finance/finance.module';
     ChatModule,
     NotificationsModule,
     FinanceModule,
+    ComplianceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

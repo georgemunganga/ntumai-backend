@@ -640,6 +640,8 @@ model User {
   StoreFavorite           StoreFavorite[]
   ConversationParticipant ConversationParticipant[]
   ConversationMessage     ConversationMessage[]
+  complianceCases         ComplianceCase[]          @relation("ComplianceCaseUser")
+  complianceAppeals       ComplianceAppeal[]        @relation("ComplianceAppealUser")
 }
 
 model SupportTicket {
@@ -657,6 +659,51 @@ model SupportTicket {
   @@index([userId, createdAt])
   @@index([status])
   @@map("support_tickets")
+}
+
+model ComplianceCase {
+  id              String             @id @default(uuid())
+  userId          String
+  role            String
+  title           String
+  description     String
+  category        String
+  severity        String
+  status          String             @default("open")
+  strikeCount     Int                @default(0)
+  suspensionState String             @default("clear")
+  evidence        Json?
+  occurredAt      DateTime
+  reviewedAt      DateTime?
+  resolutionNotes String?
+  metadata        Json?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  user            User               @relation("ComplianceCaseUser", fields: [userId], references: [id], onDelete: Cascade)
+  appeals         ComplianceAppeal[]
+
+  @@index([userId, role, status])
+  @@index([occurredAt])
+  @@map("compliance_cases")
+}
+
+model ComplianceAppeal {
+  id             String         @id @default(uuid())
+  caseId         String
+  userId         String
+  message        String
+  status         String         @default("submitted")
+  reviewedAt     DateTime?
+  reviewNotes    String?
+  metadata       Json?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  complianceCase ComplianceCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  user           User           @relation("ComplianceAppealUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt])
+  @@index([userId, createdAt])
+  @@map("compliance_appeals")
 }
 
 // Marketplace Module: Gift Cards
