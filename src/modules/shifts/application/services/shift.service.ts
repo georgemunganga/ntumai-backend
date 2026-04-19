@@ -10,20 +10,27 @@ import type { IShiftRepository } from '../../domain/repositories/shift.repositor
 import { Shift, ShiftStatus } from '../../domain/entities/shift.entity';
 import {
   StartShiftDto,
+  CreateScheduledShiftDto,
+  CreateTaskerZoneDto,
   UpdateLocationDto,
   GetShiftsQueryDto,
+  ScheduledShiftDto,
   ShiftResponseDto,
   ShiftSummaryDto,
   ShiftPerformanceDto,
   HeatmapDataPointDto,
   ShiftStatisticsDto,
+  TaskerZoneDto,
+  UpdateTaskerAvailabilityDto,
 } from '../dtos/shift.dto';
+import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 
 @Injectable()
 export class ShiftService {
   constructor(
     @Inject(SHIFT_REPOSITORY)
     private readonly shiftRepository: IShiftRepository,
+    private readonly prisma: PrismaService,
   ) {}
 
   async startShift(
@@ -370,6 +377,169 @@ export class ShiftService {
     return heatmap;
   }
 
+  async getScheduledShifts(riderUserId: string): Promise<ScheduledShiftDto[]> {
+    const shifts = await (this.prisma as any).scheduledShift.findMany({
+      where: {
+        riderUserId,
+        status: { not: 'cancelled' },
+      },
+      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+    });
+
+    return shifts.map((shift: any) => this.toScheduledShiftDto(shift));
+  }
+
+  async createScheduledShift(
+    riderUserId: string,
+    dto: CreateScheduledShiftDto,
+  ): Promise<ScheduledShiftDto> {
+    const date = new Date(dto.date);
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('Invalid shift date');
+    }
+
+    const shift = await (this.prisma as any).scheduledShift.create({
+      data: {
+        riderUserId,
+        date,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        isRecurring: Boolean(dto.isRecurring),
+        recurringDays: Array.isArray(dto.recurringDays) ? dto.recurringDays : null,
+        estimatedEarnings: Number(dto.estimatedEarnings ?? 0),
+        notes: dto.notes?.trim() || null,
+        status: 'scheduled',
+      },
+    });
+
+    return this.toScheduledShiftDto(shift);
+  }
+
+  async cancelScheduledShift(
+    riderUserId: string,
+    shiftId: string,
+  ): Promise<ScheduledShiftDto> {
+    const shift = await (this.prisma as any).scheduledShift.findUnique({
+      where: { id: shiftId },
+    });
+
+    if (!shift || shift.riderUserId !== riderUserId) {
+      throw new NotFoundException('Scheduled shift not found');
+    }
+
+    const updated = await (this.prisma as any).scheduledShift.update({
+      where: { id: shiftId },
+      data: { status: 'cancelled' },
+    });
+
+    return this.toScheduledShiftDto(updated);
+  }
+
+  async getTaskerZones(
+    riderUserId: string,
+  ): Promise<{ zones: TaskerZoneDto[]; availability: 'online' | 'offline' | 'busy' }> {
+    const [zones, availability] = await Promise.all([
+      (this.prisma as any).taskerZone.findMany({
+        where: { riderUserId },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.getTaskerAvailability(riderUserId),
+    ]);
+
+    return {
+      zones: zones.map((zone: any) => this.toTaskerZoneDto(zone)),
+      availability,
+    };
+  }
+
+  async createTaskerZone(
+    riderUserId: string,
+    dto: CreateTaskerZoneDto,
+  ): Promise<TaskerZoneDto> {
+    const zone = await (this.prisma as any).taskerZone.create({
+      data: {
+        riderUserId,
+        name: dto.name.trim(),
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        radius: dto.radius,
+        isActive: true,
+      },
+    });
+
+    return this.toTaskerZoneDto(zone);
+  }
+
+  async toggleTaskerZone(riderUserId: string, zoneId: string): Promise<TaskerZoneDto> {
+    const zone = await (this.prisma as any).taskerZone.findUnique({
+      where: { id: zoneId },
+    });
+
+    if (!zone || zone.riderUserId !== riderUserId) {
+      throw new NotFoundException('Tasker zone not found');
+    }
+
+    const updated = await (this.prisma as any).taskerZone.update({
+      where: { id: zoneId },
+      data: {
+        isActive: !zone.isActive,
+      },
+    });
+
+    return this.toTaskerZoneDto(updated);
+  }
+
+  async removeTaskerZone(riderUserId: string, zoneId: string): Promise<{ success: true }> {
+    const zone = await (this.prisma as any).taskerZone.findUnique({
+      where: { id: zoneId },
+    });
+
+    if (!zone || zone.riderUserId !== riderUserId) {
+      throw new NotFoundException('Tasker zone not found');
+    }
+
+    await (this.prisma as any).taskerZone.delete({
+      where: { id: zoneId },
+    });
+
+    return { success: true };
+  }
+
+  async updateTaskerAvailability(
+    riderUserId: string,
+    dto: UpdateTaskerAvailabilityDto,
+  ): Promise<{ availability: 'online' | 'offline' | 'busy' }> {
+    const existing = await this.prisma.userPreference.findUnique({
+      where: { userId: riderUserId },
+    });
+
+    const currentPreferences =
+      existing?.preferences && typeof existing.preferences === 'object'
+        ? (existing.preferences as Record<string, unknown>)
+        : {};
+
+    const preferences = {
+      ...currentPreferences,
+      taskerAvailability: dto.status,
+    };
+
+    if (existing) {
+      await this.prisma.userPreference.update({
+        where: { userId: riderUserId },
+        data: { preferences },
+      });
+    } else {
+      await this.prisma.userPreference.create({
+        data: {
+          userId: riderUserId,
+          preferences,
+        },
+      });
+    }
+
+    return { availability: dto.status };
+  }
+
   async exportData(riderUserId: string): Promise<any[]> {
     const shifts = await this.shiftRepository.findByRiderUserId(riderUserId);
     return shifts.map((shift) => this.toResponseDto(shift));
@@ -426,5 +596,46 @@ export class ShiftService {
       active_duration_sec: shift.getActiveDuration(),
       total_pause_duration_sec: shift.total_pause_duration_sec,
     };
+  }
+
+  private toScheduledShiftDto(shift: any): ScheduledShiftDto {
+    return {
+      id: shift.id,
+      date: new Date(shift.date).toISOString(),
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      isRecurring: Boolean(shift.isRecurring),
+      recurringDays: Array.isArray(shift.recurringDays) ? shift.recurringDays : null,
+      estimatedEarnings: Number(shift.estimatedEarnings ?? 0),
+      actualEarnings:
+        shift.actualEarnings != null ? Number(shift.actualEarnings) : null,
+      status: String(shift.status || 'scheduled'),
+      notes: shift.notes || null,
+    };
+  }
+
+  private toTaskerZoneDto(zone: any): TaskerZoneDto {
+    return {
+      id: zone.id,
+      name: zone.name,
+      latitude: Number(zone.latitude),
+      longitude: Number(zone.longitude),
+      radius: Number(zone.radius),
+      isActive: Boolean(zone.isActive),
+      ordersInZone: 0,
+      totalEarnings: 0,
+      averageRating: 0,
+    };
+  }
+
+  private async getTaskerAvailability(
+    riderUserId: string,
+  ): Promise<'online' | 'offline' | 'busy'> {
+    const preference = await this.prisma.userPreference.findUnique({
+      where: { userId: riderUserId },
+    });
+
+    const status = (preference?.preferences as any)?.taskerAvailability;
+    return status === 'online' || status === 'busy' ? status : 'offline';
   }
 }

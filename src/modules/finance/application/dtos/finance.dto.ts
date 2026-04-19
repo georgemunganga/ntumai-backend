@@ -162,6 +162,48 @@ export class UpdatePayoutRequestStatusDto {
   notifyUser?: boolean;
 }
 
+export class EarningsGoalDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ enum: ['daily', 'weekly', 'monthly'] })
+  period!: 'daily' | 'weekly' | 'monthly';
+
+  @ApiProperty()
+  targetAmount!: number;
+
+  @ApiProperty()
+  currentAmount!: number;
+
+  @ApiProperty({ enum: ['active', 'achieved', 'missed', 'cancelled'] })
+  status!: 'active' | 'achieved' | 'missed' | 'cancelled';
+
+  @ApiProperty()
+  startDate!: string;
+
+  @ApiProperty()
+  endDate!: string;
+
+  @ApiProperty()
+  createdAt!: string;
+}
+
+export class EarningsGoalsResponseDto {
+  @ApiProperty({ type: [EarningsGoalDto] })
+  goals!: EarningsGoalDto[];
+}
+
+export class CreateEarningsGoalDto {
+  @ApiProperty({ enum: ['daily', 'weekly', 'monthly'] })
+  @IsIn(['daily', 'weekly', 'monthly'])
+  period!: 'daily' | 'weekly' | 'monthly';
+
+  @ApiProperty()
+  @IsNumber()
+  @IsPositive()
+  targetAmount!: number;
+}
+
 export class VendorSubscriptionPlanDto {
   @ApiProperty()
   code!: string;

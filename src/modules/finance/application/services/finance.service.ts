@@ -9,10 +9,12 @@ import { NotificationsService } from '../../../notifications/application/service
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 import {
   CreateCustomerSubscriptionDto,
+  CreateEarningsGoalDto,
   CreatePayoutRequestInputDto,
   CreateTipDto,
   CustomerSubscriptionDto,
   CustomerSubscriptionsResponseDto,
+  EarningsGoalDto,
   FinanceSummaryResponseDto,
   FinanceTransactionDto,
   LoyaltyResponseDto,
@@ -810,6 +812,62 @@ export class FinanceService {
     return this.toTipHistoryItemDto(tip);
   }
 
+  async getTaskerEarningsGoals(userId: string): Promise<EarningsGoalDto[]> {
+    await this.assertRoleAccess(userId, 'tasker');
+    const goals = await (this.prisma as any).earningsGoal.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return Promise.all(goals.map((goal: any) => this.toEarningsGoalDto(goal, userId)));
+  }
+
+  async createTaskerEarningsGoal(
+    userId: string,
+    dto: CreateEarningsGoalDto,
+  ): Promise<EarningsGoalDto> {
+    await this.assertRoleAccess(userId, 'tasker');
+    const startDate = new Date();
+    const endDate = this.computeEarningsGoalEndDate(dto.period, startDate);
+
+    const goal = await (this.prisma as any).earningsGoal.create({
+      data: {
+        id: randomUUID(),
+        userId,
+        period: dto.period,
+        targetAmount: dto.targetAmount,
+        status: 'active',
+        startDate,
+        endDate,
+      },
+    });
+
+    return this.toEarningsGoalDto(goal, userId);
+  }
+
+  async cancelTaskerEarningsGoal(userId: string, goalId: string): Promise<EarningsGoalDto> {
+    await this.assertRoleAccess(userId, 'tasker');
+    const goal = await (this.prisma as any).earningsGoal.findUnique({
+      where: { id: goalId },
+    });
+
+    if (!goal || goal.userId !== userId) {
+      throw new NotFoundException('Earnings goal not found');
+    }
+
+    const updated = await (this.prisma as any).earningsGoal.update({
+      where: { id: goalId },
+      data: {
+        status:
+          goal.status === 'achieved' || goal.status === 'missed'
+            ? goal.status
+            : 'cancelled',
+      },
+    });
+
+    return this.toEarningsGoalDto(updated, userId);
+  }
+
   async getTransactions(
     userId: string,
     role: FinanceRole,
@@ -1101,6 +1159,73 @@ export class FinanceService {
     }
 
     return this.toPayoutDto(updated);
+  }
+
+  private computeEarningsGoalEndDate(
+    period: 'daily' | 'weekly' | 'monthly',
+    startDate: Date,
+  ) {
+    const endDate = new Date(startDate);
+    if (period === 'daily') {
+      endDate.setDate(endDate.getDate() + 1);
+    } else if (period === 'weekly') {
+      endDate.setDate(endDate.getDate() + 7);
+    } else {
+      endDate.setMonth(endDate.getMonth() + 1);
+    }
+    return endDate;
+  }
+
+  private async toEarningsGoalDto(goal: any, userId: string): Promise<EarningsGoalDto> {
+    const now = new Date();
+    const currentAmount = await this.getTaskerEarningsForRange(
+      userId,
+      new Date(goal.startDate),
+      new Date(goal.endDate),
+    );
+
+    let status = String(goal.status || 'active').toLowerCase();
+    if (status === 'active' && currentAmount >= Number(goal.targetAmount ?? 0)) {
+      status = 'achieved';
+      await (this.prisma as any).earningsGoal.update({
+        where: { id: goal.id },
+        data: { status },
+      });
+    } else if (status === 'active' && new Date(goal.endDate) < now) {
+      status = 'missed';
+      await (this.prisma as any).earningsGoal.update({
+        where: { id: goal.id },
+        data: { status },
+      });
+    }
+
+    return {
+      id: goal.id,
+      period: goal.period,
+      targetAmount: Number(goal.targetAmount ?? 0),
+      currentAmount,
+      status: status as any,
+      startDate: new Date(goal.startDate).toISOString(),
+      endDate: new Date(goal.endDate).toISOString(),
+      createdAt: new Date(goal.createdAt).toISOString(),
+    };
+  }
+
+  private async getTaskerEarningsForRange(userId: string, startDate: Date, endDate: Date) {
+    const shifts = await this.prisma.shift.findMany({
+      where: {
+        rider_user_id: userId,
+        start_time: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      select: {
+        total_earnings: true,
+      },
+    });
+
+    return shifts.reduce((sum, shift) => sum + Number(shift.total_earnings ?? 0), 0);
   }
 
   private toPayoutDto(request: any): PayoutRequestDto {

@@ -389,6 +389,23 @@ model PayoutRequest {
   @@map("payout_requests")
 }
 
+model EarningsGoal {
+  id           String   @id @default(uuid())
+  userId       String
+  period       String
+  targetAmount Float
+  status       String   @default("active")
+  startDate    DateTime
+  endDate      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@map("earnings_goals")
+}
+
 // User Module: User preferences
 model UserPreference {
   id          String   @id @default(uuid())
@@ -667,10 +684,13 @@ model User {
   customerTipsReceived    CustomerTip[]             @relation("CustomerTipDriver")
   Store                   Store[]
   Task                    Task[]
+  ScheduledShift          ScheduledShift[]
+  TaskerZone              TaskerZone[]
   RefreshToken            RefreshToken[] // Auth Module relation
   UserRoleAssignment      UserRoleAssignment[] // User Module relation
   PushToken               PushToken[] // User Module relation
   PayoutRequest           PayoutRequest[]
+  EarningsGoal            EarningsGoal[]
   UserPreference          UserPreference? // User Module relation
   SupportTicket           SupportTicket[]
   GiftCard                GiftCard[] // Marketplace Module relation
@@ -1037,6 +1057,44 @@ model Shift {
   @@index([rider_user_id, status])
   @@index([status, start_time])
   @@map("shifts")
+}
+
+model ScheduledShift {
+  id                String   @id @default(uuid())
+  riderUserId       String
+  date              DateTime
+  startTime         String
+  endTime           String
+  isRecurring       Boolean  @default(false)
+  recurringDays     Json?
+  estimatedEarnings Float    @default(0)
+  actualEarnings    Float?
+  status            String   @default("scheduled")
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  rider User @relation(fields: [riderUserId], references: [id], onDelete: Cascade)
+
+  @@index([riderUserId, date, status])
+  @@map("scheduled_shifts")
+}
+
+model TaskerZone {
+  id         String   @id @default(uuid())
+  riderUserId String
+  name       String
+  latitude   Float
+  longitude  Float
+  radius     Float
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  rider User @relation(fields: [riderUserId], references: [id], onDelete: Cascade)
+
+  @@index([riderUserId, isActive])
+  @@map("tasker_zones")
 }
 
 // Matching Module: Booking orchestration

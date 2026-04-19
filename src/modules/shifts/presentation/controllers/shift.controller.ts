@@ -18,6 +18,8 @@ import {
 import { ShiftService } from '../../application/services/shift.service';
 import {
   StartShiftDto,
+  CreateScheduledShiftDto,
+  CreateTaskerZoneDto,
   EndShiftDto,
   PauseShiftDto,
   ResumeShiftDto,
@@ -29,7 +31,12 @@ import {
   ShiftSummaryDto,
   ShiftPerformanceDto,
   HeatmapDataPointDto,
+  ScheduledShiftDto,
+  ScheduledShiftsResponseDto,
   ShiftStatisticsDto,
+  TaskerZonesResponseDto,
+  TaskerZoneDto,
+  UpdateTaskerAvailabilityDto,
 } from '../../application/dtos/shift.dto';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
 
@@ -250,5 +257,105 @@ export class ShiftController {
   })
   async getHeatmapData(): Promise<HeatmapDataPointDto[]> {
     return this.shiftService.getHeatmapData();
+  }
+
+  @Get('scheduled/list')
+  @ApiOperation({ summary: 'Get scheduled shifts for the rider' })
+  @ApiResponse({
+    status: 200,
+    description: 'Scheduled shifts retrieved',
+    type: ScheduledShiftsResponseDto,
+  })
+  async getScheduledShifts(@Req() req: any): Promise<ScheduledShiftsResponseDto> {
+    return {
+      shifts: await this.shiftService.getScheduledShifts(req.user.userId),
+    };
+  }
+
+  @Post('scheduled')
+  @ApiOperation({ summary: 'Create a scheduled shift for the rider' })
+  @ApiResponse({
+    status: 201,
+    description: 'Scheduled shift created',
+    type: ScheduledShiftDto,
+  })
+  async createScheduledShift(
+    @Req() req: any,
+    @Body() dto: CreateScheduledShiftDto,
+  ): Promise<ScheduledShiftDto> {
+    return this.shiftService.createScheduledShift(req.user.userId, dto);
+  }
+
+  @Post('scheduled/:shiftId/cancel')
+  @ApiOperation({ summary: 'Cancel a scheduled shift for the rider' })
+  @ApiResponse({
+    status: 200,
+    description: 'Scheduled shift cancelled',
+    type: ScheduledShiftDto,
+  })
+  async cancelScheduledShift(
+    @Req() req: any,
+    @Param('shiftId') shiftId: string,
+  ): Promise<ScheduledShiftDto> {
+    return this.shiftService.cancelScheduledShift(req.user.userId, shiftId);
+  }
+
+  @Get('zones')
+  @ApiOperation({ summary: 'Get tasker delivery zones and availability' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tasker zones retrieved',
+    type: TaskerZonesResponseDto,
+  })
+  async getTaskerZones(@Req() req: any): Promise<TaskerZonesResponseDto> {
+    return this.shiftService.getTaskerZones(req.user.userId);
+  }
+
+  @Post('zones')
+  @ApiOperation({ summary: 'Create a tasker delivery zone' })
+  @ApiResponse({
+    status: 201,
+    description: 'Tasker zone created',
+    type: TaskerZoneDto,
+  })
+  async createTaskerZone(
+    @Req() req: any,
+    @Body() dto: CreateTaskerZoneDto,
+  ): Promise<TaskerZoneDto> {
+    return this.shiftService.createTaskerZone(req.user.userId, dto);
+  }
+
+  @Put('zones/:zoneId/toggle')
+  @ApiOperation({ summary: 'Toggle a tasker delivery zone active state' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tasker zone updated',
+    type: TaskerZoneDto,
+  })
+  async toggleTaskerZone(
+    @Req() req: any,
+    @Param('zoneId') zoneId: string,
+  ): Promise<TaskerZoneDto> {
+    return this.shiftService.toggleTaskerZone(req.user.userId, zoneId);
+  }
+
+  @Post('zones/:zoneId/delete')
+  @ApiOperation({ summary: 'Delete a tasker delivery zone' })
+  @ApiResponse({ status: 200, description: 'Tasker zone deleted' })
+  async deleteTaskerZone(
+    @Req() req: any,
+    @Param('zoneId') zoneId: string,
+  ): Promise<{ success: true }> {
+    return this.shiftService.removeTaskerZone(req.user.userId, zoneId);
+  }
+
+  @Put('availability')
+  @ApiOperation({ summary: 'Update tasker availability preference' })
+  @ApiResponse({ status: 200, description: 'Tasker availability updated' })
+  async updateTaskerAvailability(
+    @Req() req: any,
+    @Body() dto: UpdateTaskerAvailabilityDto,
+  ): Promise<{ availability: 'online' | 'offline' | 'busy' }> {
+    return this.shiftService.updateTaskerAvailability(req.user.userId, dto);
   }
 }

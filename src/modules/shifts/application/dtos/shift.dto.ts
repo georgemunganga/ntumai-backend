@@ -252,3 +252,136 @@ export class ShiftStatisticsDto {
   @ApiProperty()
   by_vehicle_type: Record<string, number>;
 }
+
+export class ScheduledShiftDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  date: string;
+
+  @ApiProperty()
+  startTime: string;
+
+  @ApiProperty()
+  endTime: string;
+
+  @ApiProperty()
+  isRecurring: boolean;
+
+  @ApiPropertyOptional({ type: [Number] })
+  recurringDays?: number[] | null;
+
+  @ApiProperty()
+  estimatedEarnings: number;
+
+  @ApiPropertyOptional()
+  actualEarnings?: number | null;
+
+  @ApiProperty()
+  status: string;
+
+  @ApiPropertyOptional()
+  notes?: string | null;
+}
+
+export class ScheduledShiftsResponseDto {
+  @ApiProperty({ type: [ScheduledShiftDto] })
+  shifts: ScheduledShiftDto[];
+}
+
+export class CreateScheduledShiftDto {
+  @ApiProperty()
+  @IsDateString()
+  date: string;
+
+  @ApiProperty()
+  @IsString()
+  startTime: string;
+
+  @ApiProperty()
+  @IsString()
+  endTime: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  isRecurring?: boolean;
+
+  @ApiPropertyOptional({ type: [Number] })
+  @IsOptional()
+  @IsArray()
+  recurringDays?: number[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  estimatedEarnings?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class TaskerZoneDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  latitude: number;
+
+  @ApiProperty()
+  longitude: number;
+
+  @ApiProperty()
+  radius: number;
+
+  @ApiProperty()
+  isActive: boolean;
+
+  @ApiProperty()
+  ordersInZone: number;
+
+  @ApiProperty()
+  totalEarnings: number;
+
+  @ApiProperty()
+  averageRating: number;
+}
+
+export class TaskerZonesResponseDto {
+  @ApiProperty({ type: [TaskerZoneDto] })
+  zones: TaskerZoneDto[];
+
+  @ApiProperty({ enum: ['online', 'offline', 'busy'] })
+  availability: 'online' | 'offline' | 'busy';
+}
+
+export class CreateTaskerZoneDto {
+  @ApiProperty()
+  @IsString()
+  name: string;
+
+  @ApiProperty()
+  @IsNumber()
+  latitude: number;
+
+  @ApiProperty()
+  @IsNumber()
+  longitude: number;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(1)
+  radius: number;
+}
+
+export class UpdateTaskerAvailabilityDto {
+  @ApiProperty({ enum: ['online', 'offline', 'busy'] })
+  @IsString()
+  @IsEnum(['online', 'offline', 'busy'])
+  status: 'online' | 'offline' | 'busy';
+}

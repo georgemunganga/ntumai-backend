@@ -20,6 +20,7 @@ import {
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
 import {
   CreateCustomerSubscriptionDto,
+  CreateEarningsGoalDto,
   CreatePayoutRequestInputDto,
   CreateTipDto,
   FinanceRoleQueryDto,
@@ -32,6 +33,8 @@ import {
   CustomerSubscriptionDto,
   PayoutRequestDto,
   PayoutRequestListResponseDto,
+  EarningsGoalDto,
+  EarningsGoalsResponseDto,
   PauseCustomerSubscriptionDto,
   RedeemLoyaltyRewardDto,
   SelectVendorSubscriptionPlanDto,
@@ -179,6 +182,32 @@ export class FinanceController {
   @ApiResponse({ status: 201, type: TipHistoryItemDto })
   async createTip(@Req() req: any, @Body() dto: CreateTipDto) {
     return this.financeService.createTip(req.user.userId, dto);
+  }
+
+  @Get('tasker/earnings-goals')
+  @ApiOperation({ summary: 'Get tasker earnings goals' })
+  @ApiResponse({ status: 200, type: EarningsGoalsResponseDto })
+  async getTaskerEarningsGoals(@Req() req: any) {
+    return {
+      goals: await this.financeService.getTaskerEarningsGoals(req.user.userId),
+    };
+  }
+
+  @Post('tasker/earnings-goals')
+  @ApiOperation({ summary: 'Create a tasker earnings goal' })
+  @ApiResponse({ status: 201, type: EarningsGoalDto })
+  async createTaskerEarningsGoal(
+    @Req() req: any,
+    @Body() dto: CreateEarningsGoalDto,
+  ) {
+    return this.financeService.createTaskerEarningsGoal(req.user.userId, dto);
+  }
+
+  @Post('tasker/earnings-goals/:id/cancel')
+  @ApiOperation({ summary: 'Cancel a tasker earnings goal' })
+  @ApiResponse({ status: 200, type: EarningsGoalDto })
+  async cancelTaskerEarningsGoal(@Req() req: any, @Param('id') id: string) {
+    return this.financeService.cancelTaskerEarningsGoal(req.user.userId, id);
   }
 
   @Patch('payout-requests/:id/status')
