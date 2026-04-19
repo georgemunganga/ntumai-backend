@@ -8,13 +8,20 @@ import { randomUUID } from 'crypto';
 import { NotificationsService } from '../../../notifications/application/services/notifications.service';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 import {
+  CreateCustomerSubscriptionDto,
   CreatePayoutRequestInputDto,
+  CreateTipDto,
+  CustomerSubscriptionDto,
+  CustomerSubscriptionsResponseDto,
   FinanceSummaryResponseDto,
   FinanceTransactionDto,
   LoyaltyResponseDto,
+  PauseCustomerSubscriptionDto,
   PayoutRequestDto,
   RedeemLoyaltyRewardDto,
   SelectVendorSubscriptionPlanDto,
+  TipHistoryItemDto,
+  TipHistoryResponseDto,
   UpdatePayoutRequestStatusDto,
   VendorSubscriptionResponseDto,
 } from '../dtos/finance.dto';
@@ -66,6 +73,56 @@ export class FinanceService {
         'Higher promotional capacity',
       ],
       recommended: false,
+    },
+  ];
+
+  private readonly customerSubscriptionPlans = [
+    {
+      code: 'fresh-weekly',
+      vendorName: 'Fresh Farms Market',
+      name: 'Weekly Fresh Box',
+      description: 'Fresh vegetables and fruits delivered every week.',
+      frequency: 'weekly' as const,
+      price: 150,
+      discountPercent: 15,
+      deliveryDay: 'Monday',
+      items: [
+        { name: 'Tomatoes', quantity: 2 },
+        { name: 'Onions', quantity: 1 },
+        { name: 'Cabbage', quantity: 1 },
+        { name: 'Seasonal Fruits', quantity: 1 },
+      ],
+    },
+    {
+      code: 'staples-monthly',
+      vendorName: 'Zambia Foods',
+      name: 'Monthly Staples Pack',
+      description: 'Essential groceries delivered monthly.',
+      frequency: 'monthly' as const,
+      price: 550,
+      discountPercent: 20,
+      deliveryDay: '1st of month',
+      items: [
+        { name: 'Mealie Meal (25kg)', quantity: 1 },
+        { name: 'Cooking Oil (5L)', quantity: 1 },
+        { name: 'Rice (10kg)', quantity: 1 },
+        { name: 'Sugar (2kg)', quantity: 1 },
+      ],
+    },
+    {
+      code: 'meals-biweekly',
+      vendorName: 'Mama Kitchen',
+      name: 'Biweekly Meal Prep',
+      description: 'Ready-to-eat meals delivered every two weeks.',
+      frequency: 'biweekly' as const,
+      price: 280,
+      discountPercent: 12,
+      deliveryDay: 'Wednesday',
+      items: [
+        { name: 'Nshima Meals (10 packs)', quantity: 1 },
+        { name: 'Relish Variety Pack', quantity: 1 },
+        { name: 'Soup (5 containers)', quantity: 1 },
+      ],
     },
   ];
 
@@ -517,6 +574,242 @@ export class FinanceService {
     };
   }
 
+  async getCustomerSubscriptions(
+    userId: string,
+  ): Promise<CustomerSubscriptionsResponseDto> {
+    const subscriptions = await (this.prisma as any).customerSubscription.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      availablePlans: this.customerSubscriptionPlans,
+      subscriptions: subscriptions.map((subscription: any) =>
+        this.toCustomerSubscriptionDto(subscription),
+      ),
+    };
+  }
+
+  async createCustomerSubscription(
+    userId: string,
+    input: CreateCustomerSubscriptionDto,
+  ): Promise<CustomerSubscriptionDto> {
+    const plan = this.customerSubscriptionPlans.find(
+      (item) => item.code === String(input.planCode).trim().toLowerCase(),
+    );
+
+    if (!plan) {
+      throw new NotFoundException('Subscription plan not found');
+    }
+
+    const startDate = input.startDate ? new Date(input.startDate) : new Date();
+    if (Number.isNaN(startDate.getTime())) {
+      throw new BadRequestException('Invalid subscription start date');
+    }
+
+    const subscription = await (this.prisma as any).customerSubscription.create({
+      data: {
+        userId,
+        planCode: plan.code,
+        vendorName: plan.vendorName,
+        name: plan.name,
+        description: plan.description,
+        frequency: plan.frequency,
+        price: plan.price,
+        discountPercent: plan.discountPercent,
+        deliveryAddress: input.deliveryAddress.trim(),
+        items: plan.items,
+        status: 'active',
+        startDate,
+        nextDeliveryDate: this.computeNextDeliveryDate(plan.frequency, startDate),
+        metadata: {
+          deliveryDay: plan.deliveryDay,
+          source: 'customer_self_service',
+        },
+      },
+    });
+
+    await this.notificationsService.createNotification({
+      userId,
+      title: 'Subscription started',
+      message: `${plan.name} is now active for ${plan.vendorName}.`,
+      type: 'SYSTEM',
+      metadata: {
+        notificationType: 'customer_subscription_created',
+        subscriptionId: subscription.id,
+        planCode: plan.code,
+      },
+    });
+
+    return this.toCustomerSubscriptionDto(subscription);
+  }
+
+  async pauseCustomerSubscription(
+    userId: string,
+    subscriptionId: string,
+    input: PauseCustomerSubscriptionDto,
+  ): Promise<CustomerSubscriptionDto> {
+    const subscription = await this.getOwnedCustomerSubscription(userId, subscriptionId);
+    const pauseUntil = new Date(input.pauseUntil);
+    if (Number.isNaN(pauseUntil.getTime())) {
+      throw new BadRequestException('Invalid pause date');
+    }
+
+    const updated = await (this.prisma as any).customerSubscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status: 'paused',
+        pausedUntil: pauseUntil,
+        metadata: {
+          ...(this.toRecordMetadata(subscription.metadata) || {}),
+          pausedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    return this.toCustomerSubscriptionDto(updated);
+  }
+
+  async resumeCustomerSubscription(
+    userId: string,
+    subscriptionId: string,
+  ): Promise<CustomerSubscriptionDto> {
+    const subscription = await this.getOwnedCustomerSubscription(userId, subscriptionId);
+    const frequency = this.toSubscriptionFrequency(subscription.frequency);
+
+    const updated = await (this.prisma as any).customerSubscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status: 'active',
+        pausedUntil: null,
+        nextDeliveryDate: this.computeNextDeliveryDate(frequency, new Date()),
+        metadata: {
+          ...(this.toRecordMetadata(subscription.metadata) || {}),
+          resumedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    return this.toCustomerSubscriptionDto(updated);
+  }
+
+  async cancelCustomerSubscription(
+    userId: string,
+    subscriptionId: string,
+  ): Promise<CustomerSubscriptionDto> {
+    await this.getOwnedCustomerSubscription(userId, subscriptionId);
+
+    const updated = await (this.prisma as any).customerSubscription.update({
+      where: { id: subscriptionId },
+      data: {
+        status: 'cancelled',
+        cancelledAt: new Date(),
+      },
+    });
+
+    return this.toCustomerSubscriptionDto(updated);
+  }
+
+  async getTipHistory(userId: string): Promise<TipHistoryResponseDto> {
+    const tips = await (this.prisma as any).customerTip.findMany({
+      where: { userId },
+      include: {
+        order: {
+          select: {
+            trackingId: true,
+            totalAmount: true,
+          },
+        },
+        driver: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return {
+      tips: tips.map((tip: any) => this.toTipHistoryItemDto(tip)),
+    };
+  }
+
+  async createTip(userId: string, input: CreateTipDto): Promise<TipHistoryItemDto> {
+    const amount = Number(input.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Tip amount must be greater than zero');
+    }
+
+    const { orderId, deliveryId, bookingId, driverId, orderTotal, metadata } =
+      await this.resolveTipContext(userId, input.contextType, input.contextId);
+
+    const existingTip = await (this.prisma as any).customerTip.findFirst({
+      where: {
+        userId,
+        ...(orderId ? { orderId } : {}),
+        ...(deliveryId ? { deliveryId } : {}),
+        ...(bookingId ? { bookingId } : {}),
+      },
+    });
+
+    if (existingTip) {
+      throw new BadRequestException('A tip has already been added for this job');
+    }
+
+    const percentage =
+      orderTotal && orderTotal > 0 ? Number(((amount / orderTotal) * 100).toFixed(2)) : 0;
+
+    const tip = await (this.prisma as any).customerTip.create({
+      data: {
+        userId,
+        orderId,
+        deliveryId,
+        bookingId,
+        driverId,
+        amount,
+        currency: 'ZMW',
+        orderTotal,
+        percentage,
+        metadata,
+      },
+      include: {
+        order: {
+          select: {
+            trackingId: true,
+            totalAmount: true,
+          },
+        },
+        driver: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    if (driverId) {
+      await this.notificationsService.createNotification({
+        userId: driverId,
+        title: 'You received a tip',
+        message: `A customer added a tip of K${amount.toFixed(2)} for your service.`,
+        type: 'SYSTEM',
+        metadata: {
+          notificationType: 'customer_tip_received',
+          tipId: tip.id,
+          amount,
+          orderId: orderId || null,
+          deliveryId: deliveryId || null,
+          bookingId: bookingId || null,
+        },
+      });
+    }
+
+    return this.toTipHistoryItemDto(tip);
+  }
+
   async getTransactions(
     userId: string,
     role: FinanceRole,
@@ -921,6 +1214,205 @@ export class FinanceService {
         !Array.isArray(subscription.metadata)
           ? subscription.metadata
           : null,
+    };
+  }
+
+  private toCustomerSubscriptionDto(subscription: any): CustomerSubscriptionDto {
+    const items = Array.isArray(subscription.items) ? subscription.items : [];
+    return {
+      id: subscription.id,
+      planCode: subscription.planCode,
+      plan: {
+        code: subscription.planCode,
+        vendorName: subscription.vendorName,
+        name: subscription.name,
+        description: subscription.description,
+        frequency: this.toSubscriptionFrequency(subscription.frequency),
+        price: Number(subscription.price ?? 0),
+        discountPercent: Number(subscription.discountPercent ?? 0),
+        deliveryDay:
+          this.toRecordMetadata(subscription.metadata)?.deliveryDay || null,
+        items,
+      },
+      status: String(subscription.status).toLowerCase(),
+      startDate: subscription.startDate.toISOString(),
+      nextDeliveryDate: subscription.nextDeliveryDate.toISOString(),
+      lastDeliveryDate: subscription.lastDeliveryDate?.toISOString() || null,
+      deliveryAddress: subscription.deliveryAddress,
+      totalDeliveries: Number(subscription.totalDeliveries ?? 0),
+      totalSaved: Number(subscription.totalSaved ?? 0),
+      pausedUntil: subscription.pausedUntil?.toISOString() || null,
+      cancelledAt: subscription.cancelledAt?.toISOString() || null,
+    };
+  }
+
+  private toTipHistoryItemDto(tip: any): TipHistoryItemDto {
+    return {
+      id: tip.id,
+      orderId: tip.order?.trackingId || tip.orderId || null,
+      deliveryId: tip.deliveryId || null,
+      bookingId: tip.bookingId || null,
+      taskerName: tip.driver
+        ? `${tip.driver.firstName || ''} ${tip.driver.lastName || ''}`.trim() || null
+        : null,
+      amount: Number(tip.amount ?? 0),
+      currency: tip.currency || 'ZMW',
+      percentage: Number(tip.percentage ?? 0),
+      orderTotal: tip.orderTotal != null ? Number(tip.orderTotal) : Number(tip.order?.totalAmount ?? 0),
+      date: tip.createdAt.toISOString(),
+    };
+  }
+
+  private async getOwnedCustomerSubscription(userId: string, subscriptionId: string) {
+    const subscription = await (this.prisma as any).customerSubscription.findFirst({
+      where: { id: subscriptionId, userId },
+    });
+
+    if (!subscription) {
+      throw new NotFoundException('Subscription not found');
+    }
+
+    return subscription;
+  }
+
+  private computeNextDeliveryDate(
+    frequency: 'weekly' | 'biweekly' | 'monthly',
+    startDate: Date,
+  ) {
+    const date = new Date(startDate);
+    if (frequency === 'weekly') {
+      date.setDate(date.getDate() + 7);
+      return date;
+    }
+    if (frequency === 'biweekly') {
+      date.setDate(date.getDate() + 14);
+      return date;
+    }
+    date.setMonth(date.getMonth() + 1);
+    return date;
+  }
+
+  private toSubscriptionFrequency(value: string): 'weekly' | 'biweekly' | 'monthly' {
+    return value === 'biweekly' || value === 'monthly' ? value : 'weekly';
+  }
+
+  private toRecordMetadata(value: unknown): Record<string, any> | null {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return value as Record<string, any>;
+    }
+    return null;
+  }
+
+  private async resolveTipContext(
+    userId: string,
+    contextType: 'order' | 'delivery' | 'booking',
+    contextId: string,
+  ) {
+    if (contextType === 'order') {
+      const order = await this.prisma.order.findFirst({
+        where: { id: contextId, userId },
+        select: {
+          id: true,
+          totalAmount: true,
+        },
+      });
+
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+
+      const deliveries = await (this.prisma as any).deliveryRecord.findMany({
+        where: {
+          created_by_user_id: userId,
+        },
+        select: {
+          id: true,
+          rider_id: true,
+          more_info: true,
+        },
+      });
+
+      const linkedDelivery = deliveries.find((item: any) => {
+        try {
+          const metadata = item.more_info ? JSON.parse(item.more_info) : {};
+          return String(metadata?.marketplace_order_id || '') === String(contextId);
+        } catch {
+          return false;
+        }
+      });
+
+      return {
+        orderId: order.id,
+        deliveryId: linkedDelivery?.id || null,
+        bookingId: null,
+        driverId: linkedDelivery?.rider_id || null,
+        orderTotal: Number(order.totalAmount ?? 0),
+        metadata: {
+          contextType,
+          contextId,
+        },
+      };
+    }
+
+    if (contextType === 'delivery') {
+      const delivery = await (this.prisma as any).deliveryRecord.findFirst({
+        where: { id: contextId, created_by_user_id: userId },
+        select: {
+          id: true,
+          rider_id: true,
+          payment_amount: true,
+        },
+      });
+
+      if (!delivery) {
+        throw new NotFoundException('Delivery not found');
+      }
+
+      return {
+        orderId: null,
+        deliveryId: delivery.id,
+        bookingId: null,
+        driverId: delivery.rider_id || null,
+        orderTotal: Number(delivery.payment_amount ?? 0),
+        metadata: {
+          contextType,
+          contextId,
+        },
+      };
+    }
+
+    const booking = await this.prisma.booking.findFirst({
+      where: { booking_id: contextId, customer_user_id: userId },
+      select: {
+        booking_id: true,
+        rider: true,
+        metadata: true,
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const bookingMetadata = this.toRecordMetadata(booking.metadata) || {};
+    const rider = this.toRecordMetadata(booking.rider) || {};
+    const estimatedTotal = Number(
+      bookingMetadata.budgetMax ??
+        bookingMetadata.budget?.max ??
+        bookingMetadata.commitmentAmount ??
+        0,
+    );
+
+    return {
+      orderId: null,
+      deliveryId: null,
+      bookingId: booking.booking_id,
+      driverId: rider.user_id || null,
+      orderTotal: estimatedTotal,
+      metadata: {
+        contextType,
+        contextId,
+      },
     };
   }
 }

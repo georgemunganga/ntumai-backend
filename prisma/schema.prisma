@@ -424,6 +424,7 @@ model Order {
   OrderItem          OrderItem[]
   Payment            Payment[]
   Review             Review[]
+  CustomerTip        CustomerTip[]
 }
 
 model OrderItem {
@@ -448,6 +449,33 @@ model Payment {
   createdAt DateTime      @default(now())
   updatedAt DateTime
   Order     Order         @relation(fields: [orderId], references: [id])
+}
+
+model CustomerTip {
+  id         String   @id @default(uuid())
+  userId     String
+  orderId    String?
+  deliveryId String?
+  bookingId  String?
+  driverId   String?
+  amount     Float
+  currency   String   @default("ZMW")
+  orderTotal Float?
+  percentage Float?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user   User   @relation("CustomerTipUser", fields: [userId], references: [id], onDelete: Cascade)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver User?  @relation("CustomerTipDriver", fields: [driverId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([orderId])
+  @@index([deliveryId])
+  @@index([bookingId])
+  @@index([driverId])
+  @@map("customer_tips")
 }
 
 model Product {
@@ -634,6 +662,9 @@ model User {
   driverReviewsReceived   Review[]                  @relation("ReviewDriver")
   customerReviewsReceived Review[]                  @relation("ReviewCustomer")
   Reward                  Reward[]
+  customerSubscriptions   CustomerSubscription[]
+  customerTips            CustomerTip[]             @relation("CustomerTipUser")
+  customerTipsReceived    CustomerTip[]             @relation("CustomerTipDriver")
   Store                   Store[]
   Task                    Task[]
   RefreshToken            RefreshToken[] // Auth Module relation
@@ -651,6 +682,36 @@ model User {
   complianceCases         ComplianceCase[]          @relation("ComplianceCaseUser")
   complianceAppeals       ComplianceAppeal[]        @relation("ComplianceAppealUser")
   VendorSubscription      VendorSubscription?
+}
+
+model CustomerSubscription {
+  id               String    @id @default(uuid())
+  userId           String
+  planCode         String
+  vendorName       String
+  name             String
+  description      String
+  frequency        String
+  price            Float
+  discountPercent  Float     @default(0)
+  deliveryAddress  String
+  items            Json
+  status           String    @default("active")
+  startDate        DateTime
+  nextDeliveryDate DateTime
+  lastDeliveryDate DateTime?
+  pausedUntil      DateTime?
+  cancelledAt      DateTime?
+  totalDeliveries  Int       @default(0)
+  totalSaved       Float     @default(0)
+  metadata         Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@map("customer_subscriptions")
 }
 
 model VendorSubscription {

@@ -320,3 +320,165 @@ export class RedeemLoyaltyRewardDto {
   @MaxLength(40)
   rewardId!: string;
 }
+
+export class CustomerSubscriptionPlanItemDto {
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  quantity!: number;
+}
+
+export class CustomerSubscriptionPlanDto {
+  @ApiProperty()
+  code!: string;
+
+  @ApiProperty()
+  vendorName!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  description!: string;
+
+  @ApiProperty({ enum: ['weekly', 'biweekly', 'monthly'] })
+  frequency!: 'weekly' | 'biweekly' | 'monthly';
+
+  @ApiProperty()
+  price!: number;
+
+  @ApiProperty()
+  discountPercent!: number;
+
+  @ApiPropertyOptional()
+  deliveryDay?: string | null;
+
+  @ApiProperty({ type: [CustomerSubscriptionPlanItemDto] })
+  items!: CustomerSubscriptionPlanItemDto[];
+}
+
+export class CustomerSubscriptionDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  planCode!: string;
+
+  @ApiProperty({ type: CustomerSubscriptionPlanDto })
+  plan!: CustomerSubscriptionPlanDto;
+
+  @ApiProperty()
+  status!: string;
+
+  @ApiProperty()
+  startDate!: string;
+
+  @ApiProperty()
+  nextDeliveryDate!: string;
+
+  @ApiPropertyOptional()
+  lastDeliveryDate?: string | null;
+
+  @ApiProperty()
+  deliveryAddress!: string;
+
+  @ApiProperty()
+  totalDeliveries!: number;
+
+  @ApiProperty()
+  totalSaved!: number;
+
+  @ApiPropertyOptional()
+  pausedUntil?: string | null;
+
+  @ApiPropertyOptional()
+  cancelledAt?: string | null;
+}
+
+export class CustomerSubscriptionsResponseDto {
+  @ApiProperty({ type: [CustomerSubscriptionPlanDto] })
+  availablePlans!: CustomerSubscriptionPlanDto[];
+
+  @ApiProperty({ type: [CustomerSubscriptionDto] })
+  subscriptions!: CustomerSubscriptionDto[];
+}
+
+export class CreateCustomerSubscriptionDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  planCode!: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(280)
+  deliveryAddress!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  startDate?: string;
+}
+
+export class PauseCustomerSubscriptionDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  pauseUntil!: string;
+}
+
+export class TipHistoryItemDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiPropertyOptional()
+  orderId?: string | null;
+
+  @ApiPropertyOptional()
+  deliveryId?: string | null;
+
+  @ApiPropertyOptional()
+  bookingId?: string | null;
+
+  @ApiPropertyOptional()
+  taskerName?: string | null;
+
+  @ApiProperty()
+  amount!: number;
+
+  @ApiProperty()
+  currency!: string;
+
+  @ApiProperty()
+  percentage!: number;
+
+  @ApiPropertyOptional()
+  orderTotal?: number | null;
+
+  @ApiProperty()
+  date!: string;
+}
+
+export class TipHistoryResponseDto {
+  @ApiProperty({ type: [TipHistoryItemDto] })
+  tips!: TipHistoryItemDto[];
+}
+
+export class CreateTipDto {
+  @ApiProperty({ enum: ['order', 'delivery', 'booking'] })
+  @IsIn(['order', 'delivery', 'booking'])
+  contextType!: 'order' | 'delivery' | 'booking';
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  contextId!: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @IsPositive()
+  amount!: number;
+}

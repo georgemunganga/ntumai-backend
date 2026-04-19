@@ -19,13 +19,20 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../auth/infrastructure/guards/jwt-auth.guard';
 import {
+  CreateCustomerSubscriptionDto,
   CreatePayoutRequestInputDto,
+  CreateTipDto,
   FinanceRoleQueryDto,
   FinanceSummaryResponseDto,
   FinanceTransactionListResponseDto,
   LoyaltyResponseDto,
+  CustomerSubscriptionsResponseDto,
+  TipHistoryItemDto,
+  TipHistoryResponseDto,
+  CustomerSubscriptionDto,
   PayoutRequestDto,
   PayoutRequestListResponseDto,
+  PauseCustomerSubscriptionDto,
   RedeemLoyaltyRewardDto,
   SelectVendorSubscriptionPlanDto,
   UpdatePayoutRequestStatusDto,
@@ -119,6 +126,59 @@ export class FinanceController {
     @Body() dto: RedeemLoyaltyRewardDto,
   ) {
     return this.financeService.redeemLoyaltyReward(req.user.userId, dto);
+  }
+
+  @Get('customer-subscriptions')
+  @ApiOperation({ summary: 'Get customer subscription plans and active subscriptions' })
+  @ApiResponse({ status: 200, type: CustomerSubscriptionsResponseDto })
+  async getCustomerSubscriptions(@Req() req: any) {
+    return this.financeService.getCustomerSubscriptions(req.user.userId);
+  }
+
+  @Post('customer-subscriptions')
+  @ApiOperation({ summary: 'Subscribe to a customer delivery plan' })
+  @ApiResponse({ status: 201, type: CustomerSubscriptionDto })
+  async createCustomerSubscription(@Req() req: any, @Body() dto: CreateCustomerSubscriptionDto) {
+    return this.financeService.createCustomerSubscription(req.user.userId, dto);
+  }
+
+  @Post('customer-subscriptions/:id/pause')
+  @ApiOperation({ summary: 'Pause a customer subscription until a future date' })
+  @ApiResponse({ status: 200, type: CustomerSubscriptionDto })
+  async pauseCustomerSubscription(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: PauseCustomerSubscriptionDto,
+  ) {
+    return this.financeService.pauseCustomerSubscription(req.user.userId, id, dto);
+  }
+
+  @Post('customer-subscriptions/:id/resume')
+  @ApiOperation({ summary: 'Resume a paused customer subscription' })
+  @ApiResponse({ status: 200, type: CustomerSubscriptionDto })
+  async resumeCustomerSubscription(@Req() req: any, @Param('id') id: string) {
+    return this.financeService.resumeCustomerSubscription(req.user.userId, id);
+  }
+
+  @Post('customer-subscriptions/:id/cancel')
+  @ApiOperation({ summary: 'Cancel a customer subscription' })
+  @ApiResponse({ status: 200, type: CustomerSubscriptionDto })
+  async cancelCustomerSubscription(@Req() req: any, @Param('id') id: string) {
+    return this.financeService.cancelCustomerSubscription(req.user.userId, id);
+  }
+
+  @Get('tips')
+  @ApiOperation({ summary: 'Get customer tip history' })
+  @ApiResponse({ status: 200, type: TipHistoryResponseDto })
+  async getTipHistory(@Req() req: any) {
+    return this.financeService.getTipHistory(req.user.userId);
+  }
+
+  @Post('tips')
+  @ApiOperation({ summary: 'Create a customer tip for an order, delivery, or booking' })
+  @ApiResponse({ status: 201, type: TipHistoryItemDto })
+  async createTip(@Req() req: any, @Body() dto: CreateTipDto) {
+    return this.financeService.createTip(req.user.userId, dto);
   }
 
   @Patch('payout-requests/:id/status')
