@@ -751,7 +751,7 @@ export class DeliveryService {
     return {
       max_stops: 8,
       max_photos: 10,
-      max_schedule_ahead_hours: 48,
+      max_schedule_ahead_hours: 120,
       vehicle_types: Object.values(VehicleType),
       payment_methods: [
         'cash_on_delivery',
@@ -890,11 +890,11 @@ export class DeliveryService {
 
     const scheduledTime = new Date(scheduled_at);
     const now = new Date();
-    const maxScheduleTime = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+    const maxScheduleTime = new Date(now.getTime() + 120 * 60 * 60 * 1000);
 
     if (scheduledTime <= now || scheduledTime > maxScheduleTime) {
       throw new BadRequestException(
-        'scheduled_at must be within 48 hours from now',
+        'scheduled_at must be within 5 days from now',
       );
     }
   }
