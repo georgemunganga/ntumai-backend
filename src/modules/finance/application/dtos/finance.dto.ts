@@ -226,3 +226,97 @@ export class SelectVendorSubscriptionPlanDto {
   @MaxLength(40)
   planCode!: string;
 }
+
+export class LoyaltyTierDto {
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  minPoints!: number;
+
+  @ApiProperty()
+  color!: string;
+
+  @ApiProperty({ type: [String] })
+  benefits!: string[];
+}
+
+export class LoyaltyTransactionDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ enum: ['earned', 'redeemed', 'expired'] })
+  type!: 'earned' | 'redeemed' | 'expired';
+
+  @ApiProperty()
+  amount!: number;
+
+  @ApiProperty()
+  description!: string;
+
+  @ApiPropertyOptional()
+  orderId?: string | null;
+
+  @ApiProperty()
+  timestamp!: string;
+}
+
+export class LoyaltyRewardDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  title!: string;
+
+  @ApiProperty()
+  description!: string;
+
+  @ApiProperty()
+  pointsCost!: number;
+
+  @ApiProperty({ enum: ['discount', 'free_delivery', 'voucher'] })
+  type!: 'discount' | 'free_delivery' | 'voucher';
+
+  @ApiProperty()
+  value!: number;
+
+  @ApiProperty()
+  expiryDays!: number;
+
+  @ApiProperty()
+  icon!: string;
+
+  @ApiProperty()
+  available!: boolean;
+}
+
+export class LoyaltyResponseDto {
+  @ApiProperty()
+  totalPoints!: number;
+
+  @ApiProperty()
+  availablePoints!: number;
+
+  @ApiProperty({ type: LoyaltyTierDto })
+  currentTier!: LoyaltyTierDto;
+
+  @ApiPropertyOptional({ type: LoyaltyTierDto })
+  nextTier?: LoyaltyTierDto | null;
+
+  @ApiProperty()
+  pointsToNextTier!: number;
+
+  @ApiProperty({ type: [LoyaltyTransactionDto] })
+  transactions!: LoyaltyTransactionDto[];
+
+  @ApiProperty({ type: [LoyaltyRewardDto] })
+  rewards!: LoyaltyRewardDto[];
+}
+
+export class RedeemLoyaltyRewardDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  rewardId!: string;
+}

@@ -11,7 +11,9 @@ import {
   CreatePayoutRequestInputDto,
   FinanceSummaryResponseDto,
   FinanceTransactionDto,
+  LoyaltyResponseDto,
   PayoutRequestDto,
+  RedeemLoyaltyRewardDto,
   SelectVendorSubscriptionPlanDto,
   UpdatePayoutRequestStatusDto,
   VendorSubscriptionResponseDto,
@@ -64,6 +66,86 @@ export class FinanceService {
         'Higher promotional capacity',
       ],
       recommended: false,
+    },
+  ];
+
+  private readonly loyaltyTiers = [
+    {
+      name: 'Bronze',
+      minPoints: 0,
+      color: '#CD7F32',
+      benefits: ['Earn 1 point per K10 spent', 'Birthday bonus'],
+    },
+    {
+      name: 'Silver',
+      minPoints: 500,
+      color: '#C0C0C0',
+      benefits: ['Earn 1.5 points per K10 spent', 'Priority support', 'Exclusive deals'],
+    },
+    {
+      name: 'Gold',
+      minPoints: 2000,
+      color: '#FFD700',
+      benefits: ['Earn 2 points per K10 spent', 'Free delivery on orders over K50', 'Early access to promotions'],
+    },
+    {
+      name: 'Platinum',
+      minPoints: 5000,
+      color: '#E5E4E2',
+      benefits: ['Earn 3 points per K10 spent', 'Always free delivery', 'Dedicated support', 'VIP events'],
+    },
+  ];
+
+  private readonly loyaltyRewards = [
+    {
+      id: 'reward-001',
+      title: 'K10 Off',
+      description: 'Get K10 off your next order',
+      pointsCost: 100,
+      type: 'discount' as const,
+      value: 10,
+      expiryDays: 30,
+      icon: 'tag',
+    },
+    {
+      id: 'reward-002',
+      title: 'Free Delivery',
+      description: 'Free delivery on your next order',
+      pointsCost: 150,
+      type: 'free_delivery' as const,
+      value: 100,
+      expiryDays: 14,
+      icon: 'truck',
+    },
+    {
+      id: 'reward-003',
+      title: 'K25 Off',
+      description: 'Get K25 off your next order',
+      pointsCost: 250,
+      type: 'discount' as const,
+      value: 25,
+      expiryDays: 30,
+      icon: 'gift',
+    },
+    {
+      id: 'reward-004',
+      title: '20% Off',
+      description: 'Get 20% off your next order (max K50)',
+      pointsCost: 400,
+      type: 'discount' as const,
+      value: 20,
+      expiryDays: 30,
+      icon: 'percent',
+    },
+    {
+      id: 'reward-005',
+      title: 'K50 Voucher',
+      description: 'Get K50 voucher for any order',
+      pointsCost: 500,
+      type: 'voucher' as const,
+      value: 50,
+      expiryDays: 60,
+      icon: 'award',
     },
   ];
 
@@ -260,6 +342,117 @@ export class FinanceService {
       subscription: this.toVendorSubscriptionDto(subscription),
       availablePlans: this.vendorPlans,
     };
+  }
+
+  async getLoyalty(userId: string): Promise<LoyaltyResponseDto> {
+    const [points, redeemedRewards] = await Promise.all([
+      this.prisma.loyaltyPoint.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      this.prisma.reward.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+    ]);
+
+    const totalPoints = points
+      .filter((item) => item.points > 0)
+      .reduce((sum, item) => sum + item.points, 0);
+    const availablePoints = points.reduce((sum, item) => sum + item.points, 0);
+
+    let currentTier = this.loyaltyTiers[0];
+    let nextTier = this.loyaltyTiers[1] || null;
+    for (let index = this.loyaltyTiers.length - 1; index >= 0; index -= 1) {
+      if (totalPoints >= this.loyaltyTiers[index].minPoints) {
+        currentTier = this.loyaltyTiers[index];
+        nextTier = this.loyaltyTiers[index + 1] || null;
+        break;
+      }
+    }
+
+    return {
+      totalPoints,
+      availablePoints,
+      currentTier,
+      nextTier,
+      pointsToNextTier: nextTier ? Math.max(0, nextTier.minPoints - totalPoints) : 0,
+      transactions: points.map((item) => ({
+        id: item.id,
+        type: item.points >= 0 ? 'earned' : 'redeemed',
+        amount: item.points,
+        description: item.reason,
+        orderId: null,
+        timestamp: item.createdAt.toISOString(),
+      })),
+      rewards: this.loyaltyRewards.map((reward) => ({
+        ...reward,
+        available: availablePoints >= reward.pointsCost,
+      })),
+    };
+  }
+
+  async redeemLoyaltyReward(
+    userId: string,
+    input: RedeemLoyaltyRewardDto,
+  ): Promise<LoyaltyResponseDto> {
+    const reward = this.loyaltyRewards.find((item) => item.id === input.rewardId);
+    if (!reward) {
+      throw new NotFoundException('Reward not found');
+    }
+
+    const availablePoints = await this.prisma.loyaltyPoint.aggregate({
+      where: { userId },
+      _sum: { points: true },
+    });
+
+    const currentPoints = Number(availablePoints._sum.points ?? 0);
+    if (currentPoints < reward.pointsCost) {
+      throw new BadRequestException('Insufficient loyalty points');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.loyaltyPoint.create({
+        data: {
+          id: randomUUID(),
+          userId,
+          points: -reward.pointsCost,
+          reason: `Redeemed: ${reward.title}`,
+          updatedAt: new Date(),
+        },
+      }),
+      this.prisma.reward.create({
+        data: {
+          id: randomUUID(),
+          userId,
+          type:
+            reward.type === 'free_delivery'
+              ? 'FREE_DELIVERY'
+              : reward.type === 'voucher'
+                ? 'OTHER'
+                : 'DISCOUNT',
+          value: reward.value,
+          description: reward.title,
+          isRedeemed: false,
+          updatedAt: new Date(),
+        },
+      }),
+    ]);
+
+    await this.notificationsService.createNotification({
+      userId,
+      title: 'Reward redeemed',
+      message: `${reward.title} has been added to your rewards.`,
+      type: 'PROMOTION',
+      metadata: {
+        notificationType: 'loyalty_reward_redeemed',
+        rewardId: reward.id,
+      },
+    });
+
+    return this.getLoyalty(userId);
   }
 
   async selectVendorSubscriptionPlan(

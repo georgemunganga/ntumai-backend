@@ -23,8 +23,10 @@ import {
   FinanceRoleQueryDto,
   FinanceSummaryResponseDto,
   FinanceTransactionListResponseDto,
+  LoyaltyResponseDto,
   PayoutRequestDto,
   PayoutRequestListResponseDto,
+  RedeemLoyaltyRewardDto,
   SelectVendorSubscriptionPlanDto,
   UpdatePayoutRequestStatusDto,
   VendorSubscriptionResponseDto,
@@ -100,6 +102,23 @@ export class FinanceController {
     @Body() dto: SelectVendorSubscriptionPlanDto,
   ) {
     return this.financeService.selectVendorSubscriptionPlan(req.user.userId, dto);
+  }
+
+  @Get('loyalty')
+  @ApiOperation({ summary: 'Get customer loyalty summary, transactions and rewards' })
+  @ApiResponse({ status: 200, type: LoyaltyResponseDto })
+  async getLoyalty(@Req() req: any) {
+    return this.financeService.getLoyalty(req.user.userId);
+  }
+
+  @Post('loyalty/redeem')
+  @ApiOperation({ summary: 'Redeem a customer loyalty reward' })
+  @ApiResponse({ status: 200, type: LoyaltyResponseDto })
+  async redeemLoyaltyReward(
+    @Req() req: any,
+    @Body() dto: RedeemLoyaltyRewardDto,
+  ) {
+    return this.financeService.redeemLoyaltyReward(req.user.userId, dto);
   }
 
   @Patch('payout-requests/:id/status')
