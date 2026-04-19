@@ -21,6 +21,7 @@ type FeedItem = {
   statusLabel: string;
   createdAt: string;
   updatedAt: string;
+  scheduledAt?: string | null;
   amount: number;
   currency: string;
   primaryAction: string;
@@ -285,6 +286,7 @@ export class CustomerOrdersService {
       statusLabel: this.toMarketplaceStatusLabel(status),
       createdAt: order.createdAt,
       updatedAt: linkedDelivery?.updated_at?.toISOString?.() || order.updatedAt,
+      scheduledAt: order.scheduledAt || null,
       amount: Number(order.totalAmount || 0),
       currency: 'ZMW',
       primaryAction: 'Track order',
@@ -315,6 +317,7 @@ export class CustomerOrdersService {
       statusLabel: this.toDeliveryStatusLabel(status),
       createdAt: delivery.created_at.toISOString(),
       updatedAt: delivery.updated_at.toISOString(),
+      scheduledAt: delivery.scheduled_at || null,
       amount: Number(delivery.payment?.amount || 0),
       currency: delivery.payment?.currency || 'ZMW',
       primaryAction: 'Track delivery',
@@ -345,6 +348,7 @@ export class CustomerOrdersService {
       statusLabel: this.toTaskStatusLabel(status),
       createdAt: booking.created_at,
       updatedAt: booking.updated_at,
+      scheduledAt: null,
       amount: 0,
       currency: 'ZMW',
       primaryAction: 'View task',

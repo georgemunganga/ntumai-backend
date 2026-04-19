@@ -173,6 +173,13 @@ export class OrderService {
     const deliveryFee = deliveryCalc.calc_payload.total;
     const tax = subtotal * 0.16; // 16% VAT
     const totalAmount = subtotal - discountAmount + deliveryFee + tax;
+    const scheduledTime = scheduleAt ? new Date(scheduleAt) : null;
+    if (scheduledTime && Number.isNaN(scheduledTime.getTime())) {
+      throw new BadRequestException('Invalid schedule time');
+    }
+    if (scheduledTime && scheduledTime.getTime() <= Date.now()) {
+      throw new BadRequestException('scheduleAt must be in the future');
+    }
 
     // Create order
     const trackingId = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
@@ -184,6 +191,7 @@ export class OrderService {
         userId,
         addressId,
         status: 'PENDING',
+        scheduledAt: scheduledTime,
         subtotal,
         discountAmount,
         discountCodeId: cart.discountCodeId,
@@ -242,7 +250,9 @@ export class OrderService {
     await this.notificationsService.createNotification({
       userId,
       title: 'Order placed',
-      message: `Your order ${order.trackingId} has been placed successfully.`,
+      message: scheduledTime
+        ? `Your order ${order.trackingId} is scheduled for ${scheduledTime.toISOString()}.`
+        : `Your order ${order.trackingId} has been placed successfully.`,
       type: 'ORDER_UPDATE',
       metadata: {
         entityType: 'order',
@@ -250,6 +260,7 @@ export class OrderService {
         trackingId: order.trackingId,
         sourceStatus: 'PENDING',
         statusLabel: 'Order Received',
+        scheduledAt: scheduledTime?.toISOString(),
       },
     });
 
@@ -647,6 +658,7 @@ export class OrderService {
       deliveryFee: order.deliveryFee,
       tax: order.tax,
       totalAmount: order.totalAmount,
+      scheduledAt: order.scheduledAt || null,
       items:
         order.OrderItem?.map((item: any) => ({
           id: item.id,

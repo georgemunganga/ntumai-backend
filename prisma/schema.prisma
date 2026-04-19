@@ -408,6 +408,7 @@ model Order {
   userId             String
   addressId          String
   status             OrderStatus          @default(PENDING)
+  scheduledAt        DateTime?
   subtotal           Float
   discountAmount     Float                @default(0)
   discountCodeId     String?
