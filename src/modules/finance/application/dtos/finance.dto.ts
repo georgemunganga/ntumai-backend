@@ -161,3 +161,68 @@ export class UpdatePayoutRequestStatusDto {
   @IsBoolean()
   notifyUser?: boolean;
 }
+
+export class VendorSubscriptionPlanDto {
+  @ApiProperty()
+  code!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  monthlyPrice!: number;
+
+  @ApiProperty()
+  description!: string;
+
+  @ApiProperty({ type: [String] })
+  features!: string[];
+
+  @ApiProperty()
+  recommended!: boolean;
+}
+
+export class VendorSubscriptionDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  planCode!: string;
+
+  @ApiProperty()
+  planName!: string;
+
+  @ApiProperty()
+  monthlyPrice!: number;
+
+  @ApiProperty()
+  billingCycle!: string;
+
+  @ApiProperty()
+  status!: string;
+
+  @ApiProperty()
+  startedAt!: string;
+
+  @ApiProperty()
+  renewsAt!: string;
+
+  @ApiPropertyOptional({ type: Object })
+  metadata?: Record<string, unknown> | null;
+}
+
+export class VendorSubscriptionResponseDto {
+  @ApiProperty({ type: VendorSubscriptionDto })
+  subscription!: VendorSubscriptionDto;
+
+  @ApiProperty({ type: [VendorSubscriptionPlanDto] })
+  availablePlans!: VendorSubscriptionPlanDto[];
+}
+
+export class SelectVendorSubscriptionPlanDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  planCode!: string;
+}

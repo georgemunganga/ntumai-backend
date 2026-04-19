@@ -650,6 +650,27 @@ model User {
   ConversationMessage     ConversationMessage[]
   complianceCases         ComplianceCase[]          @relation("ComplianceCaseUser")
   complianceAppeals       ComplianceAppeal[]        @relation("ComplianceAppealUser")
+  VendorSubscription      VendorSubscription?
+}
+
+model VendorSubscription {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  planCode     String
+  planName     String
+  monthlyPrice Float
+  billingCycle String   @default("monthly")
+  status       String   @default("active")
+  startedAt    DateTime @default(now())
+  renewsAt     DateTime
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, renewsAt])
+  @@map("vendor_subscriptions")
 }
 
 model SupportTicket {

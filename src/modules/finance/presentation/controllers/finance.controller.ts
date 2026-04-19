@@ -25,7 +25,9 @@ import {
   FinanceTransactionListResponseDto,
   PayoutRequestDto,
   PayoutRequestListResponseDto,
+  SelectVendorSubscriptionPlanDto,
   UpdatePayoutRequestStatusDto,
+  VendorSubscriptionResponseDto,
 } from '../../application/dtos/finance.dto';
 import { FinanceService } from '../../application/services/finance.service';
 
@@ -81,6 +83,23 @@ export class FinanceController {
     @Body() dto: CreatePayoutRequestInputDto,
   ) {
     return this.financeService.createPayoutRequest(req.user.userId, dto);
+  }
+
+  @Get('vendor-subscription')
+  @ApiOperation({ summary: 'Get current vendor subscription and available plans' })
+  @ApiResponse({ status: 200, type: VendorSubscriptionResponseDto })
+  async getVendorSubscription(@Req() req: any) {
+    return this.financeService.getVendorSubscription(req.user.userId);
+  }
+
+  @Post('vendor-subscription/select-plan')
+  @ApiOperation({ summary: 'Select or change the current vendor subscription plan' })
+  @ApiResponse({ status: 200, type: VendorSubscriptionResponseDto })
+  async selectVendorSubscriptionPlan(
+    @Req() req: any,
+    @Body() dto: SelectVendorSubscriptionPlanDto,
+  ) {
+    return this.financeService.selectVendorSubscriptionPlan(req.user.userId, dto);
   }
 
   @Patch('payout-requests/:id/status')

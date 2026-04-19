@@ -12,7 +12,9 @@ import {
   FinanceSummaryResponseDto,
   FinanceTransactionDto,
   PayoutRequestDto,
+  SelectVendorSubscriptionPlanDto,
   UpdatePayoutRequestStatusDto,
+  VendorSubscriptionResponseDto,
 } from '../dtos/finance.dto';
 
 type FinanceRole = 'customer' | 'tasker' | 'vendor';
@@ -23,6 +25,47 @@ export class FinanceService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  private readonly vendorPlans = [
+    {
+      code: 'starter',
+      name: 'Starter',
+      monthlyPrice: 0,
+      description: 'Basic store presence for development and low-volume sellers.',
+      features: [
+        'Store listing',
+        'Product management',
+        'Order management',
+      ],
+      recommended: false,
+    },
+    {
+      code: 'growth',
+      name: 'Growth',
+      monthlyPrice: 149,
+      description: 'Extra visibility and reporting for active vendors.',
+      features: [
+        'Everything in Starter',
+        'Promo code management',
+        'Sales analytics',
+        'Priority support',
+      ],
+      recommended: true,
+    },
+    {
+      code: 'pro',
+      name: 'Pro',
+      monthlyPrice: 299,
+      description: 'High-volume plan for larger stores and restaurant groups.',
+      features: [
+        'Everything in Growth',
+        'Advanced reporting',
+        'Dedicated support routing',
+        'Higher promotional capacity',
+      ],
+      recommended: false,
+    },
+  ];
 
   async getSummary(
     userId: string,
@@ -182,6 +225,102 @@ export class FinanceService {
         storeCount: stores.length,
         orderCount: new Set(orderItems.map((item) => item.orderId)).size,
       },
+    };
+  }
+
+  async getVendorSubscription(userId: string): Promise<VendorSubscriptionResponseDto> {
+    await this.assertRoleAccess(userId, 'vendor');
+
+    let subscription = await (this.prisma as any).vendorSubscription.findUnique({
+      where: { userId },
+    });
+
+    if (!subscription) {
+      const starterPlan = this.vendorPlans[0];
+      const renewsAt = new Date();
+      renewsAt.setMonth(renewsAt.getMonth() + 1);
+
+      subscription = await (this.prisma as any).vendorSubscription.create({
+        data: {
+          userId,
+          planCode: starterPlan.code,
+          planName: starterPlan.name,
+          monthlyPrice: starterPlan.monthlyPrice,
+          billingCycle: 'monthly',
+          status: 'active',
+          renewsAt,
+          metadata: {
+            source: 'default_seed',
+          },
+        },
+      });
+    }
+
+    return {
+      subscription: this.toVendorSubscriptionDto(subscription),
+      availablePlans: this.vendorPlans,
+    };
+  }
+
+  async selectVendorSubscriptionPlan(
+    userId: string,
+    input: SelectVendorSubscriptionPlanDto,
+  ): Promise<VendorSubscriptionResponseDto> {
+    await this.assertRoleAccess(userId, 'vendor');
+
+    const plan = this.vendorPlans.find(
+      (item) => item.code === String(input.planCode).trim().toLowerCase(),
+    );
+
+    if (!plan) {
+      throw new NotFoundException('Subscription plan not found');
+    }
+
+    const renewsAt = new Date();
+    renewsAt.setMonth(renewsAt.getMonth() + 1);
+
+    const subscription = await (this.prisma as any).vendorSubscription.upsert({
+      where: { userId },
+      update: {
+        planCode: plan.code,
+        planName: plan.name,
+        monthlyPrice: plan.monthlyPrice,
+        billingCycle: 'monthly',
+        status: 'active',
+        renewsAt,
+        metadata: {
+          changedAt: new Date().toISOString(),
+          source: 'vendor_self_service',
+        },
+      },
+      create: {
+        userId,
+        planCode: plan.code,
+        planName: plan.name,
+        monthlyPrice: plan.monthlyPrice,
+        billingCycle: 'monthly',
+        status: 'active',
+        renewsAt,
+        metadata: {
+          source: 'vendor_self_service',
+        },
+      },
+    });
+
+    await this.notificationsService.createNotification({
+      userId,
+      title: 'Subscription updated',
+      message: `Your vendor plan is now ${plan.name}.`,
+      type: 'SYSTEM',
+      metadata: {
+        notificationType: 'vendor_subscription_update',
+        planCode: plan.code,
+      },
+    });
+
+    return {
+      subscription: this.toVendorSubscriptionDto(subscription),
+      availablePlans: this.vendorPlans,
     };
   }
 
@@ -571,5 +710,24 @@ export class FinanceService {
     if (!assignment?.active) {
       throw new ForbiddenException('Tasker finance is unavailable until tasker access is active');
     }
+  }
+
+  private toVendorSubscriptionDto(subscription: any) {
+    return {
+      id: subscription.id,
+      planCode: subscription.planCode,
+      planName: subscription.planName,
+      monthlyPrice: Number(subscription.monthlyPrice ?? 0),
+      billingCycle: subscription.billingCycle,
+      status: subscription.status,
+      startedAt: subscription.startedAt.toISOString(),
+      renewsAt: subscription.renewsAt.toISOString(),
+      metadata:
+        subscription.metadata &&
+        typeof subscription.metadata === 'object' &&
+        !Array.isArray(subscription.metadata)
+          ? subscription.metadata
+          : null,
+    };
   }
 }
