@@ -368,6 +368,26 @@ export class RiderDeliveryController {
     return this.deliveryService.markAsDelivery(id, req.user.userId);
   }
 
+  @Post(':id/release')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Release accepted delivery',
+    description: 'Rider releases an accepted delivery before transit starts',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Delivery released successfully',
+  })
+  async releaseDelivery(
+    @Param('id') id: string,
+    @Body() dto: CancelDeliveryDto,
+    @Request() req: any,
+  ): Promise<any> {
+    return this.deliveryService.releaseDelivery(id, req.user.userId, dto.reason);
+  }
+
   @Post(':id/rate-customer')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

@@ -474,6 +474,87 @@ export class DeliveryService {
     return updated;
   }
 
+  async releaseDelivery(
+    deliveryId: string,
+    riderId: string,
+    reason?: string,
+  ): Promise<DeliveryOrder> {
+    const delivery = await this.deliveryRepository.findById(deliveryId);
+    if (!delivery) {
+      throw new NotFoundException('Delivery not found');
+    }
+
+    if (delivery.rider_id !== riderId) {
+      throw new ForbiddenException('Not assigned to this delivery');
+    }
+
+    if (String(delivery.order_status || '').toLowerCase() !== 'booked') {
+      throw new BadRequestException('Delivery can only be released before transit starts');
+    }
+
+    delivery.rider_id = null;
+    delivery.updated_at = new Date();
+
+    const updatedMetadata = (() => {
+      try {
+        const parsed =
+          delivery.more_info && typeof delivery.more_info === 'string'
+            ? JSON.parse(delivery.more_info)
+            : {};
+        return {
+          ...parsed,
+          rider_release: {
+            releasedBy: riderId,
+            reason: reason?.trim() || null,
+            releasedAt: new Date().toISOString(),
+          },
+        };
+      } catch {
+        return {
+          rider_release: {
+            releasedBy: riderId,
+            reason: reason?.trim() || null,
+            releasedAt: new Date().toISOString(),
+          },
+        };
+      }
+    })();
+
+    delivery.more_info = JSON.stringify(updatedMetadata);
+    const updated = await this.deliveryRepository.update(deliveryId, delivery);
+
+    await Promise.all([
+      this.notificationsService.createNotification({
+        userId: delivery.created_by_user_id,
+        title: 'Searching for another rider',
+        message: `Your delivery ${deliveryId} is being reassigned to another rider.`,
+        type: 'DELIVERY_UPDATE',
+        metadata: {
+          entityType: 'delivery',
+          entityId: deliveryId,
+          sourceStatus: 'booked',
+          statusLabel: 'Searching',
+          notificationType: 'delivery_reassigned',
+        },
+      }),
+      this.notificationsService.createNotification({
+        userId: riderId,
+        title: 'Delivery released',
+        message: `You released delivery ${deliveryId}.`,
+        type: 'DELIVERY_UPDATE',
+        metadata: {
+          entityType: 'delivery',
+          entityId: deliveryId,
+          sourceStatus: 'booked',
+          statusLabel: 'Released',
+          notificationType: 'delivery_released',
+        },
+      }),
+    ]);
+
+    return updated;
+  }
+
   async rateCustomer(
     deliveryId: string,
     riderId: string,
