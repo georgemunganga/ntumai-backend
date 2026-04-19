@@ -731,6 +731,58 @@ export class MarketplaceController {
 
   // ===== PROMOTIONS & GIFT CARDS =====
 
+  @UseGuards(JwtAuthGuard)
+  @Roles('VENDOR')
+  @Get('vendor/stores/me/promotions')
+  @ApiOperation({ summary: 'List current vendor promo codes' })
+  @ApiBearerAuth()
+  async listVendorPromos(@Request() req) {
+    const promos = await this.promotionService.listVendorPromos(req.user.userId);
+    return { success: true, data: { promotions: promos } };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles('VENDOR')
+  @Post('vendor/stores/me/promotions')
+  @ApiOperation({ summary: 'Create a promo code for current vendor store' })
+  @ApiBearerAuth()
+  async createVendorPromo(@Request() req, @Body() body: any) {
+    const promotion = await this.promotionService.createVendorPromo(
+      req.user.userId,
+      body,
+    );
+    return { success: true, data: { promotion } };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles('VENDOR')
+  @Patch('vendor/stores/me/promotions/:promoId/status')
+  @ApiOperation({ summary: 'Toggle current vendor promo code status' })
+  @ApiBearerAuth()
+  async toggleVendorPromoStatus(
+    @Request() req,
+    @Param('promoId') promoId: string,
+  ) {
+    const promotion = await this.promotionService.toggleVendorPromoStatus(
+      req.user.userId,
+      promoId,
+    );
+    return { success: true, data: { promotion } };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles('VENDOR')
+  @Delete('vendor/stores/me/promotions/:promoId')
+  @ApiOperation({ summary: 'Delete current vendor promo code' })
+  @ApiBearerAuth()
+  async deleteVendorPromo(@Request() req, @Param('promoId') promoId: string) {
+    const result = await this.promotionService.deleteVendorPromo(
+      req.user.userId,
+      promoId,
+    );
+    return { success: true, data: result };
+  }
+
   @Public()
   @Get('customer/promotions')
   @ApiOperation({ summary: 'Get promotions' })

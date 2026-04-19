@@ -178,22 +178,28 @@ model DeviceSession {
 }
 
 model DiscountCode {
-  id            String       @id
-  code          String       @unique
-  type          DiscountType
-  value         Float
-  minOrderValue Float?
-  maxDiscount   Float?
-  usageLimit    Int?
-  usedCount     Int          @default(0)
-  isActive      Boolean      @default(true)
-  startDate     DateTime
-  endDate       DateTime
-  expiresAt     DateTime? // Optional expiration date
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime
-  Order         Order[]
-  Cart          Cart[] // Carts using this discount
+  id             String       @id
+  code           String       @unique
+  description    String?
+  type           DiscountType
+  value          Float
+  minOrderValue  Float?
+  maxDiscount    Float?
+  usageLimit     Int?
+  usedCount      Int          @default(0)
+  isActive       Boolean      @default(true)
+  firstOrderOnly Boolean      @default(false)
+  storeId        String?
+  startDate      DateTime
+  endDate        DateTime
+  expiresAt      DateTime? // Optional expiration date
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime
+  Order          Order[]
+  Cart           Cart[] // Carts using this discount
+  Store          Store?       @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, isActive])
 }
 
 model Favorite {
@@ -554,6 +560,7 @@ model Store {
   User              User                @relation(fields: [vendorId], references: [id])
   StoreFavorite     StoreFavorite[]
   StoreBusinessHour StoreBusinessHour[]
+  DiscountCode      DiscountCode[]
   StoreHoliday      StoreHoliday[]
 }
 
@@ -774,6 +781,7 @@ enum DeliveryStatus {
 enum DiscountType {
   PERCENTAGE
   FIXED_AMOUNT
+  FREE_DELIVERY
 }
 
 // Auth Module: Identifier Type for OTP

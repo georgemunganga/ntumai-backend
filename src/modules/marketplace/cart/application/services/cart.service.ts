@@ -242,6 +242,8 @@ export class CartService {
 
     if (discount.type === 'PERCENTAGE') {
       discountAmount = (cartData.subtotal * discount.value) / 100;
+    } else if (discount.type === 'FREE_DELIVERY') {
+      discountAmount = cartData.deliveryFee;
     } else {
       discountAmount = discount.value;
     }
