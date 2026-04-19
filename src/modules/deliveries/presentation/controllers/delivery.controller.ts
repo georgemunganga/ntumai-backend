@@ -169,6 +169,16 @@ export class DeliveryController {
     );
   }
 
+  @Get('config')
+  @Public()
+  @ApiOperation({
+    summary: 'Get Delivery Config',
+    description: 'Get delivery configuration, pricing limits, and defaults',
+  })
+  async getConfig(): Promise<any> {
+    return this.deliveryService.getConfig();
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
