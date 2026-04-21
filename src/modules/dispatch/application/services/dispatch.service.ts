@@ -36,6 +36,7 @@ type CandidateShift = {
   rider_user_id: string;
   vehicle_type: string;
   current_location: { lat: number; lng: number } | null;
+  last_location_update: Date | null;
 };
 
 type CachedRiderProfile = {
@@ -95,6 +96,10 @@ export class DispatchService {
   private readonly routeRefinementMaxActiveCalls = Number(
     process.env.DISPATCH_ROUTE_REFINEMENT_MAX_ACTIVE_CALLS || 12,
   );
+  private readonly locationMaxStaleMs =
+    Number(process.env.DISPATCH_LOCATION_MAX_STALE_SEC || 45) * 1000;
+  private readonly locationPreferredFreshMs =
+    Number(process.env.DISPATCH_LOCATION_PREFERRED_FRESH_SEC || 20) * 1000;
   private readonly googleMapsApiKey =
     process.env.GOOGLE_MAPS_API_KEY ||
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
@@ -151,6 +156,7 @@ export class DispatchService {
       const parsedShifts = (await this.getActiveCandidateShifts(metrics)).filter(
         (shift): shift is CandidateShift =>
           Boolean(shift.current_location) &&
+          this.getLocationFreshnessScore(shift.last_location_update) > 0 &&
           this.isVehicleCompatible(job.vehicleType, shift.vehicle_type),
       );
       metrics.shiftFetchMs =
@@ -222,11 +228,15 @@ export class DispatchService {
             0,
             1 - workload / this.maxActiveJobsPerTasker,
           );
+          const freshnessScore = this.getLocationFreshnessScore(
+            shift.last_location_update,
+          );
           const finalScore =
             etaScore * 0.45 +
-            ratingScore * 0.2 +
+            ratingScore * 0.18 +
             acceptanceScore * 0.2 +
-            workloadScore * 0.15 -
+            workloadScore * 0.12 +
+            freshnessScore * 0.05 -
             Math.min(0.1, (declinedCount + timedOutCount) * 0.01);
 
           return {
@@ -381,6 +391,34 @@ export class DispatchService {
     return typeof riderId === 'string' && riderId.length > 0 ? riderId : null;
   }
 
+  private getLocationFreshnessScore(lastUpdatedAt: Date | null): number {
+    if (!lastUpdatedAt) {
+      return 0;
+    }
+
+    const ageMs = Date.now() - lastUpdatedAt.getTime();
+    if (ageMs <= 0) {
+      return 1;
+    }
+    if (ageMs >= this.locationMaxStaleMs) {
+      return 0;
+    }
+    if (ageMs <= this.locationPreferredFreshMs) {
+      return 1;
+    }
+
+    const freshnessWindow =
+      this.locationMaxStaleMs - this.locationPreferredFreshMs;
+    if (freshnessWindow <= 0) {
+      return 0;
+    }
+
+    return Math.max(
+      0,
+      1 - (ageMs - this.locationPreferredFreshMs) / freshnessWindow,
+    );
+  }
+
   private isActiveAssignedStatus(status: string): boolean {
     return [
       'accepted',
@@ -469,11 +507,15 @@ export class DispatchService {
       .findMany({
         where: {
           status: 'active',
+          last_location_update: {
+            gte: new Date(Date.now() - this.locationMaxStaleMs),
+          },
         },
         select: {
           rider_user_id: true,
           vehicle_type: true,
           current_location: true,
+          last_location_update: true,
         },
         orderBy: { last_location_update: 'desc' },
         take: this.maxCandidatePool,
@@ -484,6 +526,7 @@ export class DispatchService {
             rider_user_id: shift.rider_user_id,
             vehicle_type: shift.vehicle_type,
             current_location: this.parseLocation(shift.current_location),
+            last_location_update: shift.last_location_update,
           }))
           .filter(
             (shift): shift is CandidateShift => Boolean(shift.current_location),

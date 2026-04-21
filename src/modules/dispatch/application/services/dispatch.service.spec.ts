@@ -1,6 +1,9 @@
 import { DispatchService } from './dispatch.service';
 
 describe('DispatchService simulation', () => {
+  const freshDate = new Date();
+  const staleDate = new Date(Date.now() - 5 * 60 * 1000);
+
   const makeService = () => {
     const prisma = {
       shift: {
@@ -51,21 +54,25 @@ describe('DispatchService simulation', () => {
         rider_user_id: 'rider-near',
         vehicle_type: 'motorbike',
         current_location: { lat: -15.4001, lng: 28.2801 },
+        last_location_update: freshDate,
       },
       {
         rider_user_id: 'rider-far',
         vehicle_type: 'motorbike',
         current_location: { lat: -15.49, lng: 28.39 },
+        last_location_update: freshDate,
       },
       {
         rider_user_id: 'rider-busy',
         vehicle_type: 'motorbike',
         current_location: { lat: -15.4002, lng: 28.2802 },
+        last_location_update: freshDate,
       },
       {
         rider_user_id: 'rider-offline',
         vehicle_type: 'motorbike',
         current_location: { lat: -15.4003, lng: 28.2803 },
+        last_location_update: freshDate,
       },
     ]);
     prisma.user.findMany.mockResolvedValue([
@@ -158,6 +165,7 @@ describe('DispatchService simulation', () => {
         lat: -15.4 + index * 0.0005,
         lng: 28.28 + index * 0.0005,
       },
+      last_location_update: freshDate,
     }));
 
     prisma.shift.findMany.mockResolvedValue(shifts);
@@ -210,5 +218,65 @@ describe('DispatchService simulation', () => {
       expect(ranked.length).toBeLessThanOrEqual(5);
       expect(ranked[0].score).toBeGreaterThanOrEqual(ranked[ranked.length - 1].score);
     }
+  });
+
+  it('filters out taskers with stale location updates', async () => {
+    const { prisma, service } = makeService();
+
+    prisma.shift.findMany.mockResolvedValue([
+      {
+        rider_user_id: 'rider-fresh',
+        vehicle_type: 'motorbike',
+        current_location: { lat: -15.4001, lng: 28.2801 },
+        last_location_update: freshDate,
+      },
+      {
+        rider_user_id: 'rider-stale',
+        vehicle_type: 'motorbike',
+        current_location: { lat: -15.40005, lng: 28.28005 },
+        last_location_update: staleDate,
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'rider-fresh',
+        firstName: 'Fresh',
+        lastName: 'Rider',
+        phone: '+260111111111',
+        role: 'DRIVER',
+      },
+      {
+        id: 'rider-stale',
+        firstName: 'Stale',
+        lastName: 'Rider',
+        phone: '+260222222222',
+        role: 'DRIVER',
+      },
+    ]);
+    prisma.userPreference.findMany.mockResolvedValue([
+      {
+        userId: 'rider-fresh',
+        preferences: { taskerAvailability: 'online' },
+      },
+      {
+        userId: 'rider-stale',
+        preferences: { taskerAvailability: 'online' },
+      },
+    ]);
+    prisma.review.groupBy.mockResolvedValue([
+      { driverId: 'rider-fresh', _avg: { rating: 4.8 } },
+      { driverId: 'rider-stale', _avg: { rating: 4.9 } },
+    ]);
+    prisma.booking.findMany.mockResolvedValue([]);
+
+    const ranked = await service.rankTaskersForJob({
+      jobId: 'job-freshness',
+      jobType: 'delivery',
+      pickup: { lat: -15.4, lng: 28.28 },
+      vehicleType: 'motorbike',
+      radiusKm: 20,
+    });
+
+    expect(ranked.map((candidate) => candidate.user_id)).toEqual(['rider-fresh']);
   });
 });
