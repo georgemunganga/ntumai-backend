@@ -236,6 +236,182 @@ export class VendorService {
     };
   }
 
+  async getStoreReports(
+    userId: string,
+    storeId: string,
+    period: 'week' | 'month' | 'custom' = 'week',
+    startDate?: string,
+    endDate?: string,
+  ) {
+    await this.verifyStoreOwnership(userId, storeId);
+
+    const { start, end } = this.resolveReportRange(period, startDate, endDate);
+    const completedStatuses = new Set(['DELIVERED', 'COMPLETED']);
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+        OrderItem: {
+          some: {
+            Product: {
+              storeId,
+            },
+          },
+        },
+      },
+      include: {
+        User: {
+          select: {
+            id: true,
+          },
+        },
+        OrderItem: {
+          where: {
+            Product: {
+              storeId,
+            },
+          },
+          include: {
+            Product: {
+              select: {
+                id: true,
+                name: true,
+                imageUrl: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    const productCount = await this.prisma.product.count({ where: { storeId } });
+
+    const orderStatusCounts = new Map<string, number>();
+    const customerOrderCounts = new Map<string, number>();
+    const topProducts = new Map<
+      string,
+      {
+        productId: string;
+        name: string;
+        imageUrl?: string | null;
+        quantitySold: number;
+        revenue: number;
+        orderIds: Set<string>;
+      }
+    >();
+    const revenueByDay = new Map<
+      string,
+      {
+        revenue: number;
+        orderCount: number;
+      }
+    >();
+
+    let grossRevenue = 0;
+    let completedOrderCount = 0;
+
+    for (const order of orders) {
+      const status = String(order.status || 'PENDING');
+      orderStatusCounts.set(status, (orderStatusCounts.get(status) || 0) + 1);
+
+      if (order.User?.id) {
+        customerOrderCounts.set(
+          order.User.id,
+          (customerOrderCounts.get(order.User.id) || 0) + 1,
+        );
+      }
+
+      const itemRevenue = order.OrderItem.reduce(
+        (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
+        0,
+      );
+
+      if (!completedStatuses.has(status)) {
+        continue;
+      }
+
+      completedOrderCount += 1;
+      grossRevenue += itemRevenue;
+
+      const dayKey = this.toUtcDayKey(order.createdAt);
+      const revenueDay = revenueByDay.get(dayKey) || { revenue: 0, orderCount: 0 };
+      revenueDay.revenue += itemRevenue;
+      revenueDay.orderCount += 1;
+      revenueByDay.set(dayKey, revenueDay);
+
+      for (const item of order.OrderItem) {
+        const productId = item.Product?.id || item.productId;
+        if (!productId) {
+          continue;
+        }
+
+        const aggregate = topProducts.get(productId) || {
+          productId,
+          name: item.Product?.name || 'Product',
+          imageUrl: item.Product?.imageUrl || null,
+          quantitySold: 0,
+          revenue: 0,
+          orderIds: new Set<string>(),
+        };
+
+        aggregate.quantitySold += Number(item.quantity || 0);
+        aggregate.revenue += Number(item.price || 0) * Number(item.quantity || 0);
+        aggregate.orderIds.add(order.id);
+        topProducts.set(productId, aggregate);
+      }
+    }
+
+    const customerCount = customerOrderCounts.size;
+    const repeatCustomerCount = Array.from(customerOrderCounts.values()).filter(
+      (count) => count > 1,
+    ).length;
+    const averageOrderValue =
+      completedOrderCount > 0 ? grossRevenue / completedOrderCount : 0;
+
+    const revenueTrend = this.buildDailyRevenueTrend(start, end, revenueByDay);
+
+    return {
+      period,
+      range: {
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+      },
+      summary: {
+        orderCount: orders.length,
+        completedOrderCount,
+        grossRevenue,
+        averageOrderValue,
+        productCount,
+        customerCount,
+        repeatCustomerCount,
+      },
+      orderStatusCounts: Array.from(orderStatusCounts.entries()).map(
+        ([status, count]) => ({
+          status,
+          count,
+        }),
+      ),
+      revenueTrend,
+      topProducts: Array.from(topProducts.values())
+        .map((product) => ({
+          productId: product.productId,
+          name: product.name,
+          imageUrl: product.imageUrl || undefined,
+          quantitySold: product.quantitySold,
+          revenue: product.revenue,
+          orderCount: product.orderIds.size,
+        }))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5),
+    };
+  }
+
   async getMyStoreBusinessHours(userId: string) {
     const store = await this.getVendorStore(userId);
     await this.ensureDefaultBusinessHours(store.id);
@@ -1292,5 +1468,80 @@ export class VendorService {
 
     const normalized = value.trim();
     return normalized.length > 0 ? normalized : null;
+  }
+
+  private resolveReportRange(
+    period: 'week' | 'month' | 'custom',
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const end = new Date();
+    end.setUTCHours(23, 59, 59, 999);
+
+    if (period === 'custom') {
+      const start = startDate ? new Date(startDate) : new Date(end);
+      const customEnd = endDate ? new Date(endDate) : new Date(end);
+
+      if (Number.isNaN(start.getTime()) || Number.isNaN(customEnd.getTime())) {
+        throw new BadRequestException('Custom report dates must be valid');
+      }
+
+      start.setUTCHours(0, 0, 0, 0);
+      customEnd.setUTCHours(23, 59, 59, 999);
+
+      if (start > customEnd) {
+        throw new BadRequestException('Report start date must be before end date');
+      }
+
+      return { start, end: customEnd };
+    }
+
+    const start = new Date(end);
+    if (period === 'month') {
+      start.setUTCDate(start.getUTCDate() - 29);
+    } else {
+      start.setUTCDate(start.getUTCDate() - 6);
+    }
+    start.setUTCHours(0, 0, 0, 0);
+
+    return { start, end };
+  }
+
+  private buildDailyRevenueTrend(
+    start: Date,
+    end: Date,
+    revenueByDay: Map<string, { revenue: number; orderCount: number }>,
+  ) {
+    const trend: Array<{
+      date: string;
+      label: string;
+      revenue: number;
+      orderCount: number;
+    }> = [];
+
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      const dayKey = this.toUtcDayKey(cursor);
+      const bucket = revenueByDay.get(dayKey) || { revenue: 0, orderCount: 0 };
+
+      trend.push({
+        date: dayKey,
+        label: cursor.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          timeZone: 'UTC',
+        }),
+        revenue: bucket.revenue,
+        orderCount: bucket.orderCount,
+      });
+
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    return trend;
+  }
+
+  private toUtcDayKey(value: Date) {
+    return value.toISOString().slice(0, 10);
   }
 }

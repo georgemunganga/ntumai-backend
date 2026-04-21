@@ -558,6 +558,31 @@ export class MarketplaceController {
 
   @UseGuards(JwtAuthGuard)
   @Roles('VENDOR')
+  @Get('vendor/stores/:storeId/reports')
+  @ApiOperation({ summary: 'Get vendor store sales reports' })
+  @ApiBearerAuth()
+  @ApiQuery({ name: 'period', required: false, enum: ['week', 'month', 'custom'] })
+  @ApiQuery({ name: 'startDate', required: false })
+  @ApiQuery({ name: 'endDate', required: false })
+  async getStoreReports(
+    @Request() req,
+    @Param('storeId') storeId: string,
+    @Query('period') period?: 'week' | 'month' | 'custom',
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    const reports = await this.vendorService.getStoreReports(
+      req.user.userId,
+      storeId,
+      period || 'week',
+      startDate,
+      endDate,
+    );
+    return { success: true, data: { reports } };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles('VENDOR')
   @Get('vendor/stores/me/product-category-options')
   @ApiOperation({ summary: 'Get product category options for the current vendor' })
   @ApiBearerAuth()
