@@ -4,6 +4,7 @@ import { Attachment } from './attachment.entity';
 export enum OrderStatus {
   BOOKED = 'booked',
   DELIVERY = 'delivery',
+  COMPLETED = 'completed',
 }
 
 export enum VehicleType {
@@ -163,6 +164,11 @@ export class DeliveryOrder {
 
   markAsDelivery(): void {
     this.order_status = OrderStatus.DELIVERY;
+    this.updated_at = new Date();
+  }
+
+  markAsCompleted(): void {
+    this.order_status = OrderStatus.COMPLETED;
     this.updated_at = new Date();
   }
 

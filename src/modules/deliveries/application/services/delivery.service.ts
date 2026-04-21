@@ -623,6 +623,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
         offerExpiresAt: null,
       },
     }));
+    delivery.markAsCompleted();
 
     const updated = await this.deliveryRepository.update(deliveryId, delivery);
 
@@ -1507,7 +1508,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     if (this.isDeliveryCancelled(delivery)) {
       return 'cancelled';
     }
-    if (String(delivery.order_status).toLowerCase() === 'delivery') {
+    if (delivery.order_status === OrderStatus.DELIVERY) {
       return 'in_transit';
     }
     switch (dispatchState.stage) {
@@ -1631,7 +1632,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
       return 'released';
     }
 
-    if (String(delivery.order_status || '').toLowerCase() === 'delivery') {
+    if (delivery.order_status === OrderStatus.DELIVERY) {
       return 'in_transit';
     }
 

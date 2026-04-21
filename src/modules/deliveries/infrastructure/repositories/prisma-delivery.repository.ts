@@ -286,9 +286,13 @@ export class PrismaDeliveryRepository implements IDeliveryRepository {
   }
 
   private toOrderStatus(value: string): OrderStatus {
-    return value === OrderStatus.DELIVERY
-      ? OrderStatus.DELIVERY
-      : OrderStatus.BOOKED;
+    if (value === OrderStatus.DELIVERY) {
+      return OrderStatus.DELIVERY;
+    }
+    if (value === OrderStatus.COMPLETED) {
+      return OrderStatus.COMPLETED;
+    }
+    return OrderStatus.BOOKED;
   }
 
   private toPaymentMethod(value: string | null): PaymentMethod | null {
