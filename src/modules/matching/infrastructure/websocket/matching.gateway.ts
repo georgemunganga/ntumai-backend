@@ -50,6 +50,11 @@ export class MatchingGateway
   private customerSockets: Map<string, string> = new Map(); // customerId -> socketId
   private riderLocations: Map<string, RiderLocationSnapshot> = new Map();
   private bookingSnapshots: Map<string, MatchingSnapshotPayload> = new Map();
+  private riderBookingIndex: Map<string, Set<string>> = new Map();
+  private readonly snapshotRefreshThrottleMs = Number(
+    process.env.MATCHING_SNAPSHOT_REFRESH_THROTTLE_MS || 1000,
+  );
+  private readonly lastSnapshotDispatchAt: Map<string, number> = new Map();
 
   private emitDispatchSnapshot(
     target: { customerId?: string; bookingId: string },
@@ -77,6 +82,7 @@ export class MatchingGateway
       if (socketId === client.id) {
         this.riderSockets.delete(riderId);
         this.riderLocations.delete(riderId);
+        this.riderBookingIndex.delete(riderId);
         this.logger.log(`Rider ${riderId} went offline`);
       }
     }
@@ -171,13 +177,6 @@ export class MatchingGateway
       this.refreshSnapshotsForRider(riderId);
     }
 
-    // Broadcast to matching service for nearby delivery matching
-    this.server.emit('rider:location:update', {
-      riderId,
-      location,
-      timestamp: new Date().toISOString(),
-    });
-
     return { success: true };
   }
 
@@ -202,7 +201,7 @@ export class MatchingGateway
   // Emit booking accepted to customer
   emitBookingAccepted(customerId: string, bookingData: any) {
     if (bookingData?.bookingId) {
-      this.bookingSnapshots.delete(String(bookingData.bookingId));
+      this.removeBookingSnapshot(String(bookingData.bookingId));
     }
     const event = {
       ...bookingData,
@@ -292,7 +291,7 @@ export class MatchingGateway
 
   emitBookingCompleted(customerId: string, payload: any) {
     if (payload?.bookingId) {
-      this.bookingSnapshots.delete(String(payload.bookingId));
+      this.removeBookingSnapshot(String(payload.bookingId));
     }
     const event = {
       ...payload,
@@ -330,7 +329,7 @@ export class MatchingGateway
   }
 
   emitBookingCancelled(customerId: string, bookingId: string, reason?: string) {
-    this.bookingSnapshots.delete(String(bookingId));
+    this.removeBookingSnapshot(String(bookingId));
     const payload = {
       bookingId,
       reason,
@@ -373,7 +372,7 @@ export class MatchingGateway
       timestamp: new Date().toISOString(),
     };
 
-    this.bookingSnapshots.set(String(payload.bookingId), event);
+    this.setBookingSnapshot(String(payload.bookingId), event);
     const dispatchEvent: DispatchStatusDto = {
       dispatchId: payload.bookingId,
       resourceType: 'booking',
@@ -401,7 +400,7 @@ export class MatchingGateway
 
   // Emit matching failed
   emitMatchingFailed(customerId: string, bookingId: string, reason: string) {
-    this.bookingSnapshots.delete(String(bookingId));
+    this.removeBookingSnapshot(String(bookingId));
     const payload = {
       bookingId,
       reason,
@@ -459,7 +458,17 @@ export class MatchingGateway
   }
 
   private refreshSnapshotsForRider(riderId: string) {
-    for (const [bookingId, snapshot] of this.bookingSnapshots.entries()) {
+    const bookingIds = this.riderBookingIndex.get(riderId);
+    if (!bookingIds || bookingIds.size === 0) {
+      return;
+    }
+
+    for (const bookingId of bookingIds) {
+      const snapshot = this.bookingSnapshots.get(bookingId);
+      if (!snapshot) {
+        continue;
+      }
+
       const candidateIndex = snapshot.candidates.findIndex(
         (candidate) => candidate.riderId === riderId,
       );
@@ -484,6 +493,12 @@ export class MatchingGateway
       };
 
       this.bookingSnapshots.set(bookingId, nextSnapshot);
+      const now = Date.now();
+      const lastDispatchAt = this.lastSnapshotDispatchAt.get(bookingId) || 0;
+      if (now - lastDispatchAt < this.snapshotRefreshThrottleMs) {
+        continue;
+      }
+      this.lastSnapshotDispatchAt.set(bookingId, now);
       this.server
         .to(`booking:${bookingId}`)
         .emit('matching:snapshot', nextSnapshot);
@@ -505,5 +520,43 @@ export class MatchingGateway
         },
       );
     }
+  }
+
+  private setBookingSnapshot(
+    bookingId: string,
+    snapshot: MatchingSnapshotPayload,
+  ): void {
+    this.removeBookingSnapshot(bookingId);
+    this.bookingSnapshots.set(bookingId, snapshot);
+    for (const candidate of snapshot.candidates) {
+      if (!candidate.riderId) {
+        continue;
+      }
+      const bookingIds = this.riderBookingIndex.get(candidate.riderId) || new Set();
+      bookingIds.add(bookingId);
+      this.riderBookingIndex.set(candidate.riderId, bookingIds);
+    }
+  }
+
+  private removeBookingSnapshot(bookingId: string): void {
+    const existing = this.bookingSnapshots.get(bookingId);
+    if (existing) {
+      for (const candidate of existing.candidates) {
+        const riderId = candidate.riderId;
+        if (!riderId) {
+          continue;
+        }
+        const bookingIds = this.riderBookingIndex.get(riderId);
+        if (!bookingIds) {
+          continue;
+        }
+        bookingIds.delete(bookingId);
+        if (bookingIds.size === 0) {
+          this.riderBookingIndex.delete(riderId);
+        }
+      }
+    }
+    this.lastSnapshotDispatchAt.delete(bookingId);
+    this.bookingSnapshots.delete(bookingId);
   }
 }
