@@ -18,6 +18,7 @@ type PushEnvelope = {
   sound: 'default';
   data: Record<string, unknown>;
   channelId?: string;
+  categoryId?: string;
   priority?: 'default' | 'normal' | 'high';
   ttl?: number;
   interruptionLevel?: 'active' | 'passive' | 'time-sensitive' | 'critical';
@@ -340,6 +341,7 @@ export class NotificationsService {
         body: notification.message,
         sound: 'default',
         channelId: 'job-alerts',
+        categoryId: 'tasker-job-offer',
         priority: 'high',
         ttl: 45,
         interruptionLevel: 'time-sensitive',
@@ -356,6 +358,7 @@ export class NotificationsService {
         body: notification.message,
         sound: 'default',
         channelId: 'vendor-orders',
+        categoryId: 'vendor-order',
         priority: 'high',
         ttl: 120,
         interruptionLevel: 'time-sensitive',
