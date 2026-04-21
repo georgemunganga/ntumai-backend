@@ -627,6 +627,8 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
 
     const updated = await this.deliveryRepository.update(deliveryId, delivery);
 
+    await this.syncLinkedMarketplaceOrderStatus(updated, 'DELIVERED');
+
     await Promise.all([
       this.notificationsService.createNotification({
         userId: delivery.created_by_user_id,
@@ -886,6 +888,8 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
       cancelled_at: new Date().toISOString(),
     });
     const updated = await this.deliveryRepository.update(delivery.id, delivery);
+
+    await this.syncLinkedMarketplaceOrderStatus(updated, 'CANCELLED');
 
     const recipientIds = Array.from(
       new Set(recipients.filter(Boolean)),
@@ -1463,6 +1467,75 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     return metadata.marketplace_order_id
       ? String(metadata.marketplace_order_id)
       : null;
+  }
+
+  private async syncLinkedMarketplaceOrderStatus(
+    delivery: DeliveryOrder,
+    nextStatus: 'DELIVERED' | 'CANCELLED',
+  ): Promise<void> {
+    const marketplaceOrderId = this.getMarketplaceOrderId(delivery);
+    if (!marketplaceOrderId) {
+      return;
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: marketplaceOrderId },
+      select: {
+        id: true,
+        userId: true,
+        trackingId: true,
+        status: true,
+        OrderItem: {
+          take: 1,
+          include: {
+            Product: {
+              select: {
+                storeId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!order || order.status === nextStatus) {
+      return;
+    }
+
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: {
+        status: nextStatus,
+        updatedAt: new Date(),
+      },
+    });
+
+    const storeId = order.OrderItem?.[0]?.Product?.storeId || null;
+    const recipientIds = [order.userId, storeId].filter(Boolean) as string[];
+
+    await Promise.all(
+      recipientIds.map((userId) =>
+        this.notificationsService.createNotification({
+          userId,
+          title:
+            nextStatus === 'DELIVERED'
+              ? 'Marketplace order delivered'
+              : 'Marketplace order cancelled',
+          message:
+            nextStatus === 'DELIVERED'
+              ? `Order ${order.trackingId || order.id} has been delivered.`
+              : `Order ${order.trackingId || order.id} was cancelled.`,
+          type: 'ORDER_UPDATE',
+          metadata: {
+            entityType: 'order',
+            entityId: order.id,
+            trackingId: order.trackingId || null,
+            sourceStatus: nextStatus,
+            statusLabel: nextStatus === 'DELIVERED' ? 'Delivered' : 'Cancelled',
+          },
+        }),
+      ),
+    );
   }
 
   private async buildDispatchCandidate(
