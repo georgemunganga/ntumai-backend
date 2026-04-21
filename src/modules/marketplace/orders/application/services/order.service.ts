@@ -246,6 +246,9 @@ export class OrderService {
     });
 
     const payload = this.mapOrderToDto(order);
+    const vendorUserId =
+      order.OrderItem.find((item) => item.Product?.Store?.vendorId)?.Product?.Store
+        ?.vendorId ?? null;
 
     await this.notificationsService.createNotification({
       userId,
@@ -263,6 +266,30 @@ export class OrderService {
         scheduledAt: scheduledTime?.toISOString(),
       },
     });
+
+    if (vendorUserId) {
+      await this.notificationsService.createNotification({
+        userId: vendorUserId,
+        title: 'New order received',
+        message: scheduledTime
+          ? `${order.trackingId} is scheduled and waiting for vendor confirmation.`
+          : `${order.trackingId} needs your confirmation now.`,
+        type: 'ORDER_UPDATE',
+        metadata: {
+          entityType: 'order',
+          entityId: order.id,
+          trackingId: order.trackingId,
+          sourceStatus: 'PENDING',
+          statusLabel: 'Pending Acceptance',
+          targetRole: 'vendor',
+          notificationType: 'vendor_order',
+          customerId: userId,
+          totalAmount,
+          itemCount: order.OrderItem.length,
+          scheduledAt: scheduledTime?.toISOString(),
+        },
+      });
+    }
 
     return payload;
   }

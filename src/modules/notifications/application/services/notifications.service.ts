@@ -12,6 +12,17 @@ import { RegisterDeviceDto } from '../dtos/notification.dto';
 type NotificationKind = 'ORDER_UPDATE' | 'DELIVERY_UPDATE' | 'PROMOTION' | 'SYSTEM' | 'CHAT';
 type NotificationMetadata = Record<string, unknown> | null | undefined;
 
+type PushEnvelope = {
+  title: string;
+  body: string;
+  sound: 'default';
+  data: Record<string, unknown>;
+  channelId?: string;
+  priority?: 'default' | 'normal' | 'high';
+  ttl?: number;
+  interruptionLevel?: 'active' | 'passive' | 'time-sensitive' | 'critical';
+};
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -247,16 +258,12 @@ export class NotificationsService {
         return;
       }
 
+      const payloadTemplate = this.buildPushEnvelope(notification);
+
       const body = JSON.stringify(
         expoTokens.map((entry: any) => ({
           to: entry.pushToken,
-          title: notification.title,
-          body: notification.message,
-          sound: 'default',
-          data: {
-            type: notification.type,
-            ...(notification.metadata ?? {}),
-          },
+          ...payloadTemplate,
         })),
       );
 
@@ -308,6 +315,73 @@ export class NotificationsService {
         }`,
       );
     }
+  }
+
+  private buildPushEnvelope(notification: {
+    title: string;
+    message: string;
+    type: 'order_update' | 'delivery' | 'promotion' | 'system' | 'chat';
+    metadata?: NotificationMetadata;
+  }): PushEnvelope {
+    const metadata = (notification.metadata ?? {}) as Record<string, unknown>;
+    const notificationType =
+      typeof metadata.notificationType === 'string'
+        ? metadata.notificationType
+        : undefined;
+    const targetRole =
+      typeof metadata.targetRole === 'string' ? metadata.targetRole : undefined;
+
+    const isTaskerOffer = notificationType === 'job_offer';
+    const isVendorOrder = notificationType === 'vendor_order' || targetRole === 'vendor';
+
+    if (isTaskerOffer) {
+      return {
+        title: notification.title,
+        body: notification.message,
+        sound: 'default',
+        channelId: 'job-alerts',
+        priority: 'high',
+        ttl: 45,
+        interruptionLevel: 'time-sensitive',
+        data: {
+          type: notification.type,
+          ...metadata,
+        },
+      };
+    }
+
+    if (isVendorOrder) {
+      return {
+        title: notification.title,
+        body: notification.message,
+        sound: 'default',
+        channelId: 'vendor-orders',
+        priority: 'high',
+        ttl: 120,
+        interruptionLevel: 'time-sensitive',
+        data: {
+          type: notification.type,
+          ...metadata,
+        },
+      };
+    }
+
+    return {
+      title: notification.title,
+      body: notification.message,
+      sound: 'default',
+      channelId:
+        notification.type === 'chat'
+          ? 'chat-messages'
+          : notification.type === 'order_update'
+            ? 'order-updates'
+            : undefined,
+      priority: notification.type === 'chat' ? 'high' : 'default',
+      data: {
+        type: notification.type,
+        ...metadata,
+      },
+    };
   }
 
   private toPayload(notification: {
