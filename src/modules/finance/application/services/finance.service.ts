@@ -29,6 +29,14 @@ import {
 } from '../dtos/finance.dto';
 
 type FinanceRole = 'customer' | 'tasker' | 'vendor';
+type PayoutMethod = 'mtn' | 'airtel' | 'bank';
+type PayoutRules = {
+  minWithdrawal: number;
+  methods: Array<{
+    id: PayoutMethod;
+    minLength: number;
+  }>;
+};
 
 @Injectable()
 export class FinanceService {
@@ -36,6 +44,24 @@ export class FinanceService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  private readonly payoutRulesByRole: Record<Exclude<FinanceRole, 'customer'>, PayoutRules> = {
+    tasker: {
+      minWithdrawal: Number(process.env.TASKER_MIN_WITHDRAWAL_AMOUNT ?? 20),
+      methods: [
+        { id: 'mtn', minLength: 10 },
+        { id: 'airtel', minLength: 10 },
+      ],
+    },
+    vendor: {
+      minWithdrawal: Number(process.env.VENDOR_MIN_WITHDRAWAL_AMOUNT ?? 20),
+      methods: [
+        { id: 'mtn', minLength: 10 },
+        { id: 'airtel', minLength: 10 },
+        { id: 'bank', minLength: 6 },
+      ],
+    },
+  };
 
   private readonly vendorPlans = [
     {
@@ -208,6 +234,52 @@ export class FinanceService {
     },
   ];
 
+  private getPayoutRules(role: Exclude<FinanceRole, 'customer'>): PayoutRules {
+    return this.payoutRulesByRole[role];
+  }
+
+  private normalizePayoutTarget(value: unknown) {
+    return typeof value === 'string' ? value.trim() : '';
+  }
+
+  private validatePayoutDestination(
+    role: Exclude<FinanceRole, 'customer'>,
+    destination: Record<string, unknown>,
+  ) {
+    const rules = this.getPayoutRules(role);
+    const method = this.normalizePayoutTarget(destination.method) as PayoutMethod;
+    const methodRule = rules.methods.find((item) => item.id === method);
+
+    if (!methodRule) {
+      throw new BadRequestException('Selected payout method is not supported for this account');
+    }
+
+    const accountNumber = this.normalizePayoutTarget(destination.accountNumber);
+    if (!accountNumber) {
+      throw new BadRequestException('Payout destination is required');
+    }
+
+    if (method === 'bank') {
+      if (accountNumber.length < methodRule.minLength) {
+        throw new BadRequestException('Bank account or reference is too short');
+      }
+      return {
+        method,
+        accountNumber,
+      };
+    }
+
+    const normalizedPhone = accountNumber.replace(/\D/g, '');
+    if (normalizedPhone.length < methodRule.minLength) {
+      throw new BadRequestException('Mobile money number is invalid');
+    }
+
+    return {
+      method,
+      accountNumber: normalizedPhone,
+    };
+  }
+
   async getSummary(
     userId: string,
     role: FinanceRole,
@@ -291,6 +363,7 @@ export class FinanceService {
         transactionCount:
           shifts.filter((shift) => shift.total_earnings > 0).length + payoutRequests.length,
         meta: {
+          payoutRules: this.getPayoutRules('tasker'),
           totalShifts: shifts.length,
           totalDeliveries: shifts.reduce(
             (sum, shift) => sum + shift.total_deliveries,
@@ -363,6 +436,7 @@ export class FinanceService {
       totalRefunded: 0,
       transactionCount: orderItems.length + payoutRequests.length,
       meta: {
+        payoutRules: this.getPayoutRules('vendor'),
         storeCount: stores.length,
         orderCount: new Set(orderItems.map((item) => item.orderId)).size,
       },
@@ -1070,15 +1144,24 @@ export class FinanceService {
   ): Promise<PayoutRequestDto> {
     const role = input.role;
     await this.assertRoleAccess(userId, role);
+    const payoutRules = this.getPayoutRules(role);
 
     const summary = await this.getSummary(userId, role);
     if (summary.availableBalance <= 0) {
       throw new BadRequestException('No available balance for payout');
     }
 
+    if (input.amount < payoutRules.minWithdrawal) {
+      throw new BadRequestException(
+        `Minimum withdrawal amount is K${payoutRules.minWithdrawal.toFixed(2)}`,
+      );
+    }
+
     if (input.amount > summary.availableBalance) {
       throw new BadRequestException('Requested amount exceeds available balance');
     }
+
+    const destination = this.validatePayoutDestination(role, input.destination);
 
     const request = await (this.prisma as any).payoutRequest.create({
       data: {
@@ -1087,7 +1170,7 @@ export class FinanceService {
         role: role === 'tasker' ? ('TASKER' as any) : ('VENDOR' as any),
         amount: input.amount,
         currency: input.currency || 'ZMW',
-        destination: input.destination,
+        destination,
         notes: input.notes?.trim() || null,
         metadata: {
           requestedFrom: 'mobile_app',
