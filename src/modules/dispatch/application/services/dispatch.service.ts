@@ -38,6 +38,18 @@ type CandidateShift = {
   current_location: { lat: number; lng: number } | null;
 };
 
+type CachedRiderProfile = {
+  user: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+  } | null;
+  availability: 'online' | 'offline' | 'busy';
+  dispatchStats: TaskerDispatchStats | null;
+  rating: number;
+};
+
 @Injectable()
 export class DispatchService {
   private readonly maxActiveJobsPerTasker = Number(
@@ -49,10 +61,40 @@ export class DispatchService {
   private readonly etaRefinementPool = Number(
     process.env.MATCHING_ROUTE_ETA_POOL || 3,
   );
+  private readonly shiftCacheTtlMs = Number(
+    process.env.DISPATCH_SHIFT_CACHE_TTL_MS || 3000,
+  );
+  private readonly riderProfileCacheTtlMs = Number(
+    process.env.DISPATCH_RIDER_PROFILE_CACHE_TTL_MS || 15000,
+  );
+  private readonly workloadCacheTtlMs = Number(
+    process.env.DISPATCH_WORKLOAD_CACHE_TTL_MS || 5000,
+  );
   private readonly googleMapsApiKey =
     process.env.GOOGLE_MAPS_API_KEY ||
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
     '';
+  private shiftCache:
+    | {
+        expiresAt: number;
+        value: CandidateShift[];
+      }
+    | null = null;
+  private shiftCachePromise: Promise<CandidateShift[]> | null = null;
+  private workloadCache:
+    | {
+        expiresAt: number;
+        value: Map<string, number>;
+      }
+    | null = null;
+  private workloadCachePromise: Promise<Map<string, number>> | null = null;
+  private readonly riderProfileCache = new Map<
+    string,
+    {
+      expiresAt: number;
+      value: CachedRiderProfile;
+    }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -60,30 +102,11 @@ export class DispatchService {
   ) {}
 
   async rankTaskersForJob(job: DispatchJob): Promise<RankedTaskerCandidate[]> {
-    const activeShifts = await this.prisma.shift.findMany({
-      where: {
-        status: 'active',
-      },
-      select: {
-        rider_user_id: true,
-        vehicle_type: true,
-        current_location: true,
-      },
-      orderBy: { last_location_update: 'desc' },
-      take: this.maxCandidatePool,
-    });
-
-    const parsedShifts = activeShifts
-      .map((shift) => ({
-        rider_user_id: shift.rider_user_id,
-        vehicle_type: shift.vehicle_type,
-        current_location: this.parseLocation(shift.current_location),
-      }))
-      .filter(
-        (shift): shift is CandidateShift =>
-          Boolean(shift.current_location) &&
-          this.isVehicleCompatible(job.vehicleType, shift.vehicle_type),
-      );
+    const parsedShifts = (await this.getActiveCandidateShifts()).filter(
+      (shift): shift is CandidateShift =>
+        Boolean(shift.current_location) &&
+        this.isVehicleCompatible(job.vehicleType, shift.vehicle_type),
+    );
 
     if (parsedShifts.length === 0) {
       return [];
@@ -91,97 +114,20 @@ export class DispatchService {
 
     const riderIds = [...new Set(parsedShifts.map((shift) => shift.rider_user_id))];
 
-    const [users, preferences, reviews, recentBookings] = await Promise.all([
-      this.prisma.user.findMany({
-        where: {
-          id: { in: riderIds },
-          role: 'DRIVER',
-        },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          phone: true,
-        },
-      }),
-      this.prisma.userPreference.findMany({
-        where: { userId: { in: riderIds } },
-        select: { userId: true, preferences: true },
-      }),
-      this.prisma.review.groupBy({
-        by: ['driverId'],
-        where: {
-          driverId: { in: riderIds },
-        },
-        _avg: { rating: true },
-      }),
-      this.prisma.booking.findMany({
-        select: {
-          status: true,
-          rider: true,
-          offer: true,
-        },
-        orderBy: { updated_at: 'desc' },
-        take: 500,
-      }),
+    const [riderProfiles, workloadByUserId] = await Promise.all([
+      this.getRiderProfiles(riderIds),
+      this.getActiveWorkloadMap(),
     ]);
-
-    const userById = new Map(users.map((user) => [user.id, user]));
-    const availabilityByUserId = new Map(
-      preferences.map((preference) => [
-        preference.userId,
-        this.getAvailability(preference.preferences),
-      ]),
-    );
-    const dispatchStatsByUserId = new Map(
-      preferences.map((preference) => [
-        preference.userId,
-        this.getDispatchStats(preference.preferences),
-      ]),
-    );
-    const ratingByUserId = new Map(
-      reviews
-        .filter((review) => review.driverId)
-        .map((review) => [
-          String(review.driverId),
-          Number(review._avg.rating || 4.5),
-        ]),
-    );
-
-    const workloadByUserId = new Map<string, number>();
-    const offeredByUserId = new Map<string, number>();
-    const acceptedByUserId = new Map<string, number>();
-
-    for (const booking of recentBookings) {
-      const riderId = this.parseRiderId(booking.rider);
-      if (riderId && this.isActiveAssignedStatus(String(booking.status || ''))) {
-        workloadByUserId.set(riderId, (workloadByUserId.get(riderId) || 0) + 1);
-      }
-
-      const offeredTo = this.parseOfferedTo(booking.offer);
-      for (const offeredRiderId of offeredTo) {
-        offeredByUserId.set(
-          offeredRiderId,
-          (offeredByUserId.get(offeredRiderId) || 0) + 1,
-        );
-      }
-      if (riderId && String(booking.status || '') === 'accepted') {
-        acceptedByUserId.set(
-          riderId,
-          (acceptedByUserId.get(riderId) || 0) + 1,
-        );
-      }
-    }
 
     const ranked = parsedShifts
       .map((shift) => {
-        const user = userById.get(shift.rider_user_id);
-        if (!user || !shift.current_location) {
+        const profile = riderProfiles.get(shift.rider_user_id);
+        const user = profile?.user;
+        if (!user || !shift.current_location || !profile) {
           return null;
         }
 
-        const availability =
-          availabilityByUserId.get(shift.rider_user_id) || 'offline';
+        const availability = profile.availability;
         if (availability !== 'online') {
           return null;
         }
@@ -201,17 +147,10 @@ export class DispatchService {
         }
 
         const etaMin = Math.max(2, Math.round(distanceKm * 4));
-        const rating = ratingByUserId.get(shift.rider_user_id) || 4.5;
-        const persistedStats =
-          dispatchStatsByUserId.get(shift.rider_user_id) || null;
-        const offeredCount =
-          persistedStats?.offersReceived ??
-          offeredByUserId.get(shift.rider_user_id) ??
-          0;
-        const acceptedCount =
-          persistedStats?.acceptedOffers ??
-          acceptedByUserId.get(shift.rider_user_id) ??
-          0;
+        const rating = profile.rating;
+        const persistedStats = profile.dispatchStats;
+        const offeredCount = persistedStats?.offersReceived ?? 0;
+        const acceptedCount = persistedStats?.acceptedOffers ?? 0;
         const declinedCount = persistedStats?.declinedOffers ?? 0;
         const timedOutCount = persistedStats?.timedOutOffers ?? 0;
         const acceptanceRate =
@@ -246,7 +185,13 @@ export class DispatchService {
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
 
-    return this.refineCandidatesWithRouteEta(job, ranked);
+    const locationByRiderId = new Map(
+      parsedShifts
+        .filter((shift) => shift.current_location)
+        .map((shift) => [shift.rider_user_id, shift.current_location!]),
+    );
+
+    return this.refineCandidatesWithRouteEta(job, ranked, locationByRiderId);
   }
 
   async incrementTaskerDispatchStat(
@@ -289,6 +234,17 @@ export class DispatchService {
         where: { userId: riderUserId },
         data: { preferences },
       });
+      const cachedProfile = this.riderProfileCache.get(riderUserId);
+      if (cachedProfile) {
+        this.riderProfileCache.set(riderUserId, {
+          expiresAt: Date.now() + this.riderProfileCacheTtlMs,
+          value: {
+            ...cachedProfile.value,
+            availability: this.getAvailability(preferences),
+            dispatchStats: this.getDispatchStats(preferences),
+          },
+        });
+      }
       return;
     }
 
@@ -298,6 +254,7 @@ export class DispatchService {
         preferences,
       },
     });
+    this.riderProfileCache.delete(riderUserId);
   }
 
   private getAvailability(preferences: unknown): 'online' | 'offline' | 'busy' {
@@ -348,16 +305,6 @@ export class DispatchService {
     return typeof riderId === 'string' && riderId.length > 0 ? riderId : null;
   }
 
-  private parseOfferedTo(value: unknown): string[] {
-    if (!value || typeof value !== 'object') {
-      return [];
-    }
-    const offeredTo = (value as Record<string, unknown>).offered_to;
-    return Array.isArray(offeredTo)
-      ? offeredTo.filter((entry): entry is string => typeof entry === 'string')
-      : [];
-  }
-
   private isActiveAssignedStatus(status: string): boolean {
     return [
       'accepted',
@@ -378,6 +325,7 @@ export class DispatchService {
   private async refineCandidatesWithRouteEta(
     job: DispatchJob,
     ranked: RankedTaskerCandidate[],
+    locationByRiderId: Map<string, { lat: number; lng: number }>,
   ): Promise<RankedTaskerCandidate[]> {
     if (!this.googleMapsApiKey || ranked.length <= 1) {
       return ranked;
@@ -391,7 +339,10 @@ export class DispatchService {
 
     const refined = await Promise.all(
       candidatesToRefine.map(async (candidate) => {
-        const routeEta = await this.fetchRouteEtaMinutes(candidate.user_id, job.pickup);
+        const origin = locationByRiderId.get(candidate.user_id);
+        const routeEta = origin
+          ? await this.fetchRouteEtaMinutes(origin, job.pickup)
+          : null;
         if (routeEta == null) {
           return candidate;
         }
@@ -413,26 +364,183 @@ export class DispatchService {
     );
   }
 
-  private async fetchRouteEtaMinutes(
-    riderUserId: string,
-    destination: { lat: number; lng: number },
-  ): Promise<number | null> {
-    const shift = await this.prisma.shift.findFirst({
-      where: {
-        rider_user_id: riderUserId,
-        status: 'active',
-      },
-      select: {
-        current_location: true,
-      },
-      orderBy: { last_location_update: 'desc' },
-    });
-
-    const origin = this.parseLocation(shift?.current_location);
-    if (!origin) {
-      return null;
+  private async getActiveCandidateShifts(): Promise<CandidateShift[]> {
+    const now = Date.now();
+    if (this.shiftCache && this.shiftCache.expiresAt > now) {
+      return this.shiftCache.value;
+    }
+    if (this.shiftCachePromise) {
+      return this.shiftCachePromise;
     }
 
+    this.shiftCachePromise = this.prisma.shift
+      .findMany({
+        where: {
+          status: 'active',
+        },
+        select: {
+          rider_user_id: true,
+          vehicle_type: true,
+          current_location: true,
+        },
+        orderBy: { last_location_update: 'desc' },
+        take: this.maxCandidatePool,
+      })
+      .then((activeShifts) => {
+        const parsed = activeShifts
+          .map((shift) => ({
+            rider_user_id: shift.rider_user_id,
+            vehicle_type: shift.vehicle_type,
+            current_location: this.parseLocation(shift.current_location),
+          }))
+          .filter(
+            (shift): shift is CandidateShift => Boolean(shift.current_location),
+          );
+        this.shiftCache = {
+          expiresAt: Date.now() + this.shiftCacheTtlMs,
+          value: parsed,
+        };
+        return parsed;
+      })
+      .finally(() => {
+        this.shiftCachePromise = null;
+      });
+
+    return this.shiftCachePromise;
+  }
+
+  private async getRiderProfiles(
+    riderIds: string[],
+  ): Promise<Map<string, CachedRiderProfile>> {
+    const now = Date.now();
+    const result = new Map<string, CachedRiderProfile>();
+    const missingRiderIds: string[] = [];
+
+    for (const riderId of riderIds) {
+      const cached = this.riderProfileCache.get(riderId);
+      if (cached && cached.expiresAt > now) {
+        result.set(riderId, cached.value);
+      } else {
+        missingRiderIds.push(riderId);
+      }
+    }
+
+    if (missingRiderIds.length === 0) {
+      return result;
+    }
+
+    const [users, preferences, reviews] = await Promise.all([
+      this.prisma.user.findMany({
+        where: {
+          id: { in: missingRiderIds },
+          role: 'DRIVER',
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+        },
+      }),
+      this.prisma.userPreference.findMany({
+        where: { userId: { in: missingRiderIds } },
+        select: { userId: true, preferences: true },
+      }),
+      this.prisma.review.groupBy({
+        by: ['driverId'],
+        where: {
+          driverId: { in: missingRiderIds },
+        },
+        _avg: { rating: true },
+      }),
+    ]);
+
+    const userById = new Map(users.map((user) => [user.id, user]));
+    const preferenceByUserId = new Map(
+      preferences.map((preference) => [preference.userId, preference.preferences]),
+    );
+    const ratingByUserId = new Map(
+      reviews
+        .filter((review) => review.driverId)
+        .map((review) => [
+          String(review.driverId),
+          Number(review._avg.rating || 4.5),
+        ]),
+    );
+
+    for (const riderId of missingRiderIds) {
+      const preferencesRaw = preferenceByUserId.get(riderId);
+      const profile: CachedRiderProfile = {
+        user: userById.get(riderId) || null,
+        availability: this.getAvailability(preferencesRaw),
+        dispatchStats: this.getDispatchStats(preferencesRaw),
+        rating: ratingByUserId.get(riderId) || 4.5,
+      };
+      this.riderProfileCache.set(riderId, {
+        expiresAt: now + this.riderProfileCacheTtlMs,
+        value: profile,
+      });
+      result.set(riderId, profile);
+    }
+
+    return result;
+  }
+
+  private async getActiveWorkloadMap(): Promise<Map<string, number>> {
+    const now = Date.now();
+    if (this.workloadCache && this.workloadCache.expiresAt > now) {
+      return this.workloadCache.value;
+    }
+    if (this.workloadCachePromise) {
+      return this.workloadCachePromise;
+    }
+
+    this.workloadCachePromise = this.prisma.booking
+      .findMany({
+        where: {
+          status: {
+            in: [
+              'accepted',
+              'en_route',
+              'arrived_pickup',
+              'picked_up',
+              'en_route_dropoff',
+            ],
+          },
+        },
+        select: {
+          rider: true,
+        },
+      })
+      .then((bookings) => {
+        const workloadByUserId = new Map<string, number>();
+        for (const booking of bookings) {
+          const riderId = this.parseRiderId(booking.rider);
+          if (!riderId) {
+            continue;
+          }
+          workloadByUserId.set(
+            riderId,
+            (workloadByUserId.get(riderId) || 0) + 1,
+          );
+        }
+        this.workloadCache = {
+          expiresAt: Date.now() + this.workloadCacheTtlMs,
+          value: workloadByUserId,
+        };
+        return workloadByUserId;
+      })
+      .finally(() => {
+        this.workloadCachePromise = null;
+      });
+
+    return this.workloadCachePromise;
+  }
+
+  private async fetchRouteEtaMinutes(
+    origin: { lat: number; lng: number },
+    destination: { lat: number; lng: number },
+  ): Promise<number | null> {
     try {
       const response = await axios.get(
         'https://maps.googleapis.com/maps/api/directions/json',
