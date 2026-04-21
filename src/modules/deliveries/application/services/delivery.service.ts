@@ -696,6 +696,101 @@ export class DeliveryService {
     );
   }
 
+  async ensureMarketplaceLinkedDelivery(input: {
+    marketplaceOrderId: string;
+    storeId: string;
+    customerUserId: string;
+    customerName: string;
+    customerPhone?: string | null;
+    storeAddress: {
+      address?: string | null;
+      city?: string | null;
+      latitude: number;
+      longitude: number;
+    };
+    customerAddress: {
+      address?: string | null;
+      city?: string | null;
+      latitude: number;
+      longitude: number;
+    };
+    scheduledAt?: Date | null;
+  }): Promise<DeliveryOrder> {
+    const existing = await this.findLinkedMarketplaceDelivery(
+      input.marketplaceOrderId,
+    );
+    if (existing) {
+      return existing;
+    }
+
+    const delivery = await this.createDelivery(
+      {
+        vehicle_type: VehicleType.MOTORBIKE,
+        is_scheduled: Boolean(input.scheduledAt),
+        scheduled_at: input.scheduledAt?.toISOString(),
+        marketplace_order_id: input.marketplaceOrderId,
+        store_id: input.storeId,
+        courier_comment: 'Marketplace order ready for pickup',
+        stops: [
+          {
+            type: StopType.PICKUP,
+            sequence: 0,
+            contact_name: 'Vendor pickup',
+            contact_phone: null,
+            notes: 'Collect the packed marketplace order from the vendor',
+            geo: {
+              lat: input.storeAddress.latitude,
+              lng: input.storeAddress.longitude,
+            },
+            address: {
+              line1: input.storeAddress.address || input.storeAddress.city || 'Store',
+              city: input.storeAddress.city || '',
+              country: 'Zambia',
+            },
+          },
+          {
+            type: StopType.DROPOFF,
+            sequence: 1,
+            contact_name: input.customerName,
+            contact_phone: input.customerPhone || null,
+            notes: 'Deliver the marketplace order to the customer',
+            geo: {
+              lat: input.customerAddress.latitude,
+              lng: input.customerAddress.longitude,
+            },
+            address: {
+              line1:
+                input.customerAddress.address ||
+                input.customerAddress.city ||
+                'Customer address',
+              city: input.customerAddress.city || '',
+              country: 'Zambia',
+            },
+          },
+        ],
+      } as CreateDeliveryDto,
+      input.customerUserId,
+      'customer',
+    );
+
+    await this.notificationsService.createNotification({
+      userId: input.customerUserId,
+      title: 'Looking for a rider',
+      message: `Your marketplace order is packed and we are now looking for a rider.`,
+      type: 'DELIVERY_UPDATE',
+      metadata: {
+        entityType: 'delivery',
+        entityId: delivery.id,
+        sourceStatus: 'booked',
+        statusLabel: 'Matching Rider',
+        marketplaceOrderId: input.marketplaceOrderId,
+        notificationType: 'marketplace_dispatch_started',
+      },
+    });
+
+    return delivery;
+  }
+
   private isDeliveryCancelled(delivery: DeliveryOrder): boolean {
     try {
       const metadata = delivery.more_info ? JSON.parse(delivery.more_info) : {};

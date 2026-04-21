@@ -776,8 +776,40 @@ export class VendorService {
       },
     });
 
-    const linkedDelivery =
+    let linkedDelivery =
       await this.deliveryService.findLinkedMarketplaceDelivery(orderId);
+
+    if ((nextStatus === 'PACKING' || nextStatus === 'OUT_FOR_DELIVERY') && !linkedDelivery) {
+      const vendorAddress = await this.prisma.address.findFirst({
+        where: { userId },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+        select: {
+          address: true,
+          city: true,
+          latitude: true,
+          longitude: true,
+        },
+      });
+
+      if (vendorAddress && updated.Address) {
+        linkedDelivery = await this.deliveryService.ensureMarketplaceLinkedDelivery({
+          marketplaceOrderId: updated.id,
+          storeId,
+          customerUserId: updated.userId,
+          customerName: `${updated.User.firstName} ${updated.User.lastName}`.trim(),
+          customerPhone: updated.User.phone || null,
+          storeAddress: vendorAddress,
+          customerAddress: {
+            address: updated.Address.address,
+            city: updated.Address.city,
+            latitude: updated.Address.latitude,
+            longitude: updated.Address.longitude,
+          },
+          scheduledAt: updated.scheduledAt,
+        });
+      }
+    }
+
     if (linkedDelivery && nextStatus === 'OUT_FOR_DELIVERY') {
       await this.trackingService.createEvent({
         booking_id: '',
