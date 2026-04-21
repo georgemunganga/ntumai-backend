@@ -5,8 +5,9 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
 import { BOOKING_REPOSITORY } from '../../domain/repositories/booking.repository.interface';
 import type { IBookingRepository } from '../../domain/repositories/booking.repository.interface';
 import { Booking, BookingStatus } from '../../domain/entities/booking.entity';
@@ -25,9 +26,16 @@ import {
 import { NotificationsService } from '../../../notifications/application/services/notifications.service';
 import { MatchingGateway } from '../../infrastructure/websocket/matching.gateway';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
+import { PricingService } from '../../../pricing/application/services/pricing.service';
 
 @Injectable()
-export class MatchingService {
+export class MatchingService implements OnModuleInit, OnModuleDestroy {
+  private readonly offerTimeoutSweepMs = Number(
+    process.env.MATCHING_OFFER_SWEEP_MS || 5000,
+  );
+  private readonly activeOfferTimeouts = new Set<string>();
+  private offerSweepTimer: NodeJS.Timeout | null = null;
+
   constructor(
     @Inject(BOOKING_REPOSITORY)
     private readonly bookingRepository: IBookingRepository,
@@ -36,7 +44,23 @@ export class MatchingService {
     private readonly notificationsService: NotificationsService,
     private readonly matchingGateway: MatchingGateway,
     private readonly prisma: PrismaService,
+    private readonly pricingService: PricingService,
   ) {}
+
+  onModuleInit() {
+    this.offerSweepTimer = setInterval(() => {
+      this.reassignExpiredOffers().catch((error) => {
+        console.error('Offer timeout sweep failed:', error);
+      });
+    }, this.offerTimeoutSweepMs);
+  }
+
+  onModuleDestroy() {
+    if (this.offerSweepTimer) {
+      clearInterval(this.offerSweepTimer);
+      this.offerSweepTimer = null;
+    }
+  }
 
   private toCandidateSnapshot(candidate: RiderInfoDto) {
     const location = this.matchingGateway.getRiderLocation(candidate.user_id);
@@ -95,38 +119,12 @@ export class MatchingService {
   }
 
   estimateBooking(dto: EstimateBookingDto) {
-    const routePoints = [dto.pickup, ...(dto.dropoffs || [])].map((stop) => stop.geo);
-    if (routePoints.length < 2) {
-      throw new BadRequestException('Pickup and at least one dropoff are required');
-    }
-
-    const pricingConfig = this.getBookingPricingConfig();
-    const vehicleConfig = pricingConfig.vehicles[dto.vehicle_type];
-    if (!vehicleConfig) {
-      throw new BadRequestException('Unsupported vehicle type');
-    }
-
-    const distanceKm = Number(this.calculateRouteDistanceKm(routePoints).toFixed(2));
-    const waitingMinutes = Math.max(0, Number(dto.waiting_minutes || 0));
-    const waitingBlocks = Math.ceil(waitingMinutes / pricingConfig.waiting_block_minutes);
-    const waitingFee = waitingBlocks * pricingConfig.waiting_fee_per_block;
-    const routeBase = vehicleConfig.base_fare + distanceKm * vehicleConfig.per_km;
-    const routeCharge = Math.max(vehicleConfig.minimum_fare, routeBase);
-    const total = Number((routeCharge + waitingFee).toFixed(2));
-
-    return {
-      currency: 'ZMW',
-      distance_km: distanceKm,
-      waiting_minutes: waitingMinutes,
-      service_estimate: total,
-      pricing_rules: pricingConfig,
-      breakdown: {
-        base_fare: vehicleConfig.base_fare,
-        route_charge: Number(routeCharge.toFixed(2)),
-        minimum_fare_applied: routeCharge === vehicleConfig.minimum_fare,
-        waiting_fee: waitingFee,
-      },
-    };
+    return this.pricingService.estimateBooking({
+      pickup: dto.pickup.geo,
+      dropoffs: (dto.dropoffs || []).map((stop) => stop.geo),
+      vehicleType: dto.vehicle_type,
+      waitingMinutes: dto.waiting_minutes,
+    });
   }
 
   async getBooking(bookingId: string): Promise<BookingResponseDto> {
@@ -356,15 +354,35 @@ export class MatchingService {
       throw new NotFoundException('Booking not found');
     }
 
+    const bookingData = booking.toJSON();
+    if (bookingData.status !== BookingStatus.OFFERED) {
+      throw new ConflictException('Booking is no longer awaiting a tasker response');
+    }
+
+    const offeredTo = Array.isArray(bookingData.offer?.offered_to)
+      ? bookingData.offer.offered_to
+      : [];
+    if (!offeredTo.includes(dto.rider_user_id)) {
+      throw new ForbiddenException('This task offer is not assigned to the tasker');
+    }
+
+    const expiresAt = bookingData.offer?.expires_at
+      ? new Date(bookingData.offer.expires_at)
+      : null;
+    if (
+      expiresAt &&
+      !Number.isNaN(expiresAt.getTime()) &&
+      expiresAt.getTime() <= Date.now()
+    ) {
+      await this.expireOfferAndReassign(booking, 'Offer response time elapsed');
+      throw new ConflictException('Offer expired before it was accepted');
+    }
+
     if (dto.decision === 'accept') {
-      // In real app, get rider info from database
-      const riderInfo: RiderInfoDto = {
-        user_id: dto.rider_user_id,
-        name: 'Mock Rider',
-        vehicle: booking.toJSON().vehicle_type,
-        phone: '+260972000000',
-        rating: 4.8,
-      };
+      const riderInfo = await this.buildRiderInfo(
+        dto.rider_user_id,
+        bookingData.vehicle_type,
+      );
 
       booking.acceptByRider(riderInfo);
 
@@ -383,7 +401,6 @@ export class MatchingService {
     }
 
     const saved = await this.bookingRepository.save(booking);
-    const bookingData = booking.toJSON();
 
     await this.notificationsService.createNotification({
       userId: bookingData.customer_user_id,
@@ -528,69 +545,6 @@ export class MatchingService {
     });
 
     return this.toResponseDto(booking);
-  }
-
-  private getBookingPricingConfig() {
-    return {
-      currency: 'ZMW',
-      pricing_model: 'errand_service_plus_distance',
-      waiting_block_minutes: 15,
-      waiting_fee_per_block: 20,
-      vehicles: {
-        walking: {
-          base_fare: 20,
-          per_km: 6,
-          minimum_fare: 27,
-        },
-        bicycle: {
-          base_fare: 20,
-          per_km: 6,
-          minimum_fare: 27,
-        },
-        motorbike: {
-          base_fare: 50,
-          per_km: 6,
-          minimum_fare: 50,
-        },
-        truck: {
-          base_fare: 100,
-          per_km: 10,
-          minimum_fare: 100,
-        },
-      },
-    };
-  }
-
-  private calculateRouteDistanceKm(points: Array<{ lat: number; lng: number }>): number {
-    let total = 0;
-    for (let index = 1; index < points.length; index += 1) {
-      total += this.calculateDistanceKm(points[index - 1], points[index]);
-    }
-    return total;
-  }
-
-  private calculateDistanceKm(
-    origin: { lat: number; lng: number },
-    destination: { lat: number; lng: number },
-  ): number {
-    const earthRadiusKm = 6371;
-    const dLat = this.toRadians(destination.lat - origin.lat);
-    const dLng = this.toRadians(destination.lng - origin.lng);
-    const lat1 = this.toRadians(origin.lat);
-    const lat2 = this.toRadians(destination.lat);
-
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.sin(dLng / 2) *
-        Math.sin(dLng / 2) *
-        Math.cos(lat1) *
-        Math.cos(lat2);
-
-    return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-
-  private toRadians(value: number): number {
-    return (value * Math.PI) / 180;
   }
 
   private toBookingProgressNotification(stage: string) {
@@ -808,7 +762,128 @@ export class MatchingService {
         candidates: newCandidates.map((candidate) => this.toCandidateSnapshot(candidate)),
         message: `${newCandidates[0].name} is reviewing the request now.`,
       });
+      return;
     }
+
+    await this.notificationsService.createNotification({
+      userId: bookingData.customer_user_id,
+      title: 'No tasker available',
+      message: `Task ${bookingId} could not find another available tasker right now.`,
+      type: 'SYSTEM',
+      metadata: {
+        entityType: 'booking',
+        entityId: bookingId,
+        sourceStatus: 'searching_failed',
+        statusLabel: 'No Tasker Available',
+      },
+    });
+
+    this.matchingGateway.emitMatchingFailed(
+      bookingData.customer_user_id,
+      bookingId,
+      'No more available taskers right now',
+    );
+  }
+
+  private async reassignExpiredOffers(): Promise<void> {
+    const offeredBookings = await this.bookingRepository.findBookingsByStatus(
+      BookingStatus.OFFERED,
+    );
+    const now = Date.now();
+
+    await Promise.all(
+      offeredBookings.map(async (booking) => {
+        const bookingId = booking.booking_id;
+        if (this.activeOfferTimeouts.has(bookingId)) {
+          return;
+        }
+
+        const offerExpiresAt = booking.toJSON().offer?.expires_at;
+        const expiresAt = offerExpiresAt ? new Date(offerExpiresAt) : null;
+        if (
+          !expiresAt ||
+          Number.isNaN(expiresAt.getTime()) ||
+          expiresAt.getTime() > now
+        ) {
+          return;
+        }
+
+        this.activeOfferTimeouts.add(bookingId);
+        try {
+          await this.expireOfferAndReassign(booking, 'Offer timed out');
+        } finally {
+          this.activeOfferTimeouts.delete(bookingId);
+        }
+      }),
+    );
+  }
+
+  private async expireOfferAndReassign(
+    booking: Booking,
+    reason: string,
+  ): Promise<void> {
+    const bookingData = booking.toJSON();
+    if (bookingData.status !== BookingStatus.OFFERED) {
+      return;
+    }
+
+    booking.declineByRider('timeout');
+    await this.bookingRepository.save(booking);
+
+    await this.notificationsService.createNotification({
+      userId: bookingData.customer_user_id,
+      title: 'Looking for another tasker',
+      message: `The previous tasker did not respond in time for task ${booking.booking_id}.`,
+      type: 'SYSTEM',
+      metadata: {
+        entityType: 'booking',
+        entityId: booking.booking_id,
+        sourceStatus: 'searching',
+        statusLabel: 'Matching Tasker',
+        reason,
+      },
+    });
+
+    this.matchingGateway.emitBookingRejected(
+      bookingData.customer_user_id,
+      booking.booking_id,
+      reason,
+    );
+
+    await this.reofferBooking(booking.booking_id);
+  }
+
+  private async buildRiderInfo(
+    riderUserId: string,
+    vehicleType: string,
+  ): Promise<RiderInfoDto> {
+    const [user, aggregateRating] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: riderUserId },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+        },
+      }),
+      this.prisma.review.aggregate({
+        where: { driverId: riderUserId },
+        _avg: { rating: true },
+      }),
+    ]);
+
+    if (!user) {
+      throw new NotFoundException('Tasker not found');
+    }
+
+    return {
+      user_id: user.id,
+      name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Tasker',
+      vehicle: vehicleType,
+      phone: user.phone || '+260000000000',
+      rating: Number(aggregateRating._avg.rating || 4.5),
+    };
   }
 
   private toResponseDto(booking: Booking): BookingResponseDto {

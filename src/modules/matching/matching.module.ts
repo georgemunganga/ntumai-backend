@@ -8,9 +8,10 @@ import { BOOKING_REPOSITORY } from './domain/repositories/booking.repository.int
 import { DatabaseModule } from '../../shared/database/database.module';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PricingModule } from '../pricing/pricing.module';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, NotificationsModule],
+  imports: [DatabaseModule, AuthModule, NotificationsModule, PricingModule],
   controllers: [MatchingController],
   providers: [
     MatchingService,

@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { createHmac } from 'crypto';
 import { nanoid } from 'nanoid';
-import { v4 as uuidv4 } from 'uuid';
 import { DELIVERY_REPOSITORY } from '../../domain/repositories/delivery.repository.interface';
 import type { IDeliveryRepository } from '../../domain/repositories/delivery.repository.interface';
 import {
@@ -24,7 +23,7 @@ import {
 } from '../dtos/create-delivery.dto';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 import { NotificationsService } from '../../../notifications/application/services/notifications.service';
-// import { PricingCalculatorService } from '../../../pricing/application/services/pricing-calculator.service'; // Removed due to missing PricingModule
+import { PricingService } from '../../../pricing/application/services/pricing.service';
 
 @Injectable()
 export class DeliveryService {
@@ -38,8 +37,7 @@ export class DeliveryService {
     private readonly deliveryRepository: IDeliveryRepository,
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
-    // @Inject(PricingCalculatorService)
-    // private readonly pricingService: PricingCalculatorService, // Removed due to missing PricingModule
+    private readonly pricingService: PricingService,
   ) {}
 
   /**
@@ -143,63 +141,15 @@ export class DeliveryService {
   }
 
   estimatePricing(dto: EstimateDeliveryPricingDto): any {
-    if (!Array.isArray(dto.points) || dto.points.length < 2) {
-      throw new BadRequestException(
-        'At least pickup and dropoff points are required',
-      );
-    }
-
-    const pricingConfig = this.getPricingConfig();
-    const vehicleConfig = pricingConfig.vehicles[dto.vehicle_type];
-    if (!vehicleConfig) {
-      throw new BadRequestException('Unsupported vehicle type');
-    }
-
-    const distanceKm = Number(
-      this.calculateRouteDistanceKm(dto.points).toFixed(2),
-    );
-    const routeBase = vehicleConfig.base_fare + distanceKm * vehicleConfig.per_km;
-    const routeCharge = Math.max(vehicleConfig.minimum_fare, routeBase);
-    const sizeSurcharge = pricingConfig.size_surcharges[dto.parcel_size || 'medium'];
-    const fragileSurcharge = dto.fragile ? pricingConfig.fragile_surcharge : 0;
-    const extraStopCount = Math.max(0, dto.points.length - 2);
-    const extraStopSurcharge = extraStopCount * pricingConfig.extra_stop_fee;
-    const total = Number(
-      (routeCharge + sizeSurcharge + fragileSurcharge + extraStopSurcharge).toFixed(2),
-    );
-    const estimatedDurationMinutes = Math.max(
-      10,
-      Math.round(distanceKm * vehicleConfig.minutes_per_km),
-    );
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
-    const calcPayload = {
-      currency: 'ZMW',
-      total,
-      expires_at: expiresAt,
-      vehicle_type: dto.vehicle_type,
-      distance_km: distanceKm,
-      estimated_duration_minutes: estimatedDurationMinutes,
-      parcel_size: dto.parcel_size || 'medium',
-      fragile: Boolean(dto.fragile),
-      breakdown: {
-        base_fare: vehicleConfig.base_fare,
-        distance_charge: Number((routeCharge - vehicleConfig.base_fare).toFixed(2)),
-        minimum_fare_applied: routeCharge === vehicleConfig.minimum_fare,
-        route_charge: Number(routeCharge.toFixed(2)),
-        size_surcharge: sizeSurcharge,
-        fragile_surcharge: fragileSurcharge,
-        extra_stop_surcharge: extraStopSurcharge,
-      },
-    };
-
+    const result = this.pricingService.estimateDelivery({
+      points: dto.points,
+      vehicleType: dto.vehicle_type,
+      parcelSize: dto.parcel_size,
+      fragile: dto.fragile,
+    });
     return {
-      currency: 'ZMW',
-      distance_km: distanceKm,
-      estimated_duration_minutes: estimatedDurationMinutes,
-      pricing_rules: pricingConfig,
-      calc_payload: calcPayload,
-      calc_sig: this.signPricingPayload(calcPayload),
+      ...result,
+      calc_sig: this.signPricingPayload(result.calc_payload),
     };
   }
 
@@ -760,81 +710,8 @@ export class DeliveryService {
         'wallet',
         'bank_transfer',
       ],
-      pricing: this.getPricingConfig(),
+      pricing: this.pricingService.getDeliveryPricingConfig(),
     };
-  }
-
-  private getPricingConfig() {
-    return {
-      currency: 'ZMW',
-      pricing_model: 'distance_plus_vehicle',
-      less_than_5km_minimum: 27,
-      extra_stop_fee: 5,
-      fragile_surcharge: 8,
-      size_surcharges: {
-        small: 0,
-        medium: 6,
-        large: 12,
-      },
-      vehicles: {
-        walking: {
-          base_fare: 12,
-          per_km: 6,
-          minimum_fare: 27,
-          minutes_per_km: 14,
-        },
-        bicycle: {
-          base_fare: 12,
-          per_km: 6,
-          minimum_fare: 27,
-          minutes_per_km: 10,
-        },
-        motorbike: {
-          base_fare: 12,
-          per_km: 6,
-          minimum_fare: 27,
-          minutes_per_km: 7,
-        },
-        truck: {
-          base_fare: 50,
-          per_km: 10,
-          minimum_fare: 50,
-          minutes_per_km: 9,
-        },
-      },
-    };
-  }
-
-  private calculateRouteDistanceKm(points: Array<{ lat: number; lng: number }>): number {
-    let total = 0;
-    for (let index = 1; index < points.length; index += 1) {
-      total += this.calculateDistanceKm(points[index - 1], points[index]);
-    }
-    return total;
-  }
-
-  private calculateDistanceKm(
-    origin: { lat: number; lng: number },
-    destination: { lat: number; lng: number },
-  ): number {
-    const earthRadiusKm = 6371;
-    const dLat = this.toRadians(destination.lat - origin.lat);
-    const dLng = this.toRadians(destination.lng - origin.lng);
-    const lat1 = this.toRadians(origin.lat);
-    const lat2 = this.toRadians(destination.lat);
-
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.sin(dLng / 2) *
-        Math.sin(dLng / 2) *
-        Math.cos(lat1) *
-        Math.cos(lat2);
-
-    return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-
-  private toRadians(value: number): number {
-    return (value * Math.PI) / 180;
   }
 
   private signPricingPayload(payload: Record<string, unknown>): string {

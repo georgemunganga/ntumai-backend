@@ -9,10 +9,10 @@ import { DELIVERY_REPOSITORY } from './domain/repositories/delivery.repository.i
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PrismaDeliveryRepository } from './infrastructure/repositories/prisma-delivery.repository';
-// import { PricingModule } from '../pricing/pricing.module'; // Removed due to missing PricingModule
+import { PricingModule } from '../pricing/pricing.module';
 
 @Module({
-  imports: [AuthModule, NotificationsModule],
+  imports: [AuthModule, NotificationsModule, PricingModule],
   controllers: [DeliveryController, RiderDeliveryController],
   providers: [
     DeliveryService,
