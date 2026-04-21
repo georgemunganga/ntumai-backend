@@ -148,6 +148,25 @@ export class ShiftResponseDto {
   @ApiPropertyOptional()
   current_location: GeoLocationDto | null;
 
+  @ApiPropertyOptional()
+  last_location_update: string | null;
+
+  @ApiProperty({ example: 'online' })
+  tasker_availability: 'online' | 'offline' | 'busy';
+
+  @ApiProperty()
+  dispatchable: boolean;
+
+  @ApiPropertyOptional({
+    example: 'stale_location',
+    description:
+      'Why the tasker is not currently dispatchable: offline, busy, missing_location, stale_location, shift_inactive',
+  })
+  dispatch_block_reason?: string | null;
+
+  @ApiPropertyOptional({ example: 12 })
+  location_age_sec: number | null;
+
   @ApiProperty()
   total_deliveries: number;
 

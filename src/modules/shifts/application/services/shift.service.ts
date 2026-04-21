@@ -27,6 +27,9 @@ import { PrismaService } from '../../../../shared/infrastructure/prisma.service'
 
 @Injectable()
 export class ShiftService {
+  private readonly dispatchLocationMaxStaleMs =
+    Number(process.env.DISPATCH_LOCATION_MAX_STALE_SEC || 45) * 1000;
+
   constructor(
     @Inject(SHIFT_REPOSITORY)
     private readonly shiftRepository: IShiftRepository,
@@ -581,6 +584,35 @@ export class ShiftService {
   }
 
   private toResponseDto(shift: Shift): ShiftResponseDto {
+    const now = Date.now();
+    const locationAgeMs = shift.last_location_update
+      ? Math.max(0, now - shift.last_location_update.getTime())
+      : null;
+    const locationAgeSec =
+      locationAgeMs != null ? Math.floor(locationAgeMs / 1000) : null;
+
+    let taskerAvailability: 'online' | 'offline' | 'busy' = 'offline';
+    let dispatchable = false;
+    let dispatchBlockReason: string | null = 'offline';
+
+    if (!shift.isActive()) {
+      taskerAvailability = 'offline';
+      dispatchBlockReason = 'shift_inactive';
+    } else if (!shift.current_location) {
+      taskerAvailability = 'online';
+      dispatchBlockReason = 'missing_location';
+    } else if (
+      locationAgeMs == null ||
+      locationAgeMs > this.dispatchLocationMaxStaleMs
+    ) {
+      taskerAvailability = 'online';
+      dispatchBlockReason = 'stale_location';
+    } else {
+      taskerAvailability = 'online';
+      dispatchable = true;
+      dispatchBlockReason = null;
+    }
+
     return {
       id: shift.id,
       rider_user_id: shift.rider_user_id,
@@ -589,6 +621,11 @@ export class ShiftService {
       start_time: shift.start_time.toISOString(),
       end_time: shift.end_time?.toISOString() || null,
       current_location: shift.current_location,
+      last_location_update: shift.last_location_update?.toISOString() || null,
+      tasker_availability: taskerAvailability,
+      dispatchable,
+      dispatch_block_reason: dispatchBlockReason,
+      location_age_sec: locationAgeSec,
       total_deliveries: shift.total_deliveries,
       total_earnings: shift.total_earnings,
       total_distance_km: shift.total_distance_km,

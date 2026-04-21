@@ -93,6 +93,10 @@ export class Shift {
     return this.props.current_location;
   }
 
+  get last_location_update(): Date | null {
+    return this.props.last_location_update;
+  }
+
   get total_deliveries(): number {
     return this.props.total_deliveries;
   }
