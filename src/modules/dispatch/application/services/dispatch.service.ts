@@ -50,6 +50,21 @@ type CachedRiderProfile = {
   rating: number;
 };
 
+type DispatchRankMetrics = {
+  shiftCacheHit: boolean;
+  riderProfileCacheHits: number;
+  riderProfileCacheMisses: number;
+  workloadCacheHit: boolean;
+  shiftFetchMs: number;
+  profileFetchMs: number;
+  workloadFetchMs: number;
+  scoreLoopMs: number;
+  routeRefineMs: number;
+  totalMs: number;
+  candidateShiftCount: number;
+  rankedCount: number;
+};
+
 @Injectable()
 export class DispatchService {
   private readonly maxActiveJobsPerTasker = Number(
@@ -69,6 +84,11 @@ export class DispatchService {
   );
   private readonly workloadCacheTtlMs = Number(
     process.env.DISPATCH_WORKLOAD_CACHE_TTL_MS || 5000,
+  );
+  private readonly dispatchProfilingEnabled =
+    process.env.DISPATCH_PROFILE_LOGGING === 'true';
+  private readonly dispatchProfilingSlowMs = Number(
+    process.env.DISPATCH_PROFILE_SLOW_MS || 250,
   );
   private readonly googleMapsApiKey =
     process.env.GOOGLE_MAPS_API_KEY ||
@@ -102,23 +122,52 @@ export class DispatchService {
   ) {}
 
   async rankTaskersForJob(job: DispatchJob): Promise<RankedTaskerCandidate[]> {
-    const parsedShifts = (await this.getActiveCandidateShifts()).filter(
+    const rankStartedAt = process.hrtime.bigint();
+    const metrics: DispatchRankMetrics = {
+      shiftCacheHit: false,
+      riderProfileCacheHits: 0,
+      riderProfileCacheMisses: 0,
+      workloadCacheHit: false,
+      shiftFetchMs: 0,
+      profileFetchMs: 0,
+      workloadFetchMs: 0,
+      scoreLoopMs: 0,
+      routeRefineMs: 0,
+      totalMs: 0,
+      candidateShiftCount: 0,
+      rankedCount: 0,
+    };
+
+    const shiftFetchStartedAt = process.hrtime.bigint();
+    const parsedShifts = (await this.getActiveCandidateShifts(metrics)).filter(
       (shift): shift is CandidateShift =>
         Boolean(shift.current_location) &&
         this.isVehicleCompatible(job.vehicleType, shift.vehicle_type),
     );
+    metrics.shiftFetchMs =
+      Number(process.hrtime.bigint() - shiftFetchStartedAt) / 1_000_000;
+    metrics.candidateShiftCount = parsedShifts.length;
 
     if (parsedShifts.length === 0) {
+      metrics.totalMs = Number(process.hrtime.bigint() - rankStartedAt) / 1_000_000;
+      this.logRankMetrics(job, metrics);
       return [];
     }
 
     const riderIds = [...new Set(parsedShifts.map((shift) => shift.rider_user_id))];
 
+    const profileFetchStartedAt = process.hrtime.bigint();
+    const workloadFetchStartedAt = process.hrtime.bigint();
     const [riderProfiles, workloadByUserId] = await Promise.all([
-      this.getRiderProfiles(riderIds),
-      this.getActiveWorkloadMap(),
+      this.getRiderProfiles(riderIds, metrics),
+      this.getActiveWorkloadMap(metrics),
     ]);
+    metrics.profileFetchMs =
+      Number(process.hrtime.bigint() - profileFetchStartedAt) / 1_000_000;
+    metrics.workloadFetchMs =
+      Number(process.hrtime.bigint() - workloadFetchStartedAt) / 1_000_000;
 
+    const scoreLoopStartedAt = process.hrtime.bigint();
     const ranked = parsedShifts
       .map((shift) => {
         const profile = riderProfiles.get(shift.rider_user_id);
@@ -184,6 +233,9 @@ export class DispatchService {
       .filter((entry): entry is RankedTaskerCandidate => entry !== null)
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
+    metrics.scoreLoopMs =
+      Number(process.hrtime.bigint() - scoreLoopStartedAt) / 1_000_000;
+    metrics.rankedCount = ranked.length;
 
     const locationByRiderId = new Map(
       parsedShifts
@@ -191,7 +243,17 @@ export class DispatchService {
         .map((shift) => [shift.rider_user_id, shift.current_location!]),
     );
 
-    return this.refineCandidatesWithRouteEta(job, ranked, locationByRiderId);
+    const routeRefineStartedAt = process.hrtime.bigint();
+    const refined = await this.refineCandidatesWithRouteEta(
+      job,
+      ranked,
+      locationByRiderId,
+    );
+    metrics.routeRefineMs =
+      Number(process.hrtime.bigint() - routeRefineStartedAt) / 1_000_000;
+    metrics.totalMs = Number(process.hrtime.bigint() - rankStartedAt) / 1_000_000;
+    this.logRankMetrics(job, metrics);
+    return refined;
   }
 
   async incrementTaskerDispatchStat(
@@ -364,12 +426,20 @@ export class DispatchService {
     );
   }
 
-  private async getActiveCandidateShifts(): Promise<CandidateShift[]> {
+  private async getActiveCandidateShifts(
+    metrics?: DispatchRankMetrics,
+  ): Promise<CandidateShift[]> {
     const now = Date.now();
     if (this.shiftCache && this.shiftCache.expiresAt > now) {
+      if (metrics) {
+        metrics.shiftCacheHit = true;
+      }
       return this.shiftCache.value;
     }
     if (this.shiftCachePromise) {
+      if (metrics) {
+        metrics.shiftCacheHit = true;
+      }
       return this.shiftCachePromise;
     }
 
@@ -411,6 +481,7 @@ export class DispatchService {
 
   private async getRiderProfiles(
     riderIds: string[],
+    metrics?: DispatchRankMetrics,
   ): Promise<Map<string, CachedRiderProfile>> {
     const now = Date.now();
     const result = new Map<string, CachedRiderProfile>();
@@ -420,8 +491,14 @@ export class DispatchService {
       const cached = this.riderProfileCache.get(riderId);
       if (cached && cached.expiresAt > now) {
         result.set(riderId, cached.value);
+        if (metrics) {
+          metrics.riderProfileCacheHits += 1;
+        }
       } else {
         missingRiderIds.push(riderId);
+        if (metrics) {
+          metrics.riderProfileCacheMisses += 1;
+        }
       }
     }
 
@@ -486,12 +563,20 @@ export class DispatchService {
     return result;
   }
 
-  private async getActiveWorkloadMap(): Promise<Map<string, number>> {
+  private async getActiveWorkloadMap(
+    metrics?: DispatchRankMetrics,
+  ): Promise<Map<string, number>> {
     const now = Date.now();
     if (this.workloadCache && this.workloadCache.expiresAt > now) {
+      if (metrics) {
+        metrics.workloadCacheHit = true;
+      }
       return this.workloadCache.value;
     }
     if (this.workloadCachePromise) {
+      if (metrics) {
+        metrics.workloadCacheHit = true;
+      }
       return this.workloadCachePromise;
     }
 
@@ -564,5 +649,42 @@ export class DispatchService {
     } catch {
       return null;
     }
+  }
+
+  private logRankMetrics(
+    job: DispatchJob,
+    metrics: DispatchRankMetrics,
+  ): void {
+    if (!this.dispatchProfilingEnabled) {
+      return;
+    }
+
+    if (metrics.totalMs < this.dispatchProfilingSlowMs) {
+      return;
+    }
+
+    console.log(
+      JSON.stringify({
+        component: 'dispatch.rank',
+        jobId: job.jobId,
+        jobType: job.jobType,
+        vehicleType: job.vehicleType,
+        radiusKm: job.radiusKm ?? null,
+        metrics: {
+          totalMs: Number(metrics.totalMs.toFixed(2)),
+          shiftFetchMs: Number(metrics.shiftFetchMs.toFixed(2)),
+          profileFetchMs: Number(metrics.profileFetchMs.toFixed(2)),
+          workloadFetchMs: Number(metrics.workloadFetchMs.toFixed(2)),
+          scoreLoopMs: Number(metrics.scoreLoopMs.toFixed(2)),
+          routeRefineMs: Number(metrics.routeRefineMs.toFixed(2)),
+          shiftCacheHit: metrics.shiftCacheHit,
+          workloadCacheHit: metrics.workloadCacheHit,
+          riderProfileCacheHits: metrics.riderProfileCacheHits,
+          riderProfileCacheMisses: metrics.riderProfileCacheMisses,
+          candidateShiftCount: metrics.candidateShiftCount,
+          rankedCount: metrics.rankedCount,
+        },
+      }),
+    );
   }
 }
