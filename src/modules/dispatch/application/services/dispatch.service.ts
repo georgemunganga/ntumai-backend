@@ -63,6 +63,8 @@ type DispatchRankMetrics = {
   totalMs: number;
   candidateShiftCount: number;
   rankedCount: number;
+  routeRefinementSkipped: boolean;
+  activeRankCalls: number;
 };
 
 @Injectable()
@@ -90,6 +92,9 @@ export class DispatchService {
   private readonly dispatchProfilingSlowMs = Number(
     process.env.DISPATCH_PROFILE_SLOW_MS || 250,
   );
+  private readonly routeRefinementMaxActiveCalls = Number(
+    process.env.DISPATCH_ROUTE_REFINEMENT_MAX_ACTIVE_CALLS || 12,
+  );
   private readonly googleMapsApiKey =
     process.env.GOOGLE_MAPS_API_KEY ||
     process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
@@ -115,6 +120,7 @@ export class DispatchService {
       value: CachedRiderProfile;
     }
   >();
+  private activeRankCalls = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -122,6 +128,7 @@ export class DispatchService {
   ) {}
 
   async rankTaskersForJob(job: DispatchJob): Promise<RankedTaskerCandidate[]> {
+    this.activeRankCalls += 1;
     const rankStartedAt = process.hrtime.bigint();
     const metrics: DispatchRankMetrics = {
       shiftCacheHit: false,
@@ -136,124 +143,131 @@ export class DispatchService {
       totalMs: 0,
       candidateShiftCount: 0,
       rankedCount: 0,
+      routeRefinementSkipped: false,
+      activeRankCalls: this.activeRankCalls,
     };
+    try {
+      const shiftFetchStartedAt = process.hrtime.bigint();
+      const parsedShifts = (await this.getActiveCandidateShifts(metrics)).filter(
+        (shift): shift is CandidateShift =>
+          Boolean(shift.current_location) &&
+          this.isVehicleCompatible(job.vehicleType, shift.vehicle_type),
+      );
+      metrics.shiftFetchMs =
+        Number(process.hrtime.bigint() - shiftFetchStartedAt) / 1_000_000;
+      metrics.candidateShiftCount = parsedShifts.length;
 
-    const shiftFetchStartedAt = process.hrtime.bigint();
-    const parsedShifts = (await this.getActiveCandidateShifts(metrics)).filter(
-      (shift): shift is CandidateShift =>
-        Boolean(shift.current_location) &&
-        this.isVehicleCompatible(job.vehicleType, shift.vehicle_type),
-    );
-    metrics.shiftFetchMs =
-      Number(process.hrtime.bigint() - shiftFetchStartedAt) / 1_000_000;
-    metrics.candidateShiftCount = parsedShifts.length;
+      if (parsedShifts.length === 0) {
+        metrics.totalMs =
+          Number(process.hrtime.bigint() - rankStartedAt) / 1_000_000;
+        this.logRankMetrics(job, metrics);
+        return [];
+      }
 
-    if (parsedShifts.length === 0) {
+      const riderIds = [...new Set(parsedShifts.map((shift) => shift.rider_user_id))];
+
+      const profileFetchStartedAt = process.hrtime.bigint();
+      const workloadFetchStartedAt = process.hrtime.bigint();
+      const [riderProfiles, workloadByUserId] = await Promise.all([
+        this.getRiderProfiles(riderIds, metrics),
+        this.getActiveWorkloadMap(metrics),
+      ]);
+      metrics.profileFetchMs =
+        Number(process.hrtime.bigint() - profileFetchStartedAt) / 1_000_000;
+      metrics.workloadFetchMs =
+        Number(process.hrtime.bigint() - workloadFetchStartedAt) / 1_000_000;
+
+      const scoreLoopStartedAt = process.hrtime.bigint();
+      const ranked = parsedShifts
+        .map((shift) => {
+          const profile = riderProfiles.get(shift.rider_user_id);
+          const user = profile?.user;
+          if (!user || !shift.current_location || !profile) {
+            return null;
+          }
+
+          const availability = profile.availability;
+          if (availability !== 'online') {
+            return null;
+          }
+
+          const workload = workloadByUserId.get(shift.rider_user_id) || 0;
+          if (workload >= this.maxActiveJobsPerTasker) {
+            return null;
+          }
+
+          const distanceKm = this.pricingService.calculateDistanceKm(
+            job.pickup,
+            shift.current_location,
+          );
+          const radiusKm = Math.max(1, Number(job.radiusKm || 10));
+          if (distanceKm > radiusKm) {
+            return null;
+          }
+
+          const etaMin = Math.max(2, Math.round(distanceKm * 4));
+          const rating = profile.rating;
+          const persistedStats = profile.dispatchStats;
+          const offeredCount = persistedStats?.offersReceived ?? 0;
+          const acceptedCount = persistedStats?.acceptedOffers ?? 0;
+          const declinedCount = persistedStats?.declinedOffers ?? 0;
+          const timedOutCount = persistedStats?.timedOutOffers ?? 0;
+          const acceptanceRate =
+            offeredCount > 0 ? acceptedCount / offeredCount : 0.7;
+
+          const etaScore = Math.max(0, 1 - etaMin / 25);
+          const ratingScore = Math.min(1, Math.max(0, rating / 5));
+          const acceptanceScore = Math.min(1, Math.max(0, acceptanceRate));
+          const workloadScore = Math.max(
+            0,
+            1 - workload / this.maxActiveJobsPerTasker,
+          );
+          const finalScore =
+            etaScore * 0.45 +
+            ratingScore * 0.2 +
+            acceptanceScore * 0.2 +
+            workloadScore * 0.15 -
+            Math.min(0.1, (declinedCount + timedOutCount) * 0.01);
+
+          return {
+            user_id: user.id,
+            name:
+              `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Tasker',
+            vehicle: job.vehicleType,
+            phone: user.phone || '+260972000000',
+            rating: Number(rating.toFixed(2)),
+            eta_min: etaMin,
+            score: Number(finalScore.toFixed(4)),
+          } satisfies RankedTaskerCandidate;
+        })
+        .filter((entry): entry is RankedTaskerCandidate => entry !== null)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+      metrics.scoreLoopMs =
+        Number(process.hrtime.bigint() - scoreLoopStartedAt) / 1_000_000;
+      metrics.rankedCount = ranked.length;
+
+      const locationByRiderId = new Map(
+        parsedShifts
+          .filter((shift) => shift.current_location)
+          .map((shift) => [shift.rider_user_id, shift.current_location!]),
+      );
+
+      const routeRefineStartedAt = process.hrtime.bigint();
+      const refined = await this.refineCandidatesWithRouteEta(
+        job,
+        ranked,
+        locationByRiderId,
+        metrics,
+      );
+      metrics.routeRefineMs =
+        Number(process.hrtime.bigint() - routeRefineStartedAt) / 1_000_000;
       metrics.totalMs = Number(process.hrtime.bigint() - rankStartedAt) / 1_000_000;
       this.logRankMetrics(job, metrics);
-      return [];
+      return refined;
+    } finally {
+      this.activeRankCalls = Math.max(0, this.activeRankCalls - 1);
     }
-
-    const riderIds = [...new Set(parsedShifts.map((shift) => shift.rider_user_id))];
-
-    const profileFetchStartedAt = process.hrtime.bigint();
-    const workloadFetchStartedAt = process.hrtime.bigint();
-    const [riderProfiles, workloadByUserId] = await Promise.all([
-      this.getRiderProfiles(riderIds, metrics),
-      this.getActiveWorkloadMap(metrics),
-    ]);
-    metrics.profileFetchMs =
-      Number(process.hrtime.bigint() - profileFetchStartedAt) / 1_000_000;
-    metrics.workloadFetchMs =
-      Number(process.hrtime.bigint() - workloadFetchStartedAt) / 1_000_000;
-
-    const scoreLoopStartedAt = process.hrtime.bigint();
-    const ranked = parsedShifts
-      .map((shift) => {
-        const profile = riderProfiles.get(shift.rider_user_id);
-        const user = profile?.user;
-        if (!user || !shift.current_location || !profile) {
-          return null;
-        }
-
-        const availability = profile.availability;
-        if (availability !== 'online') {
-          return null;
-        }
-
-        const workload = workloadByUserId.get(shift.rider_user_id) || 0;
-        if (workload >= this.maxActiveJobsPerTasker) {
-          return null;
-        }
-
-        const distanceKm = this.pricingService.calculateDistanceKm(
-          job.pickup,
-          shift.current_location,
-        );
-        const radiusKm = Math.max(1, Number(job.radiusKm || 10));
-        if (distanceKm > radiusKm) {
-          return null;
-        }
-
-        const etaMin = Math.max(2, Math.round(distanceKm * 4));
-        const rating = profile.rating;
-        const persistedStats = profile.dispatchStats;
-        const offeredCount = persistedStats?.offersReceived ?? 0;
-        const acceptedCount = persistedStats?.acceptedOffers ?? 0;
-        const declinedCount = persistedStats?.declinedOffers ?? 0;
-        const timedOutCount = persistedStats?.timedOutOffers ?? 0;
-        const acceptanceRate =
-          offeredCount > 0 ? acceptedCount / offeredCount : 0.7;
-
-        const etaScore = Math.max(0, 1 - etaMin / 25);
-        const ratingScore = Math.min(1, Math.max(0, rating / 5));
-        const acceptanceScore = Math.min(1, Math.max(0, acceptanceRate));
-        const workloadScore = Math.max(
-          0,
-          1 - workload / this.maxActiveJobsPerTasker,
-        );
-        const finalScore =
-          etaScore * 0.45 +
-          ratingScore * 0.2 +
-          acceptanceScore * 0.2 +
-          workloadScore * 0.15 -
-          Math.min(0.1, (declinedCount + timedOutCount) * 0.01);
-
-        return {
-          user_id: user.id,
-          name:
-            `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Tasker',
-          vehicle: job.vehicleType,
-          phone: user.phone || '+260972000000',
-          rating: Number(rating.toFixed(2)),
-          eta_min: etaMin,
-          score: Number(finalScore.toFixed(4)),
-        } satisfies RankedTaskerCandidate;
-      })
-      .filter((entry): entry is RankedTaskerCandidate => entry !== null)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5);
-    metrics.scoreLoopMs =
-      Number(process.hrtime.bigint() - scoreLoopStartedAt) / 1_000_000;
-    metrics.rankedCount = ranked.length;
-
-    const locationByRiderId = new Map(
-      parsedShifts
-        .filter((shift) => shift.current_location)
-        .map((shift) => [shift.rider_user_id, shift.current_location!]),
-    );
-
-    const routeRefineStartedAt = process.hrtime.bigint();
-    const refined = await this.refineCandidatesWithRouteEta(
-      job,
-      ranked,
-      locationByRiderId,
-    );
-    metrics.routeRefineMs =
-      Number(process.hrtime.bigint() - routeRefineStartedAt) / 1_000_000;
-    metrics.totalMs = Number(process.hrtime.bigint() - rankStartedAt) / 1_000_000;
-    this.logRankMetrics(job, metrics);
-    return refined;
   }
 
   async incrementTaskerDispatchStat(
@@ -388,8 +402,16 @@ export class DispatchService {
     job: DispatchJob,
     ranked: RankedTaskerCandidate[],
     locationByRiderId: Map<string, { lat: number; lng: number }>,
+    metrics?: DispatchRankMetrics,
   ): Promise<RankedTaskerCandidate[]> {
     if (!this.googleMapsApiKey || ranked.length <= 1) {
+      return ranked;
+    }
+
+    if (this.activeRankCalls > this.routeRefinementMaxActiveCalls) {
+      if (metrics) {
+        metrics.routeRefinementSkipped = true;
+      }
       return ranked;
     }
 
@@ -677,6 +699,8 @@ export class DispatchService {
           workloadFetchMs: Number(metrics.workloadFetchMs.toFixed(2)),
           scoreLoopMs: Number(metrics.scoreLoopMs.toFixed(2)),
           routeRefineMs: Number(metrics.routeRefineMs.toFixed(2)),
+          routeRefinementSkipped: metrics.routeRefinementSkipped,
+          activeRankCalls: metrics.activeRankCalls,
           shiftCacheHit: metrics.shiftCacheHit,
           workloadCacheHit: metrics.workloadCacheHit,
           riderProfileCacheHits: metrics.riderProfileCacheHits,
