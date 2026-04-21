@@ -28,6 +28,7 @@ import { NotificationsService } from '../../../notifications/application/service
 import { MatchingGateway } from '../../infrastructure/websocket/matching.gateway';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 import { PricingService } from '../../../pricing/application/services/pricing.service';
+import { DispatchService } from '../../../dispatch/application/services/dispatch.service';
 
 @Injectable()
 export class MatchingService implements OnModuleInit, OnModuleDestroy {
@@ -46,6 +47,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     private readonly matchingGateway: MatchingGateway,
     private readonly prisma: PrismaService,
     private readonly pricingService: PricingService,
+    private readonly dispatchService: DispatchService,
   ) {}
 
   onModuleInit() {
@@ -74,63 +76,6 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       etaMin: candidate.eta_min,
       ...(location ? { location } : {}),
     };
-  }
-
-  private async incrementTaskerDispatchStat(
-    riderUserId: string,
-    key:
-      | 'offersReceived'
-      | 'acceptedOffers'
-      | 'declinedOffers'
-      | 'timedOutOffers'
-      | 'releasedDeliveries'
-      | 'acceptedDeliveries',
-  ): Promise<void> {
-    const existing = await this.prisma.userPreference.findUnique({
-      where: { userId: riderUserId },
-      select: { id: true, preferences: true },
-    });
-
-    const currentPreferences =
-      existing?.preferences && typeof existing.preferences === 'object'
-        ? (existing.preferences as Record<string, any>)
-        : {};
-    const currentDispatchStats =
-      currentPreferences.taskerDispatchStats &&
-      typeof currentPreferences.taskerDispatchStats === 'object'
-        ? (currentPreferences.taskerDispatchStats as Record<string, any>)
-        : {};
-
-    const dispatchStats = {
-      offersReceived: Number(currentDispatchStats.offersReceived || 0),
-      acceptedOffers: Number(currentDispatchStats.acceptedOffers || 0),
-      declinedOffers: Number(currentDispatchStats.declinedOffers || 0),
-      timedOutOffers: Number(currentDispatchStats.timedOutOffers || 0),
-      releasedDeliveries: Number(currentDispatchStats.releasedDeliveries || 0),
-      acceptedDeliveries: Number(currentDispatchStats.acceptedDeliveries || 0),
-      [key]: Number(currentDispatchStats[key] || 0) + 1,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const preferences = {
-      ...currentPreferences,
-      taskerDispatchStats: dispatchStats,
-    };
-
-    if (existing) {
-      await this.prisma.userPreference.update({
-        where: { userId: riderUserId },
-        data: { preferences },
-      });
-      return;
-    }
-
-    await this.prisma.userPreference.create({
-      data: {
-        userId: riderUserId,
-        preferences,
-      },
-    });
   }
 
   async createBooking(
@@ -443,7 +388,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       );
 
       booking.acceptByRider(riderInfo);
-      await this.incrementTaskerDispatchStat(
+      await this.dispatchService.incrementTaskerDispatchStat(
         dto.rider_user_id,
         'acceptedOffers',
       );
@@ -452,7 +397,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       console.log('Booking accepted by rider:', dto.rider_user_id);
     } else {
       booking.declineByRider(dto.rider_user_id);
-      await this.incrementTaskerDispatchStat(
+      await this.dispatchService.incrementTaskerDispatchStat(
         dto.rider_user_id,
         'declinedOffers',
       );
@@ -739,7 +684,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
           0,
       },
     });
-    await this.incrementTaskerDispatchStat(
+    await this.dispatchService.incrementTaskerDispatchStat(
       firstCandidate.user_id,
       'offersReceived',
     );
@@ -815,7 +760,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
             0,
         },
       });
-      await this.incrementTaskerDispatchStat(
+      await this.dispatchService.incrementTaskerDispatchStat(
         newCandidates[0].user_id,
         'offersReceived',
       );
@@ -910,7 +855,7 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     const timedOutRiderId =
       offeredTo.length > 0 ? offeredTo[offeredTo.length - 1] : null;
     if (timedOutRiderId) {
-      await this.incrementTaskerDispatchStat(
+      await this.dispatchService.incrementTaskerDispatchStat(
         timedOutRiderId,
         'timedOutOffers',
       );

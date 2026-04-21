@@ -10,9 +10,10 @@ import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PrismaDeliveryRepository } from './infrastructure/repositories/prisma-delivery.repository';
 import { PricingModule } from '../pricing/pricing.module';
+import { DispatchModule } from '../dispatch/dispatch.module';
 
 @Module({
-  imports: [AuthModule, NotificationsModule, PricingModule],
+  imports: [AuthModule, NotificationsModule, PricingModule, DispatchModule],
   controllers: [DeliveryController, RiderDeliveryController],
   providers: [
     DeliveryService,

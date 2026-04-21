@@ -9,9 +9,10 @@ import { DatabaseModule } from '../../shared/database/database.module';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PricingModule } from '../pricing/pricing.module';
+import { DispatchModule } from '../dispatch/dispatch.module';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, NotificationsModule, PricingModule],
+  imports: [DatabaseModule, AuthModule, NotificationsModule, PricingModule, DispatchModule],
   controllers: [MatchingController],
   providers: [
     MatchingService,
