@@ -298,9 +298,7 @@ export class DeliveryController {
     status: 200,
     description: 'Delivery estimate calculated successfully',
   })
-  async estimatePricing(
-    @Body() dto: EstimateDeliveryPricingDto,
-  ): Promise<any> {
+  async estimatePricing(@Body() dto: EstimateDeliveryPricingDto): Promise<any> {
     return this.deliveryService.estimatePricing(dto);
   }
 }
@@ -330,11 +328,13 @@ export class RiderDeliveryController {
     @Query('near_lng') lng: number,
     @Query('radius_km') radius?: number,
     @Query('vehicle_type') vehicleType?: string,
+    @Request() req?: any,
   ): Promise<any> {
     return this.deliveryService.getNearbyDeliveries(
       Number(lat),
       Number(lng),
       Number(radius) || 10,
+      req.user.userId,
       vehicleType,
     );
   }
@@ -395,7 +395,11 @@ export class RiderDeliveryController {
     @Body() dto: CancelDeliveryDto,
     @Request() req: any,
   ): Promise<any> {
-    return this.deliveryService.releaseDelivery(id, req.user.userId, dto.reason);
+    return this.deliveryService.releaseDelivery(
+      id,
+      req.user.userId,
+      dto.reason,
+    );
   }
 
   @Post(':id/rate-customer')

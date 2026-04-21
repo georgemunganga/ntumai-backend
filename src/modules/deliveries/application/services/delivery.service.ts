@@ -5,6 +5,8 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  OnModuleDestroy,
+  OnModuleInit,
 } from '@nestjs/common';
 import { createHmac } from 'crypto';
 import { nanoid } from 'nanoid';
@@ -13,6 +15,7 @@ import { DELIVERY_REPOSITORY } from '../../domain/repositories/delivery.reposito
 import type { IDeliveryRepository } from '../../domain/repositories/delivery.repository.interface';
 import {
   DeliveryOrder,
+  OrderStatus,
   VehicleType,
 } from '../../domain/entities/delivery-order.entity';
 import { Stop, StopType } from '../../domain/entities/stop.entity';
@@ -26,13 +29,33 @@ import { PrismaService } from '../../../../shared/infrastructure/prisma.service'
 import { NotificationsService } from '../../../notifications/application/services/notifications.service';
 import { PricingService } from '../../../pricing/application/services/pricing.service';
 import { DispatchService } from '../../../dispatch/application/services/dispatch.service';
+import { DeliveriesGateway } from '../../infrastructure/websocket/deliveries.gateway';
+
+type DeliveryDispatchState = {
+  stage?: 'searching' | 'offered' | 'assigned' | 'failed';
+  offeredTo?: string[];
+  activeRiderId?: string | null;
+  offerExpiresAt?: string | null;
+  lastOfferedAt?: string | null;
+  searchStartedAt?: string | null;
+};
 
 @Injectable()
-export class DeliveryService {
+export class DeliveryService implements OnModuleInit, OnModuleDestroy {
   private readonly pricingSecret =
     process.env.DELIVERY_PRICING_SECRET ||
     process.env.APP_KEY ||
     'ntumai-delivery-pricing-secret';
+  private readonly offerTimeoutSweepMs = Number(
+    process.env.DELIVERY_OFFER_SWEEP_MS ||
+      process.env.MATCHING_OFFER_SWEEP_MS ||
+      5000,
+  );
+  private readonly deliveryOfferTimeoutSec = Number(
+    process.env.DELIVERY_OFFER_TIMEOUT_SEC || 45,
+  );
+  private readonly activeOfferTimeouts = new Set<string>();
+  private offerSweepTimer: NodeJS.Timeout | null = null;
 
   constructor(
     @Inject(DELIVERY_REPOSITORY)
@@ -41,7 +64,23 @@ export class DeliveryService {
     private readonly notificationsService: NotificationsService,
     private readonly pricingService: PricingService,
     private readonly dispatchService: DispatchService,
+    private readonly deliveriesGateway: DeliveriesGateway,
   ) {}
+
+  onModuleInit() {
+    this.offerSweepTimer = setInterval(() => {
+      this.reassignExpiredOffers().catch((error) => {
+        console.error('Delivery offer timeout sweep failed:', error);
+      });
+    }, this.offerTimeoutSweepMs);
+  }
+
+  onModuleDestroy() {
+    if (this.offerSweepTimer) {
+      clearInterval(this.offerSweepTimer);
+      this.offerSweepTimer = null;
+    }
+  }
 
   /**
    * Create a new delivery (works independently or with marketplace)
@@ -262,6 +301,8 @@ export class DeliveryService {
     delivery.updated_at = new Date();
     const updated = await this.deliveryRepository.update(deliveryId, delivery);
 
+    await this.startDispatchProcess(updated);
+
     await this.notificationsService.createNotification({
       userId,
       title: 'Delivery submitted',
@@ -294,7 +335,9 @@ export class DeliveryService {
 
     const deliveries = Array.isArray(result?.data) ? result.data : [];
     for (const delivery of deliveries) {
-      (delivery as any).conversationId = await this.findConversationId(delivery.id);
+      (delivery as any).conversationId = await this.findConversationId(
+        delivery.id,
+      );
     }
 
     return result;
@@ -331,13 +374,18 @@ export class DeliveryService {
     lat: number,
     lng: number,
     radius_km: number,
+    riderId: string,
     vehicle_type?: string,
   ): Promise<DeliveryOrder[]> {
-    return this.deliveryRepository.findNearby(
+    const deliveries = await this.deliveryRepository.findNearby(
       lat,
       lng,
       radius_km,
       vehicle_type,
+    );
+
+    return deliveries.filter((delivery) =>
+      this.isDeliveryVisibleToRider(delivery, riderId),
     );
   }
 
@@ -353,6 +401,28 @@ export class DeliveryService {
       throw new NotFoundException('Delivery not found');
     }
 
+    const dispatchState = this.getDispatchState(delivery);
+    if (
+      dispatchState.activeRiderId &&
+      dispatchState.activeRiderId !== riderId
+    ) {
+      throw new ForbiddenException(
+        'This delivery offer is assigned to another rider',
+      );
+    }
+
+    const offerExpiresAt = dispatchState.offerExpiresAt
+      ? new Date(dispatchState.offerExpiresAt)
+      : null;
+    if (
+      offerExpiresAt &&
+      !Number.isNaN(offerExpiresAt.getTime()) &&
+      offerExpiresAt.getTime() <= Date.now()
+    ) {
+      await this.expireOfferAndReassign(delivery, 'Delivery offer timed out');
+      throw new ConflictException('Offer expired before it was accepted');
+    }
+
     if (delivery.rider_id) {
       throw new BadRequestException(
         'Delivery already accepted by another rider',
@@ -360,6 +430,15 @@ export class DeliveryService {
     }
 
     delivery.assignRider(riderId);
+    this.updateDeliveryMetadata(delivery, (metadata) => ({
+      ...metadata,
+      dispatch: {
+        ...this.getDispatchStateFromMetadata(metadata),
+        stage: 'assigned',
+        activeRiderId: riderId,
+        offerExpiresAt: null,
+      },
+    }));
     const updated = await this.deliveryRepository.update(deliveryId, delivery);
     await this.dispatchService.incrementTaskerDispatchStat(
       riderId,
@@ -392,6 +471,11 @@ export class DeliveryService {
         },
       }),
     ]);
+
+    this.deliveriesGateway.emitDeliveryStatusUpdate(deliveryId, 'assigned', {
+      riderId,
+    });
+    this.deliveriesGateway.emitRiderAssigned(deliveryId, { riderId });
 
     return updated;
   }
@@ -428,6 +512,8 @@ export class DeliveryService {
       },
     });
 
+    this.deliveriesGateway.emitInTransit(deliveryId, 1, delivery.stops.length);
+
     return updated;
   }
 
@@ -446,7 +532,9 @@ export class DeliveryService {
     }
 
     if (String(delivery.order_status || '').toLowerCase() !== 'booked') {
-      throw new BadRequestException('Delivery can only be released before transit starts');
+      throw new BadRequestException(
+        'Delivery can only be released before transit starts',
+      );
     }
 
     delivery.rider_id = null;
@@ -477,7 +565,15 @@ export class DeliveryService {
       }
     })();
 
-    delivery.more_info = JSON.stringify(updatedMetadata);
+    delivery.more_info = JSON.stringify({
+      ...updatedMetadata,
+      dispatch: {
+        ...this.getDispatchStateFromMetadata(updatedMetadata),
+        stage: 'searching',
+        activeRiderId: null,
+        offerExpiresAt: null,
+      },
+    });
     const updated = await this.deliveryRepository.update(deliveryId, delivery);
     await this.dispatchService.incrementTaskerDispatchStat(
       riderId,
@@ -512,6 +608,11 @@ export class DeliveryService {
         },
       }),
     ]);
+
+    this.deliveriesGateway.emitDeliveryStatusUpdate(deliveryId, 'searching', {
+      reason: reason?.trim() || null,
+    });
+    await this.reofferDelivery(deliveryId);
 
     return updated;
   }
@@ -597,11 +698,10 @@ export class DeliveryService {
       throw new ForbiddenException('Not authorized to cancel this delivery');
     }
 
-    return this.cancelDeliveryRecord(
-      delivery,
-      reason,
-      [delivery.created_by_user_id, delivery.rider_id],
-    );
+    return this.cancelDeliveryRecord(delivery, reason, [
+      delivery.created_by_user_id,
+      delivery.rider_id,
+    ]);
   }
 
   async cancelLinkedMarketplaceDelivery(
@@ -669,7 +769,9 @@ export class DeliveryService {
     if (!delivery) {
       throw new NotFoundException('Delivery not found');
     }
-    (delivery as any).conversationId = await this.findConversationId(delivery.id);
+    (delivery as any).conversationId = await this.findConversationId(
+      delivery.id,
+    );
     return delivery;
   }
 
@@ -684,7 +786,9 @@ export class DeliveryService {
     return (
       result.data.find((delivery) => {
         try {
-          const metadata = delivery.more_info ? JSON.parse(delivery.more_info) : {};
+          const metadata = delivery.more_info
+            ? JSON.parse(delivery.more_info)
+            : {};
           return (
             String(metadata?.marketplace_order_id || '') ===
             String(marketplaceOrderId)
@@ -743,7 +847,10 @@ export class DeliveryService {
               lng: input.storeAddress.longitude,
             },
             address: {
-              line1: input.storeAddress.address || input.storeAddress.city || 'Store',
+              line1:
+                input.storeAddress.address ||
+                input.storeAddress.city ||
+                'Store',
               city: input.storeAddress.city || '',
               country: 'Zambia',
             },
@@ -788,7 +895,386 @@ export class DeliveryService {
       },
     });
 
+    await this.startDispatchProcess(delivery);
+
     return delivery;
+  }
+
+  private async startDispatchProcess(delivery: DeliveryOrder): Promise<void> {
+    if (
+      delivery.rider_id ||
+      String(delivery.order_status).toLowerCase() !== 'booked'
+    ) {
+      return;
+    }
+    const existingDispatch = this.getDispatchState(delivery);
+    if (
+      existingDispatch.stage === 'offered' ||
+      existingDispatch.stage === 'assigned'
+    ) {
+      return;
+    }
+
+    const pickup = delivery.stops.find((stop) => stop.type === StopType.PICKUP);
+    if (!pickup?.geo) {
+      return;
+    }
+
+    this.updateDeliveryMetadata(delivery, (metadata) => ({
+      ...metadata,
+      dispatch: {
+        ...this.getDispatchStateFromMetadata(metadata),
+        stage: 'searching',
+        searchStartedAt:
+          this.getDispatchStateFromMetadata(metadata).searchStartedAt ||
+          new Date().toISOString(),
+      },
+    }));
+    await this.deliveryRepository.update(delivery.id, delivery);
+
+    this.deliveriesGateway.emitDeliveryStatusUpdate(delivery.id, 'searching', {
+      message: 'Looking for a rider now.',
+    });
+
+    const candidates = await this.dispatchService.rankTaskersForJob({
+      jobId: delivery.id,
+      jobType: 'delivery',
+      pickup: pickup.geo,
+      vehicleType: delivery.vehicle_type,
+      radiusKm: 10,
+    });
+
+    if (candidates.length === 0) {
+      await this.markDispatchFailed(delivery, 'No riders available right now');
+      return;
+    }
+
+    await this.offerDeliveryToCandidate(
+      delivery,
+      candidates[0],
+      candidates.length,
+    );
+  }
+
+  private async reofferDelivery(deliveryId: string): Promise<void> {
+    const delivery = await this.deliveryRepository.findById(deliveryId);
+    if (!delivery || delivery.rider_id) {
+      return;
+    }
+
+    const pickup = delivery.stops.find((stop) => stop.type === StopType.PICKUP);
+    if (!pickup?.geo) {
+      return;
+    }
+
+    const dispatchState = this.getDispatchState(delivery);
+    const alreadyOfferedTo = Array.isArray(dispatchState.offeredTo)
+      ? dispatchState.offeredTo
+      : [];
+
+    const candidates = await this.dispatchService.rankTaskersForJob({
+      jobId: delivery.id,
+      jobType: this.getMarketplaceOrderId(delivery)
+        ? 'marketplace_order'
+        : 'delivery',
+      pickup: pickup.geo,
+      vehicleType: delivery.vehicle_type,
+      radiusKm: 10,
+    });
+    const nextCandidate = candidates.find(
+      (candidate) => !alreadyOfferedTo.includes(candidate.user_id),
+    );
+
+    if (!nextCandidate) {
+      await this.markDispatchFailed(
+        delivery,
+        'No more riders available right now',
+      );
+      return;
+    }
+
+    await this.offerDeliveryToCandidate(
+      delivery,
+      nextCandidate,
+      candidates.length,
+    );
+  }
+
+  private async offerDeliveryToCandidate(
+    delivery: DeliveryOrder,
+    candidate: {
+      user_id: string;
+      name: string;
+      phone: string;
+      rating: number;
+      eta_min: number;
+    },
+    candidateCount: number,
+  ): Promise<void> {
+    const now = new Date();
+    const offerExpiresAt = new Date(
+      now.getTime() + this.deliveryOfferTimeoutSec * 1000,
+    );
+    this.updateDeliveryMetadata(delivery, (metadata) => {
+      const existingDispatch = this.getDispatchStateFromMetadata(metadata);
+      const offeredTo = Array.isArray(existingDispatch.offeredTo)
+        ? existingDispatch.offeredTo
+        : [];
+      return {
+        ...metadata,
+        dispatch: {
+          ...existingDispatch,
+          stage: 'offered',
+          offeredTo: [...new Set([...offeredTo, candidate.user_id])],
+          activeRiderId: candidate.user_id,
+          offerExpiresAt: offerExpiresAt.toISOString(),
+          lastOfferedAt: now.toISOString(),
+          searchStartedAt:
+            existingDispatch.searchStartedAt || now.toISOString(),
+        },
+      };
+    });
+
+    await this.deliveryRepository.update(delivery.id, delivery);
+    await this.dispatchService.incrementTaskerDispatchStat(
+      candidate.user_id,
+      'offersReceived',
+    );
+
+    await Promise.all([
+      this.notificationsService.createNotification({
+        userId: candidate.user_id,
+        title: 'New delivery offer',
+        message: `A delivery near you is ready for pickup.`,
+        type: 'DELIVERY_UPDATE',
+        metadata: {
+          entityType: 'delivery',
+          entityId: delivery.id,
+          notificationType: 'job_offer',
+          targetRole: 'tasker',
+          jobId: delivery.id,
+          jobType: this.getMarketplaceOrderId(delivery)
+            ? 'marketplace_order'
+            : 'delivery',
+          etaMin: candidate.eta_min,
+        },
+      }),
+      this.notificationsService.createNotification({
+        userId: delivery.created_by_user_id,
+        title: 'Rider is reviewing your delivery',
+        message: `${candidate.name} is reviewing delivery ${delivery.id}.`,
+        type: 'DELIVERY_UPDATE',
+        metadata: {
+          entityType: 'delivery',
+          entityId: delivery.id,
+          sourceStatus: 'booked',
+          statusLabel: 'Rider Reviewing',
+          activeRiderId: candidate.user_id,
+          candidateCount,
+        },
+      }),
+    ]);
+
+    this.deliveriesGateway.emitDeliveryStatusUpdate(delivery.id, 'offer_sent', {
+      riderId: candidate.user_id,
+      riderName: candidate.name,
+      etaMin: candidate.eta_min,
+      candidateCount,
+      offerExpiresAt: offerExpiresAt.toISOString(),
+    });
+  }
+
+  private async reassignExpiredOffers(): Promise<void> {
+    const result = await this.deliveryRepository.findAll(
+      { order_status: OrderStatus.BOOKED },
+      { page: 1, size: 1000 },
+    );
+    const now = Date.now();
+
+    await Promise.all(
+      result.data.map(async (delivery) => {
+        const dispatchState = this.getDispatchState(delivery);
+        if (
+          dispatchState.stage !== 'offered' ||
+          !dispatchState.offerExpiresAt
+        ) {
+          return;
+        }
+
+        const expiresAt = new Date(dispatchState.offerExpiresAt);
+        if (
+          Number.isNaN(expiresAt.getTime()) ||
+          expiresAt.getTime() > now ||
+          this.activeOfferTimeouts.has(delivery.id)
+        ) {
+          return;
+        }
+
+        this.activeOfferTimeouts.add(delivery.id);
+        try {
+          await this.expireOfferAndReassign(
+            delivery,
+            'Delivery offer timed out',
+          );
+        } finally {
+          this.activeOfferTimeouts.delete(delivery.id);
+        }
+      }),
+    );
+  }
+
+  private async expireOfferAndReassign(
+    delivery: DeliveryOrder,
+    reason: string,
+  ): Promise<void> {
+    if (delivery.rider_id) {
+      return;
+    }
+
+    const dispatchState = this.getDispatchState(delivery);
+    const timedOutRiderId = dispatchState.activeRiderId || null;
+    this.updateDeliveryMetadata(delivery, (metadata) => ({
+      ...metadata,
+      dispatch: {
+        ...this.getDispatchStateFromMetadata(metadata),
+        stage: 'searching',
+        activeRiderId: null,
+        offerExpiresAt: null,
+      },
+    }));
+    await this.deliveryRepository.update(delivery.id, delivery);
+
+    if (timedOutRiderId) {
+      await this.dispatchService.incrementTaskerDispatchStat(
+        timedOutRiderId,
+        'timedOutOffers',
+      );
+    }
+
+    await this.notificationsService.createNotification({
+      userId: delivery.created_by_user_id,
+      title: 'Looking for another rider',
+      message: `The previous rider did not respond in time for delivery ${delivery.id}.`,
+      type: 'DELIVERY_UPDATE',
+      metadata: {
+        entityType: 'delivery',
+        entityId: delivery.id,
+        sourceStatus: 'booked',
+        statusLabel: 'Matching Rider',
+        reason,
+      },
+    });
+
+    this.deliveriesGateway.emitDeliveryStatusUpdate(delivery.id, 'searching', {
+      reason,
+    });
+    await this.reofferDelivery(delivery.id);
+  }
+
+  private async markDispatchFailed(
+    delivery: DeliveryOrder,
+    reason: string,
+  ): Promise<void> {
+    this.updateDeliveryMetadata(delivery, (metadata) => ({
+      ...metadata,
+      dispatch: {
+        ...this.getDispatchStateFromMetadata(metadata),
+        stage: 'failed',
+        activeRiderId: null,
+        offerExpiresAt: null,
+      },
+    }));
+    await this.deliveryRepository.update(delivery.id, delivery);
+
+    await this.notificationsService.createNotification({
+      userId: delivery.created_by_user_id,
+      title: 'No rider available',
+      message: `Delivery ${delivery.id} could not find an available rider right now.`,
+      type: 'DELIVERY_UPDATE',
+      metadata: {
+        entityType: 'delivery',
+        entityId: delivery.id,
+        sourceStatus: 'searching_failed',
+        statusLabel: 'No Rider Available',
+      },
+    });
+
+    this.deliveriesGateway.emitDeliveryStatusUpdate(delivery.id, 'failed', {
+      reason,
+    });
+  }
+
+  private isDeliveryVisibleToRider(
+    delivery: DeliveryOrder,
+    riderId: string,
+  ): boolean {
+    if (delivery.rider_id && delivery.rider_id !== riderId) {
+      return false;
+    }
+
+    const dispatchState = this.getDispatchState(delivery);
+    if (dispatchState.activeRiderId) {
+      const offerExpiresAt = dispatchState.offerExpiresAt
+        ? new Date(dispatchState.offerExpiresAt)
+        : null;
+      if (
+        offerExpiresAt &&
+        !Number.isNaN(offerExpiresAt.getTime()) &&
+        offerExpiresAt.getTime() <= Date.now()
+      ) {
+        return false;
+      }
+      return dispatchState.activeRiderId === riderId;
+    }
+
+    return !delivery.rider_id;
+  }
+
+  private getDispatchState(delivery: DeliveryOrder): DeliveryDispatchState {
+    return this.getDispatchStateFromMetadata(
+      this.parseDeliveryMetadata(delivery),
+    );
+  }
+
+  private getDispatchStateFromMetadata(
+    metadata: Record<string, any>,
+  ): DeliveryDispatchState {
+    const dispatch =
+      metadata?.dispatch && typeof metadata.dispatch === 'object'
+        ? (metadata.dispatch as DeliveryDispatchState)
+        : {};
+    return {
+      stage: dispatch.stage,
+      offeredTo: Array.isArray(dispatch.offeredTo) ? dispatch.offeredTo : [],
+      activeRiderId: dispatch.activeRiderId || null,
+      offerExpiresAt: dispatch.offerExpiresAt || null,
+      lastOfferedAt: dispatch.lastOfferedAt || null,
+      searchStartedAt: dispatch.searchStartedAt || null,
+    };
+  }
+
+  private parseDeliveryMetadata(delivery: DeliveryOrder): Record<string, any> {
+    try {
+      return delivery.more_info ? JSON.parse(delivery.more_info) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private updateDeliveryMetadata(
+    delivery: DeliveryOrder,
+    updater: (metadata: Record<string, any>) => Record<string, any>,
+  ): void {
+    const currentMetadata = this.parseDeliveryMetadata(delivery);
+    delivery.more_info = JSON.stringify(updater(currentMetadata));
+    delivery.updated_at = new Date();
+  }
+
+  private getMarketplaceOrderId(delivery: DeliveryOrder): string | null {
+    const metadata = this.parseDeliveryMetadata(delivery);
+    return metadata.marketplace_order_id
+      ? String(metadata.marketplace_order_id)
+      : null;
   }
 
   private isDeliveryCancelled(delivery: DeliveryOrder): boolean {
@@ -831,9 +1317,13 @@ export class DeliveryService {
     signature: string,
   ): { valid: boolean; expired: boolean } {
     const expectedSignature = this.signPricingPayload(payload);
-    const expiresAt = payload.expires_at ? new Date(String(payload.expires_at)) : null;
+    const expiresAt = payload.expires_at
+      ? new Date(String(payload.expires_at))
+      : null;
     const expired =
-      !expiresAt || Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now();
+      !expiresAt ||
+      Number.isNaN(expiresAt.getTime()) ||
+      expiresAt.getTime() <= Date.now();
 
     return {
       valid: signature === expectedSignature,
