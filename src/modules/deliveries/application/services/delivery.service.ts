@@ -390,6 +390,48 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  async getRiderDeliveryHistory(
+    riderId: string,
+    page: number = 1,
+    size: number = 50,
+  ): Promise<{
+    data: Array<{
+      id: string;
+      createdAt: string;
+      updatedAt: string;
+      timelineAt: string;
+      status:
+        | 'completed'
+        | 'cancelled'
+        | 'released'
+        | 'in_transit'
+        | 'accepted';
+      amount: number | null;
+      currency: string | null;
+      customerName: string | null;
+      pickupAddress: string | null;
+      dropoffAddress: string | null;
+      pickupCompletedAt: string | null;
+      dropoffCompletedAt: string | null;
+    }>;
+    total: number;
+    page: number;
+    size: number;
+    totalPages: number;
+  }> {
+    const result = await this.deliveryRepository.findAll(
+      { rider_id: riderId },
+      { page, size },
+    );
+
+    return {
+      ...result,
+      data: result.data.map((delivery) =>
+        this.toRiderHistoryItem(delivery, riderId),
+      ),
+    };
+  }
+
   /**
    * Rider accepts delivery
    */
@@ -1412,6 +1454,88 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     } catch {
       return false;
     }
+  }
+
+  private toRiderHistoryItem(delivery: DeliveryOrder, riderId: string) {
+    const metadata = this.parseDeliveryMetadata(delivery);
+    const pickup = delivery.stops.find((stop) => stop.type === StopType.PICKUP);
+    const dropoff = delivery.stops.find(
+      (stop) => stop.type === StopType.DROPOFF,
+    );
+    const pickupCompletedAt = pickup?.completed_at
+      ? pickup.completed_at.toISOString()
+      : null;
+    const dropoffCompletedAt = dropoff?.completed_at
+      ? dropoff.completed_at.toISOString()
+      : null;
+    const timelineAt =
+      dropoffCompletedAt ||
+      pickupCompletedAt ||
+      metadata?.completed_at ||
+      metadata?.cancelled_at ||
+      metadata?.rider_release?.releasedAt ||
+      delivery.updated_at.toISOString();
+
+    return {
+      id: delivery.id,
+      createdAt: delivery.created_at.toISOString(),
+      updatedAt: delivery.updated_at.toISOString(),
+      timelineAt: String(timelineAt),
+      status: this.toRiderHistoryStatus(delivery, riderId),
+      amount: delivery.payment?.amount ?? null,
+      currency: delivery.payment?.currency ?? null,
+      customerName: dropoff?.contact_name || null,
+      pickupAddress: this.formatStopAddress(pickup),
+      dropoffAddress: this.formatStopAddress(dropoff),
+      pickupCompletedAt,
+      dropoffCompletedAt,
+    };
+  }
+
+  private toRiderHistoryStatus(
+    delivery: DeliveryOrder,
+    riderId: string,
+  ): 'completed' | 'cancelled' | 'released' | 'in_transit' | 'accepted' {
+    const metadata = this.parseDeliveryMetadata(delivery);
+    const dropoffs = delivery.stops.filter((stop) => stop.type === StopType.DROPOFF);
+    const allDropoffsCompleted =
+      dropoffs.length > 0 && dropoffs.every((stop) => stop.isCompleted());
+
+    if (
+      allDropoffsCompleted ||
+      ['completed', 'delivered'].includes(
+        String(metadata?.sourceStatus || '').toLowerCase(),
+      ) ||
+      metadata?.completed_at
+    ) {
+      return 'completed';
+    }
+
+    if (this.isDeliveryCancelled(delivery)) {
+      return 'cancelled';
+    }
+
+    if (
+      String(metadata?.rider_release?.releasedBy || '') === String(riderId)
+    ) {
+      return 'released';
+    }
+
+    if (String(delivery.order_status || '').toLowerCase() === 'delivery') {
+      return 'in_transit';
+    }
+
+    return 'accepted';
+  }
+
+  private formatStopAddress(stop?: Stop): string | null {
+    if (!stop) {
+      return null;
+    }
+
+    const line1 = stop.address?.line1?.trim();
+    const city = stop.address?.city?.trim();
+    return line1 || city || stop.notes || null;
   }
 
   /**

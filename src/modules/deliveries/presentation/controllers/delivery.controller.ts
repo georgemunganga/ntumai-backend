@@ -355,6 +355,32 @@ export class RiderDeliveryController {
     );
   }
 
+  @Get('history')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get rider delivery history',
+    description:
+      'Get deliveries that were assigned to the authenticated rider, newest first',
+  })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'size', required: false, example: 50 })
+  @ApiResponse({
+    status: 200,
+    description: 'Rider delivery history retrieved',
+  })
+  async getDeliveryHistory(
+    @Query('page') page: number,
+    @Query('size') size: number,
+    @Request() req: any,
+  ): Promise<any> {
+    return this.deliveryService.getRiderDeliveryHistory(
+      req.user.userId,
+      Number(page) || 1,
+      Number(size) || 50,
+    );
+  }
+
   @Post(':id/accept')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
