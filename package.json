@@ -10,6 +10,7 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:seed:auth": "ts-node prisma/seed-auth.ts",
     "simulate:dispatch": "ts-node -r tsconfig-paths/register scripts/dispatch-load-sim.ts",
+    "simulate:dispatch:mixed": "ts-node -r tsconfig-paths/register scripts/dispatch-mixed-workload-sim.ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
