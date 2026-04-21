@@ -98,6 +98,12 @@ export class MockMatchingEngineAdapter implements IMatchingEngine {
         this.getAvailability(preference.preferences),
       ]),
     );
+    const dispatchStatsByUserId = new Map(
+      preferences.map((preference) => [
+        preference.userId,
+        this.getDispatchStats(preference.preferences),
+      ]),
+    );
     const ratingByUserId = new Map(
       reviews
         .filter((review) => review.driverId)
@@ -164,8 +170,18 @@ export class MockMatchingEngineAdapter implements IMatchingEngine {
 
         const etaMin = Math.max(2, Math.round(distanceKm * 4));
         const rating = ratingByUserId.get(shift.rider_user_id) || 4.5;
-        const offeredCount = offeredByUserId.get(shift.rider_user_id) || 0;
-        const acceptedCount = acceptedByUserId.get(shift.rider_user_id) || 0;
+        const persistedStats =
+          dispatchStatsByUserId.get(shift.rider_user_id) || null;
+        const offeredCount =
+          persistedStats?.offersReceived ??
+          offeredByUserId.get(shift.rider_user_id) ??
+          0;
+        const acceptedCount =
+          persistedStats?.acceptedOffers ??
+          acceptedByUserId.get(shift.rider_user_id) ??
+          0;
+        const declinedCount = persistedStats?.declinedOffers ?? 0;
+        const timedOutCount = persistedStats?.timedOutOffers ?? 0;
         const acceptanceRate =
           offeredCount > 0 ? acceptedCount / offeredCount : 0.7;
 
@@ -180,7 +196,8 @@ export class MockMatchingEngineAdapter implements IMatchingEngine {
           etaScore * 0.45 +
           ratingScore * 0.2 +
           acceptanceScore * 0.2 +
-          workloadScore * 0.15;
+          workloadScore * 0.15 -
+          Math.min(0.1, (declinedCount + timedOutCount) * 0.01);
 
         return {
           rider: {
@@ -224,6 +241,28 @@ export class MockMatchingEngineAdapter implements IMatchingEngine {
     }
     const raw = (preferences as Record<string, unknown>).taskerAvailability;
     return raw === 'online' || raw === 'busy' ? raw : 'offline';
+  }
+
+  private getDispatchStats(preferences: unknown): {
+    offersReceived: number;
+    acceptedOffers: number;
+    declinedOffers: number;
+    timedOutOffers: number;
+  } | null {
+    if (!preferences || typeof preferences !== 'object') {
+      return null;
+    }
+    const stats = (preferences as Record<string, unknown>).taskerDispatchStats;
+    if (!stats || typeof stats !== 'object') {
+      return null;
+    }
+    const raw = stats as Record<string, unknown>;
+    return {
+      offersReceived: Number(raw.offersReceived || 0),
+      acceptedOffers: Number(raw.acceptedOffers || 0),
+      declinedOffers: Number(raw.declinedOffers || 0),
+      timedOutOffers: Number(raw.timedOutOffers || 0),
+    };
   }
 
   private parseLocation(value: unknown): { lat: number; lng: number } | null {

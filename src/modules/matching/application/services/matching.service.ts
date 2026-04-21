@@ -8,6 +8,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import { BOOKING_REPOSITORY } from '../../domain/repositories/booking.repository.interface';
 import type { IBookingRepository } from '../../domain/repositories/booking.repository.interface';
 import { Booking, BookingStatus } from '../../domain/entities/booking.entity';
@@ -73,6 +74,63 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       etaMin: candidate.eta_min,
       ...(location ? { location } : {}),
     };
+  }
+
+  private async incrementTaskerDispatchStat(
+    riderUserId: string,
+    key:
+      | 'offersReceived'
+      | 'acceptedOffers'
+      | 'declinedOffers'
+      | 'timedOutOffers'
+      | 'releasedDeliveries'
+      | 'acceptedDeliveries',
+  ): Promise<void> {
+    const existing = await this.prisma.userPreference.findUnique({
+      where: { userId: riderUserId },
+      select: { id: true, preferences: true },
+    });
+
+    const currentPreferences =
+      existing?.preferences && typeof existing.preferences === 'object'
+        ? (existing.preferences as Record<string, any>)
+        : {};
+    const currentDispatchStats =
+      currentPreferences.taskerDispatchStats &&
+      typeof currentPreferences.taskerDispatchStats === 'object'
+        ? (currentPreferences.taskerDispatchStats as Record<string, any>)
+        : {};
+
+    const dispatchStats = {
+      offersReceived: Number(currentDispatchStats.offersReceived || 0),
+      acceptedOffers: Number(currentDispatchStats.acceptedOffers || 0),
+      declinedOffers: Number(currentDispatchStats.declinedOffers || 0),
+      timedOutOffers: Number(currentDispatchStats.timedOutOffers || 0),
+      releasedDeliveries: Number(currentDispatchStats.releasedDeliveries || 0),
+      acceptedDeliveries: Number(currentDispatchStats.acceptedDeliveries || 0),
+      [key]: Number(currentDispatchStats[key] || 0) + 1,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const preferences = {
+      ...currentPreferences,
+      taskerDispatchStats: dispatchStats,
+    };
+
+    if (existing) {
+      await this.prisma.userPreference.update({
+        where: { userId: riderUserId },
+        data: { preferences },
+      });
+      return;
+    }
+
+    await this.prisma.userPreference.create({
+      data: {
+        userId: riderUserId,
+        preferences,
+      },
+    });
   }
 
   async createBooking(
@@ -385,11 +443,19 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       );
 
       booking.acceptByRider(riderInfo);
+      await this.incrementTaskerDispatchStat(
+        dto.rider_user_id,
+        'acceptedOffers',
+      );
 
       // Emit booking.accepted event
       console.log('Booking accepted by rider:', dto.rider_user_id);
     } else {
       booking.declineByRider(dto.rider_user_id);
+      await this.incrementTaskerDispatchStat(
+        dto.rider_user_id,
+        'declinedOffers',
+      );
 
       // Re-offer to another rider
       this.reofferBooking(bookingId).catch((err) => {
@@ -673,6 +739,10 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
           0,
       },
     });
+    await this.incrementTaskerDispatchStat(
+      firstCandidate.user_id,
+      'offersReceived',
+    );
 
     this.matchingGateway.emitBookingRequest(firstCandidate.user_id, {
       booking: this.toResponseDto(saved),
@@ -745,6 +815,10 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
             0,
         },
       });
+      await this.incrementTaskerDispatchStat(
+        newCandidates[0].user_id,
+        'offersReceived',
+      );
 
       this.matchingGateway.emitBookingRequest(newCandidates[0].user_id, {
         booking: this.toResponseDto(saved),
@@ -829,6 +903,18 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
 
     booking.declineByRider('timeout');
     await this.bookingRepository.save(booking);
+
+    const offeredTo = Array.isArray(bookingData.offer?.offered_to)
+      ? bookingData.offer.offered_to
+      : [];
+    const timedOutRiderId =
+      offeredTo.length > 0 ? offeredTo[offeredTo.length - 1] : null;
+    if (timedOutRiderId) {
+      await this.incrementTaskerDispatchStat(
+        timedOutRiderId,
+        'timedOutOffers',
+      );
+    }
 
     await this.notificationsService.createNotification({
       userId: bookingData.customer_user_id,

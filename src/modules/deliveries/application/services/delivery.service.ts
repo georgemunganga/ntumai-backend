@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { createHmac } from 'crypto';
 import { nanoid } from 'nanoid';
+import { v4 as uuidv4 } from 'uuid';
 import { DELIVERY_REPOSITORY } from '../../domain/repositories/delivery.repository.interface';
 import type { IDeliveryRepository } from '../../domain/repositories/delivery.repository.interface';
 import {
@@ -39,6 +40,57 @@ export class DeliveryService {
     private readonly notificationsService: NotificationsService,
     private readonly pricingService: PricingService,
   ) {}
+
+  private async incrementTaskerDispatchStat(
+    riderUserId: string,
+    key: 'acceptedDeliveries' | 'releasedDeliveries',
+  ): Promise<void> {
+    const existing = await this.prisma.userPreference.findUnique({
+      where: { userId: riderUserId },
+      select: { id: true, preferences: true },
+    });
+
+    const currentPreferences =
+      existing?.preferences && typeof existing.preferences === 'object'
+        ? (existing.preferences as Record<string, any>)
+        : {};
+    const currentDispatchStats =
+      currentPreferences.taskerDispatchStats &&
+      typeof currentPreferences.taskerDispatchStats === 'object'
+        ? (currentPreferences.taskerDispatchStats as Record<string, any>)
+        : {};
+
+    const dispatchStats = {
+      offersReceived: Number(currentDispatchStats.offersReceived || 0),
+      acceptedOffers: Number(currentDispatchStats.acceptedOffers || 0),
+      declinedOffers: Number(currentDispatchStats.declinedOffers || 0),
+      timedOutOffers: Number(currentDispatchStats.timedOutOffers || 0),
+      releasedDeliveries: Number(currentDispatchStats.releasedDeliveries || 0),
+      acceptedDeliveries: Number(currentDispatchStats.acceptedDeliveries || 0),
+      [key]: Number(currentDispatchStats[key] || 0) + 1,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const preferences = {
+      ...currentPreferences,
+      taskerDispatchStats: dispatchStats,
+    };
+
+    if (existing) {
+      await this.prisma.userPreference.update({
+        where: { userId: riderUserId },
+        data: { preferences },
+      });
+      return;
+    }
+
+    await this.prisma.userPreference.create({
+      data: {
+        userId: riderUserId,
+        preferences,
+      },
+    });
+  }
 
   /**
    * Create a new delivery (works independently or with marketplace)
@@ -358,6 +410,7 @@ export class DeliveryService {
 
     delivery.assignRider(riderId);
     const updated = await this.deliveryRepository.update(deliveryId, delivery);
+    await this.incrementTaskerDispatchStat(riderId, 'acceptedDeliveries');
 
     await Promise.all([
       this.notificationsService.createNotification({
@@ -472,6 +525,7 @@ export class DeliveryService {
 
     delivery.more_info = JSON.stringify(updatedMetadata);
     const updated = await this.deliveryRepository.update(deliveryId, delivery);
+    await this.incrementTaskerDispatchStat(riderId, 'releasedDeliveries');
 
     await Promise.all([
       this.notificationsService.createNotification({
