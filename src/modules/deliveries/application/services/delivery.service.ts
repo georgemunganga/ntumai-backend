@@ -30,6 +30,7 @@ import { NotificationsService } from '../../../notifications/application/service
 import { PricingService } from '../../../pricing/application/services/pricing.service';
 import { DispatchService } from '../../../dispatch/application/services/dispatch.service';
 import { DeliveriesGateway } from '../../infrastructure/websocket/deliveries.gateway';
+import type { DispatchStatusDto } from '../../../dispatch/application/dtos/dispatch-status.dto';
 
 type DeliveryDispatchState = {
   stage?: 'searching' | 'offered' | 'assigned' | 'failed';
@@ -474,6 +475,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
 
     this.deliveriesGateway.emitDeliveryStatusUpdate(deliveryId, 'assigned', {
       riderId,
+      customerId: delivery.created_by_user_id,
     });
     this.deliveriesGateway.emitRiderAssigned(deliveryId, { riderId });
 
@@ -513,6 +515,10 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.deliveriesGateway.emitInTransit(deliveryId, 1, delivery.stops.length);
+    this.deliveriesGateway.emitDeliveryStatusUpdate(deliveryId, 'in_transit', {
+      riderId,
+      customerId: delivery.created_by_user_id,
+    });
 
     return updated;
   }
@@ -611,6 +617,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
 
     this.deliveriesGateway.emitDeliveryStatusUpdate(deliveryId, 'searching', {
       reason: reason?.trim() || null,
+      customerId: delivery.created_by_user_id,
     });
     await this.reofferDelivery(deliveryId);
 
@@ -775,6 +782,40 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     return delivery;
   }
 
+  async getDispatchStatus(deliveryId: string): Promise<DispatchStatusDto> {
+    const delivery = await this.deliveryRepository.findById(deliveryId);
+    if (!delivery) {
+      throw new NotFoundException('Delivery not found');
+    }
+
+    const dispatchState = this.getDispatchState(delivery);
+    const activeRiderId =
+      delivery.rider_id || dispatchState.activeRiderId || null;
+    const candidates = activeRiderId
+      ? [
+          await this.buildDispatchCandidate(
+            activeRiderId,
+            delivery.vehicle_type,
+          ),
+        ]
+      : [];
+
+    return {
+      dispatchId: delivery.id,
+      resourceType: 'delivery',
+      customerId: delivery.created_by_user_id,
+      stage: this.toDispatchStage(delivery, dispatchState),
+      candidateCount:
+        dispatchState.stage === 'offered'
+          ? Math.max(1, dispatchState.offeredTo?.length || 0)
+          : candidates.length,
+      activeRiderId,
+      candidates,
+      message: this.toDispatchMessage(delivery, dispatchState),
+      updatedAt: delivery.updated_at.toISOString(),
+    };
+  }
+
   async findLinkedMarketplaceDelivery(
     marketplaceOrderId: string,
   ): Promise<DeliveryOrder | null> {
@@ -934,6 +975,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
 
     this.deliveriesGateway.emitDeliveryStatusUpdate(delivery.id, 'searching', {
       message: 'Looking for a rider now.',
+      customerId: delivery.created_by_user_id,
     });
 
     const candidates = await this.dispatchService.rankTaskersForJob({
@@ -1081,6 +1123,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
       etaMin: candidate.eta_min,
       candidateCount,
       offerExpiresAt: offerExpiresAt.toISOString(),
+      customerId: delivery.created_by_user_id,
     });
   }
 
@@ -1167,6 +1210,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
 
     this.deliveriesGateway.emitDeliveryStatusUpdate(delivery.id, 'searching', {
       reason,
+      customerId: delivery.created_by_user_id,
     });
     await this.reofferDelivery(delivery.id);
   }
@@ -1201,6 +1245,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
 
     this.deliveriesGateway.emitDeliveryStatusUpdate(delivery.id, 'failed', {
       reason,
+      customerId: delivery.created_by_user_id,
     });
   }
 
@@ -1275,6 +1320,89 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     return metadata.marketplace_order_id
       ? String(metadata.marketplace_order_id)
       : null;
+  }
+
+  private async buildDispatchCandidate(
+    riderUserId: string,
+    vehicleType: string,
+  ): Promise<DispatchStatusDto['candidates'][number]> {
+    const [user, aggregateRating] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: riderUserId },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+        },
+      }),
+      this.prisma.review.aggregate({
+        where: { driverId: riderUserId },
+        _avg: { rating: true },
+      }),
+    ]);
+
+    return {
+      riderId: riderUserId,
+      name:
+        (user &&
+          (`${user.firstName || ''} ${user.lastName || ''}`.trim() ||
+            'Rider')) ||
+        'Rider',
+      vehicle: vehicleType,
+      phone: user?.phone || undefined,
+      rating: Number(aggregateRating._avg.rating || 4.5),
+    };
+  }
+
+  private toDispatchStage(
+    delivery: DeliveryOrder,
+    dispatchState: DeliveryDispatchState,
+  ): DispatchStatusDto['stage'] {
+    if (this.isDeliveryCancelled(delivery)) {
+      return 'cancelled';
+    }
+    if (String(delivery.order_status).toLowerCase() === 'delivery') {
+      return 'in_transit';
+    }
+    switch (dispatchState.stage) {
+      case 'searching':
+        return 'searching';
+      case 'offered':
+        return dispatchState.offeredTo && dispatchState.offeredTo.length > 1
+          ? 'reoffered'
+          : 'offer_sent';
+      case 'assigned':
+        return 'assigned';
+      case 'failed':
+        return 'failed';
+      default:
+        return delivery.rider_id ? 'assigned' : 'searching';
+    }
+  }
+
+  private toDispatchMessage(
+    delivery: DeliveryOrder,
+    dispatchState: DeliveryDispatchState,
+  ): string {
+    const stage = this.toDispatchStage(delivery, dispatchState);
+    switch (stage) {
+      case 'searching':
+        return 'Looking for a rider now.';
+      case 'offer_sent':
+      case 'reoffered':
+        return 'A rider is reviewing the delivery.';
+      case 'assigned':
+        return 'A rider has accepted the delivery.';
+      case 'in_transit':
+        return 'Delivery is in transit.';
+      case 'failed':
+        return 'No rider is currently available.';
+      case 'cancelled':
+        return 'This delivery was cancelled.';
+      default:
+        return 'Dispatch status updated.';
+    }
   }
 
   private isDeliveryCancelled(delivery: DeliveryOrder): boolean {

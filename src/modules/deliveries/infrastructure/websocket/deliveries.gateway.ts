@@ -9,6 +9,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import type { DispatchStatusDto } from '../../../dispatch/application/dtos/dispatch-status.dto';
 
 @WebSocketGateway({
   namespace: '/deliveries',
@@ -75,14 +76,69 @@ export class DeliveriesGateway
 
   // Emit delivery status update
   emitDeliveryStatusUpdate(deliveryId: string, status: string, details?: any) {
-    this.server.to(`delivery:${deliveryId}`).emit('delivery:status_update', {
+    const timestamp = new Date().toISOString();
+    const payload = {
       deliveryId,
       status,
       details,
-      timestamp: new Date().toISOString(),
-    });
+      timestamp,
+    };
+    this.server
+      .to(`delivery:${deliveryId}`)
+      .emit('delivery:status_update', payload);
+
+    const dispatchEvent: DispatchStatusDto = {
+      dispatchId: deliveryId,
+      resourceType: 'delivery',
+      customerId: details?.customerId,
+      stage: this.toDispatchStage(status),
+      candidateCount: Number(
+        details?.candidateCount || (details?.riderId ? 1 : 0),
+      ),
+      activeRiderId: details?.riderId || null,
+      candidates:
+        details?.riderId || details?.riderName
+          ? [
+              {
+                riderId: String(details?.riderId || ''),
+                name: String(details?.riderName || 'Rider'),
+                etaMin:
+                  typeof details?.etaMin === 'number'
+                    ? details.etaMin
+                    : undefined,
+              },
+            ]
+          : [],
+      message: details?.message,
+      updatedAt: timestamp,
+    };
+    this.server
+      .to(`delivery:${deliveryId}`)
+      .emit('dispatch:snapshot', dispatchEvent);
 
     this.logger.log(`Delivery ${deliveryId} status updated to ${status}`);
+  }
+
+  private toDispatchStage(status: string): DispatchStatusDto['stage'] {
+    switch (status) {
+      case 'searching':
+        return 'searching';
+      case 'offer_sent':
+        return 'offer_sent';
+      case 'assigned':
+        return 'assigned';
+      case 'delivery':
+      case 'in_transit':
+        return 'in_transit';
+      case 'completed':
+        return 'completed';
+      case 'cancelled':
+        return 'cancelled';
+      case 'failed':
+        return 'failed';
+      default:
+        return 'searching';
+    }
   }
 
   // Emit rider assigned

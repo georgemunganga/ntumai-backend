@@ -9,6 +9,10 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import type {
+  DispatchCandidateDto,
+  DispatchStatusDto,
+} from '../../../dispatch/application/dtos/dispatch-status.dto';
 
 type RiderLocationSnapshot = {
   lat: number;
@@ -16,15 +20,7 @@ type RiderLocationSnapshot = {
   updatedAt: string;
 };
 
-type MatchingCandidateSnapshot = {
-  riderId: string;
-  name: string;
-  vehicle: string;
-  phone?: string;
-  rating?: number;
-  etaMin?: number;
-  location?: RiderLocationSnapshot;
-};
+type MatchingCandidateSnapshot = DispatchCandidateDto;
 
 type MatchingSnapshotPayload = {
   bookingId: string;
@@ -54,6 +50,20 @@ export class MatchingGateway
   private customerSockets: Map<string, string> = new Map(); // customerId -> socketId
   private riderLocations: Map<string, RiderLocationSnapshot> = new Map();
   private bookingSnapshots: Map<string, MatchingSnapshotPayload> = new Map();
+
+  private emitDispatchSnapshot(
+    target: { customerId?: string; bookingId: string },
+    snapshot: DispatchStatusDto,
+  ) {
+    if (target.customerId) {
+      this.server
+        .to(`customer:${target.customerId}`)
+        .emit('dispatch:snapshot', snapshot);
+    }
+    this.server
+      .to(`booking:${target.bookingId}`)
+      .emit('dispatch:snapshot', snapshot);
+  }
 
   handleConnection(client: Socket) {
     this.logger.log(`Client connected to matching: ${client.id}`);
@@ -194,10 +204,36 @@ export class MatchingGateway
     if (bookingData?.bookingId) {
       this.bookingSnapshots.delete(String(bookingData.bookingId));
     }
-    this.server.to(`customer:${customerId}`).emit('booking:accepted', {
+    const event = {
       ...bookingData,
       timestamp: new Date().toISOString(),
-    });
+    };
+    this.server.to(`customer:${customerId}`).emit('booking:accepted', event);
+    this.emitDispatchSnapshot(
+      { customerId, bookingId: bookingData.bookingId },
+      {
+        dispatchId: bookingData.bookingId,
+        resourceType: 'booking',
+        customerId,
+        stage: 'assigned',
+        candidateCount: bookingData?.rider ? 1 : 0,
+        activeRiderId: bookingData?.rider?.user_id || null,
+        candidates: bookingData?.rider
+          ? [
+              {
+                riderId: bookingData.rider.user_id,
+                name: bookingData.rider.name,
+                vehicle: bookingData.rider.vehicle,
+                phone: bookingData.rider.phone,
+                rating: bookingData.rider.rating,
+                etaMin: bookingData.rider.eta_min,
+              },
+            ]
+          : [],
+        message: 'A tasker has accepted the request.',
+        updatedAt: event.timestamp,
+      },
+    );
 
     this.logger.log(
       `Booking accepted notification sent to customer ${customerId}`,
@@ -206,11 +242,12 @@ export class MatchingGateway
 
   // Emit booking rejected to customer
   emitBookingRejected(customerId: string, bookingId: string, reason?: string) {
-    this.server.to(`customer:${customerId}`).emit('booking:rejected', {
+    const event = {
       bookingId,
       reason,
       timestamp: new Date().toISOString(),
-    });
+    };
+    this.server.to(`customer:${customerId}`).emit('booking:rejected', event);
 
     this.logger.log(
       `Booking rejected notification sent to customer ${customerId}`,
@@ -218,28 +255,78 @@ export class MatchingGateway
   }
 
   emitBookingProgress(customerId: string, payload: any) {
-    this.server.to(`customer:${customerId}`).emit('booking:progress', {
+    const event = {
       ...payload,
       timestamp: new Date().toISOString(),
-    });
-    this.server.to(`booking:${payload.bookingId}`).emit('booking:progress', {
-      ...payload,
-      timestamp: new Date().toISOString(),
-    });
+    };
+    this.server.to(`customer:${customerId}`).emit('booking:progress', event);
+    this.server
+      .to(`booking:${payload.bookingId}`)
+      .emit('booking:progress', event);
+    this.emitDispatchSnapshot(
+      { customerId, bookingId: payload.bookingId },
+      {
+        dispatchId: payload.bookingId,
+        resourceType: 'booking',
+        customerId,
+        stage: 'in_transit',
+        candidateCount: payload?.rider ? 1 : 0,
+        activeRiderId: payload?.rider?.user_id || null,
+        candidates: payload?.rider
+          ? [
+              {
+                riderId: payload.rider.user_id,
+                name: payload.rider.name,
+                vehicle: payload.rider.vehicle,
+                phone: payload.rider.phone,
+                rating: payload.rider.rating,
+                etaMin: payload.rider.eta_min,
+              },
+            ]
+          : [],
+        message: `Booking moved to ${String(payload.stage || 'progress').replace(/_/g, ' ')}.`,
+        updatedAt: event.timestamp,
+      },
+    );
   }
 
   emitBookingCompleted(customerId: string, payload: any) {
     if (payload?.bookingId) {
       this.bookingSnapshots.delete(String(payload.bookingId));
     }
-    this.server.to(`customer:${customerId}`).emit('booking:completed', {
+    const event = {
       ...payload,
       timestamp: new Date().toISOString(),
-    });
-    this.server.to(`booking:${payload.bookingId}`).emit('booking:completed', {
-      ...payload,
-      timestamp: new Date().toISOString(),
-    });
+    };
+    this.server.to(`customer:${customerId}`).emit('booking:completed', event);
+    this.server
+      .to(`booking:${payload.bookingId}`)
+      .emit('booking:completed', event);
+    this.emitDispatchSnapshot(
+      { customerId, bookingId: payload.bookingId },
+      {
+        dispatchId: payload.bookingId,
+        resourceType: 'booking',
+        customerId,
+        stage: 'completed',
+        candidateCount: payload?.rider ? 1 : 0,
+        activeRiderId: payload?.rider?.user_id || null,
+        candidates: payload?.rider
+          ? [
+              {
+                riderId: payload.rider.user_id,
+                name: payload.rider.name,
+                vehicle: payload.rider.vehicle,
+                phone: payload.rider.phone,
+                rating: payload.rider.rating,
+                etaMin: payload.rider.eta_min,
+              },
+            ]
+          : [],
+        message: 'Booking completed.',
+        updatedAt: event.timestamp,
+      },
+    );
   }
 
   emitBookingCancelled(customerId: string, bookingId: string, reason?: string) {
@@ -251,6 +338,20 @@ export class MatchingGateway
     };
     this.server.to(`customer:${customerId}`).emit('booking:cancelled', payload);
     this.server.to(`booking:${bookingId}`).emit('booking:cancelled', payload);
+    this.emitDispatchSnapshot(
+      { customerId, bookingId },
+      {
+        dispatchId: bookingId,
+        resourceType: 'booking',
+        customerId,
+        stage: 'cancelled',
+        candidateCount: 0,
+        activeRiderId: null,
+        candidates: [],
+        message: reason || 'Booking cancelled.',
+        updatedAt: payload.timestamp,
+      },
+    );
   }
 
   // Emit matching in progress
@@ -273,18 +374,54 @@ export class MatchingGateway
     };
 
     this.bookingSnapshots.set(String(payload.bookingId), event);
-    this.server.to(`customer:${payload.customerId}`).emit('matching:snapshot', event);
-    this.server.to(`booking:${payload.bookingId}`).emit('matching:snapshot', event);
+    const dispatchEvent: DispatchStatusDto = {
+      dispatchId: payload.bookingId,
+      resourceType: 'booking',
+      customerId: payload.customerId,
+      stage: payload.stage,
+      candidateCount: payload.candidateCount,
+      activeRiderId: payload.activeRiderId || null,
+      candidates: payload.candidates,
+      message: payload.message,
+      updatedAt: event.timestamp,
+    };
+    this.server
+      .to(`customer:${payload.customerId}`)
+      .emit('matching:snapshot', event);
+    this.server
+      .to(`booking:${payload.bookingId}`)
+      .emit('matching:snapshot', event);
+    this.server
+      .to(`customer:${payload.customerId}`)
+      .emit('dispatch:snapshot', dispatchEvent);
+    this.server
+      .to(`booking:${payload.bookingId}`)
+      .emit('dispatch:snapshot', dispatchEvent);
   }
 
   // Emit matching failed
   emitMatchingFailed(customerId: string, bookingId: string, reason: string) {
     this.bookingSnapshots.delete(String(bookingId));
-    this.server.to(`customer:${customerId}`).emit('matching:failed', {
+    const payload = {
       bookingId,
       reason,
       timestamp: new Date().toISOString(),
-    });
+    };
+    this.server.to(`customer:${customerId}`).emit('matching:failed', payload);
+    this.emitDispatchSnapshot(
+      { customerId, bookingId },
+      {
+        dispatchId: bookingId,
+        resourceType: 'booking',
+        customerId,
+        stage: 'failed',
+        candidateCount: 0,
+        activeRiderId: null,
+        candidates: [],
+        message: reason,
+        updatedAt: payload.timestamp,
+      },
+    );
 
     this.logger.log(
       `Matching failed notification sent to customer ${customerId}`,
@@ -347,8 +484,26 @@ export class MatchingGateway
       };
 
       this.bookingSnapshots.set(bookingId, nextSnapshot);
-      this.server.to(`booking:${bookingId}`).emit('matching:snapshot', nextSnapshot);
-      this.server.to(`customer:${snapshot.customerId}`).emit('matching:snapshot', nextSnapshot);
+      this.server
+        .to(`booking:${bookingId}`)
+        .emit('matching:snapshot', nextSnapshot);
+      this.server
+        .to(`customer:${snapshot.customerId}`)
+        .emit('matching:snapshot', nextSnapshot);
+      this.emitDispatchSnapshot(
+        { customerId: snapshot.customerId, bookingId },
+        {
+          dispatchId: bookingId,
+          resourceType: 'booking',
+          customerId: snapshot.customerId,
+          stage: snapshot.stage,
+          candidateCount: snapshot.candidateCount,
+          activeRiderId: snapshot.activeRiderId || null,
+          candidates: nextCandidates,
+          message: snapshot.message,
+          updatedAt: nextSnapshot.timestamp,
+        },
+      );
     }
   }
 }

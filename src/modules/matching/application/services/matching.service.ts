@@ -29,6 +29,7 @@ import { MatchingGateway } from '../../infrastructure/websocket/matching.gateway
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 import { PricingService } from '../../../pricing/application/services/pricing.service';
 import { DispatchService } from '../../../dispatch/application/services/dispatch.service';
+import type { DispatchStatusDto } from '../../../dispatch/application/dtos/dispatch-status.dto';
 
 @Injectable()
 export class MatchingService implements OnModuleInit, OnModuleDestroy {
@@ -136,6 +137,55 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException('Booking not found');
     }
     return this.toResponseDto(booking);
+  }
+
+  async getDispatchStatus(bookingId: string): Promise<DispatchStatusDto> {
+    const booking = await this.bookingRepository.findById(bookingId);
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const data = booking.toJSON();
+    const activeRiderId =
+      data.rider && typeof data.rider === 'object'
+        ? ((data.rider as { user_id?: string | null }).user_id ?? null)
+        : data.offer?.offered_to?.length
+          ? data.offer.offered_to[data.offer.offered_to.length - 1]
+          : null;
+
+    const candidates =
+      data.rider && typeof data.rider === 'object'
+        ? [
+            {
+              riderId: data.rider.user_id,
+              name: data.rider.name,
+              vehicle: data.rider.vehicle,
+              phone: data.rider.phone,
+              rating: data.rider.rating,
+              etaMin: data.rider.eta_min,
+            },
+          ]
+        : [];
+
+    return {
+      dispatchId: data.booking_id,
+      resourceType: 'booking',
+      customerId: data.customer_user_id,
+      stage: this.toDispatchStage(data.status),
+      candidateCount:
+        data.status === BookingStatus.OFFERED
+          ? Math.max(
+              1,
+              Array.isArray(data.offer?.offered_to)
+                ? data.offer.offered_to.length
+                : 0,
+            )
+          : candidates.length,
+      activeRiderId,
+      candidates,
+      message: this.toDispatchMessage(data.status),
+      updatedAt: data.updated_at.toISOString(),
+    };
   }
 
   async listCustomerBookings(
@@ -255,7 +305,9 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
 
     const status = String(data.status || '').toLowerCase();
     if (!['completed', 'delivered'].includes(status)) {
-      throw new ConflictException('Can only rate customers for completed tasks');
+      throw new ConflictException(
+        'Can only rate customers for completed tasks',
+      );
     }
 
     const customerId = String(data.customer_user_id || '');
@@ -359,14 +411,18 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
 
     const bookingData = booking.toJSON();
     if (bookingData.status !== BookingStatus.OFFERED) {
-      throw new ConflictException('Booking is no longer awaiting a tasker response');
+      throw new ConflictException(
+        'Booking is no longer awaiting a tasker response',
+      );
     }
 
     const offeredTo = Array.isArray(bookingData.offer?.offered_to)
       ? bookingData.offer.offered_to
       : [];
     if (!offeredTo.includes(dto.rider_user_id)) {
-      throw new ForbiddenException('This task offer is not assigned to the tasker');
+      throw new ForbiddenException(
+        'This task offer is not assigned to the tasker',
+      );
     }
 
     const expiresAt = bookingData.offer?.expires_at
@@ -605,6 +661,49 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private toDispatchStage(status: BookingStatus): DispatchStatusDto['stage'] {
+    switch (status) {
+      case BookingStatus.PENDING:
+      case BookingStatus.SEARCHING:
+        return 'searching';
+      case BookingStatus.OFFERED:
+        return 'offer_sent';
+      case BookingStatus.ACCEPTED:
+        return 'assigned';
+      case BookingStatus.EN_ROUTE:
+      case BookingStatus.ARRIVED_PICKUP:
+      case BookingStatus.PICKED_UP:
+      case BookingStatus.EN_ROUTE_DROPOFF:
+      case BookingStatus.DELIVERED:
+        return 'in_transit';
+      case BookingStatus.CANCELLED:
+        return 'cancelled';
+      default:
+        return 'searching';
+    }
+  }
+
+  private toDispatchMessage(status: BookingStatus): string {
+    switch (status) {
+      case BookingStatus.SEARCHING:
+        return 'Looking for a tasker now.';
+      case BookingStatus.OFFERED:
+        return 'A tasker is reviewing the request.';
+      case BookingStatus.ACCEPTED:
+        return 'A tasker has accepted the request.';
+      case BookingStatus.EN_ROUTE:
+      case BookingStatus.ARRIVED_PICKUP:
+      case BookingStatus.PICKED_UP:
+      case BookingStatus.EN_ROUTE_DROPOFF:
+      case BookingStatus.DELIVERED:
+        return 'Task is active and in progress.';
+      case BookingStatus.CANCELLED:
+        return 'This task was cancelled.';
+      default:
+        return 'Matching taskers.';
+    }
+  }
+
   private async startMatchingProcess(
     bookingId: string,
     dto: CreateBookingDto,
@@ -615,7 +714,10 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
     // Start searching
     booking.startSearching();
     await this.bookingRepository.save(booking);
-    this.matchingGateway.emitMatchingInProgress(dto.customer_user_id, bookingId);
+    this.matchingGateway.emitMatchingInProgress(
+      dto.customer_user_id,
+      bookingId,
+    );
     this.matchingGateway.emitMatchingSnapshot({
       bookingId,
       customerId: dto.customer_user_id,
@@ -648,7 +750,9 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       customerId: dto.customer_user_id,
       stage: 'candidates_found',
       candidateCount: candidates.length,
-      candidates: candidates.map((candidate) => this.toCandidateSnapshot(candidate)),
+      candidates: candidates.map((candidate) =>
+        this.toCandidateSnapshot(candidate),
+      ),
       message: `Found ${candidates.length} nearby tasker${candidates.length === 1 ? '' : 's'}.`,
     });
 
@@ -702,7 +806,9 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
       stage: 'offer_sent',
       candidateCount: candidates.length,
       activeRiderId: firstCandidate.user_id,
-      candidates: candidates.map((candidate) => this.toCandidateSnapshot(candidate)),
+      candidates: candidates.map((candidate) =>
+        this.toCandidateSnapshot(candidate),
+      ),
       message: `${firstCandidate.name} is reviewing the request.`,
     });
 
@@ -778,7 +884,9 @@ export class MatchingService implements OnModuleInit, OnModuleDestroy {
         stage: 'reoffered',
         candidateCount: newCandidates.length,
         activeRiderId: newCandidates[0].user_id,
-        candidates: newCandidates.map((candidate) => this.toCandidateSnapshot(candidate)),
+        candidates: newCandidates.map((candidate) =>
+          this.toCandidateSnapshot(candidate),
+        ),
         message: `${newCandidates[0].name} is reviewing the request now.`,
       });
       return;

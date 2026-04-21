@@ -198,6 +198,22 @@ export class DeliveryController {
     return this.deliveryService.getDeliveryById(id);
   }
 
+  @Get(':id/dispatch-status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get shared dispatch status for a delivery',
+    description:
+      'Get normalized dispatch status for delivery matching and tracking.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Dispatch status retrieved successfully',
+  })
+  async getDispatchStatus(@Param('id') id: string): Promise<any> {
+    return this.deliveryService.getDispatchStatus(id);
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

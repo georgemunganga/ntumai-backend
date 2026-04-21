@@ -127,6 +127,17 @@ export class MatchingController {
     return this.matchingService.getBooking(bookingId);
   }
 
+  @Get(':bookingId/dispatch-status')
+  @Public()
+  @ApiOperation({ summary: 'Get shared dispatch status for a booking' })
+  @ApiResponse({
+    status: 200,
+    description: 'Shared dispatch status retrieved',
+  })
+  async getDispatchStatus(@Param('bookingId') bookingId: string) {
+    return this.matchingService.getDispatchStatus(bookingId);
+  }
+
   @Patch(':bookingId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
