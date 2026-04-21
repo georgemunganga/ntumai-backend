@@ -100,7 +100,9 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "moduleNameMapper": {
-      "^src/(.*)$": "<rootDir>/$1"
+      "^src/(.*)$": "<rootDir>/$1",
+      "^nanoid$": "<rootDir>/../test/mocks/nanoid.ts",
+      "^uuid$": "<rootDir>/../test/mocks/uuid.ts"
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
