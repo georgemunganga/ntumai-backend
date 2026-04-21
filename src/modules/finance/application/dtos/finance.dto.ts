@@ -145,6 +145,40 @@ export class FinanceRoleQueryDto {
   role!: 'customer' | 'tasker' | 'vendor';
 }
 
+export class FinancePayoutMethodRuleDto {
+  @ApiProperty({ enum: ['mtn', 'airtel', 'bank'] })
+  id!: 'mtn' | 'airtel' | 'bank';
+
+  @ApiProperty()
+  minLength!: number;
+}
+
+export class FinancePayoutRulesDto {
+  @ApiProperty()
+  minWithdrawal!: number;
+
+  @ApiProperty({ type: [FinancePayoutMethodRuleDto] })
+  methods!: FinancePayoutMethodRuleDto[];
+}
+
+export class UpdateFinancePayoutRulesDto {
+  @ApiProperty()
+  @IsNumber()
+  @IsPositive()
+  minWithdrawal!: number;
+
+  @ApiProperty({ type: [FinancePayoutMethodRuleDto] })
+  methods!: FinancePayoutMethodRuleDto[];
+}
+
+export class FinancePayoutSettingsResponseDto {
+  @ApiProperty({ type: FinancePayoutRulesDto })
+  tasker!: FinancePayoutRulesDto;
+
+  @ApiProperty({ type: FinancePayoutRulesDto })
+  vendor!: FinancePayoutRulesDto;
+}
+
 export class UpdatePayoutRequestStatusDto {
   @ApiProperty({ enum: ['processing', 'paid', 'rejected', 'cancelled'] })
   @IsIn(['processing', 'paid', 'rejected', 'cancelled'])

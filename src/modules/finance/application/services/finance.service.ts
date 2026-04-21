@@ -24,6 +24,7 @@ import {
   SelectVendorSubscriptionPlanDto,
   TipHistoryItemDto,
   TipHistoryResponseDto,
+  UpdateFinancePayoutRulesDto,
   UpdatePayoutRequestStatusDto,
   VendorSubscriptionResponseDto,
 } from '../dtos/finance.dto';
@@ -37,6 +38,7 @@ type PayoutRules = {
     minLength: number;
   }>;
 };
+const FINANCE_PAYOUT_RULES_SETTING_KEY = 'finance.payoutRules';
 
 @Injectable()
 export class FinanceService {
@@ -45,16 +47,16 @@ export class FinanceService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  private readonly payoutRulesByRole: Record<Exclude<FinanceRole, 'customer'>, PayoutRules> = {
+  private readonly defaultPayoutRulesByRole: Record<Exclude<FinanceRole, 'customer'>, PayoutRules> = {
     tasker: {
-      minWithdrawal: Number(process.env.TASKER_MIN_WITHDRAWAL_AMOUNT ?? 20),
+      minWithdrawal: 20,
       methods: [
         { id: 'mtn', minLength: 10 },
         { id: 'airtel', minLength: 10 },
       ],
     },
     vendor: {
-      minWithdrawal: Number(process.env.VENDOR_MIN_WITHDRAWAL_AMOUNT ?? 20),
+      minWithdrawal: 20,
       methods: [
         { id: 'mtn', minLength: 10 },
         { id: 'airtel', minLength: 10 },
@@ -234,19 +236,105 @@ export class FinanceService {
     },
   ];
 
-  private getPayoutRules(role: Exclude<FinanceRole, 'customer'>): PayoutRules {
-    return this.payoutRulesByRole[role];
+  private async getStoredPayoutRules(): Promise<
+    Record<Exclude<FinanceRole, 'customer'>, PayoutRules> | null
+  > {
+    const setting = await (this.prisma as any).appSetting?.findUnique?.({
+      where: { key: FINANCE_PAYOUT_RULES_SETTING_KEY },
+    });
+
+    if (!setting?.value || typeof setting.value !== 'object') {
+      return null;
+    }
+
+    const value = setting.value as Record<string, unknown>;
+    const candidate =
+      value.tasker || value.vendor
+        ? value
+        : typeof value.rules === 'object' && value.rules
+          ? (value.rules as Record<string, unknown>)
+          : null;
+
+    return candidate as Record<Exclude<FinanceRole, 'customer'>, PayoutRules> | null;
+  }
+
+  private normalizePayoutRules(
+    raw: unknown,
+    fallback: Record<Exclude<FinanceRole, 'customer'>, PayoutRules>,
+  ): Record<Exclude<FinanceRole, 'customer'>, PayoutRules> {
+    const input = raw && typeof raw === "object" ? (raw as Record<string, any>) : {};
+    const roles: Array<Exclude<FinanceRole, 'customer'>> = ['tasker', 'vendor'];
+
+    return roles.reduce((acc, role) => {
+      const roleRaw = input[role] && typeof input[role] === 'object' ? input[role] : {};
+      const fallbackRole = fallback[role];
+      const methods = Array.isArray(roleRaw.methods)
+        ? roleRaw.methods
+            .filter((item: any) => item && typeof item.id === 'string')
+            .map((item: any) => ({
+              id: item.id as PayoutMethod,
+              minLength: Math.max(1, Number(item.minLength ?? 0) || 0),
+            }))
+            .filter((item) => ['mtn', 'airtel', 'bank'].includes(item.id))
+        : fallbackRole.methods;
+
+      acc[role] = {
+        minWithdrawal:
+          Number(roleRaw.minWithdrawal ?? fallbackRole.minWithdrawal) ||
+          fallbackRole.minWithdrawal,
+        methods: methods.length ? methods : fallbackRole.methods,
+      };
+      return acc;
+    }, {} as Record<Exclude<FinanceRole, 'customer'>, PayoutRules>);
+  }
+
+  async getAdminPayoutRules(): Promise<Record<Exclude<FinanceRole, 'customer'>, PayoutRules>> {
+    const stored = await this.getStoredPayoutRules();
+    return this.normalizePayoutRules(stored, this.defaultPayoutRulesByRole);
+  }
+
+  async updateAdminPayoutRules(
+    adminUserId: string,
+    payload: Record<Exclude<FinanceRole, 'customer'>, UpdateFinancePayoutRulesDto>,
+  ): Promise<Record<Exclude<FinanceRole, 'customer'>, PayoutRules>> {
+    const normalized = this.normalizePayoutRules(payload, this.defaultPayoutRulesByRole);
+    await (this.prisma as any).appSetting.upsert({
+      where: { key: FINANCE_PAYOUT_RULES_SETTING_KEY },
+      update: {
+        value: {
+          rules: normalized,
+          updatedBy: adminUserId,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      create: {
+        key: FINANCE_PAYOUT_RULES_SETTING_KEY,
+        value: {
+          rules: normalized,
+          updatedBy: adminUserId,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    });
+
+    return normalized;
+  }
+
+  private async getPayoutRules(role: Exclude<FinanceRole, 'customer'>): Promise<PayoutRules> {
+    const stored = await this.getStoredPayoutRules();
+    const merged = this.normalizePayoutRules(stored, this.defaultPayoutRulesByRole);
+    return merged[role];
   }
 
   private normalizePayoutTarget(value: unknown) {
     return typeof value === 'string' ? value.trim() : '';
   }
 
-  private validatePayoutDestination(
+  private async validatePayoutDestinationAsync(
     role: Exclude<FinanceRole, 'customer'>,
     destination: Record<string, unknown>,
   ) {
-    const rules = this.getPayoutRules(role);
+    const rules = await this.getPayoutRules(role);
     const method = this.normalizePayoutTarget(destination.method) as PayoutMethod;
     const methodRule = rules.methods.find((item) => item.id === method);
 
@@ -263,10 +351,7 @@ export class FinanceService {
       if (accountNumber.length < methodRule.minLength) {
         throw new BadRequestException('Bank account or reference is too short');
       }
-      return {
-        method,
-        accountNumber,
-      };
+      return { method, accountNumber };
     }
 
     const normalizedPhone = accountNumber.replace(/\D/g, '');
@@ -274,10 +359,7 @@ export class FinanceService {
       throw new BadRequestException('Mobile money number is invalid');
     }
 
-    return {
-      method,
-      accountNumber: normalizedPhone,
-    };
+    return { method, accountNumber: normalizedPhone };
   }
 
   async getSummary(
@@ -363,7 +445,7 @@ export class FinanceService {
         transactionCount:
           shifts.filter((shift) => shift.total_earnings > 0).length + payoutRequests.length,
         meta: {
-          payoutRules: this.getPayoutRules('tasker'),
+          payoutRules: await this.getPayoutRules('tasker'),
           totalShifts: shifts.length,
           totalDeliveries: shifts.reduce(
             (sum, shift) => sum + shift.total_deliveries,
@@ -436,7 +518,7 @@ export class FinanceService {
       totalRefunded: 0,
       transactionCount: orderItems.length + payoutRequests.length,
       meta: {
-        payoutRules: this.getPayoutRules('vendor'),
+        payoutRules: await this.getPayoutRules('vendor'),
         storeCount: stores.length,
         orderCount: new Set(orderItems.map((item) => item.orderId)).size,
       },
@@ -1144,7 +1226,7 @@ export class FinanceService {
   ): Promise<PayoutRequestDto> {
     const role = input.role;
     await this.assertRoleAccess(userId, role);
-    const payoutRules = this.getPayoutRules(role);
+    const payoutRules = await this.getPayoutRules(role);
 
     const summary = await this.getSummary(userId, role);
     if (summary.availableBalance <= 0) {
@@ -1161,7 +1243,7 @@ export class FinanceService {
       throw new BadRequestException('Requested amount exceeds available balance');
     }
 
-    const destination = this.validatePayoutDestination(role, input.destination);
+    const destination = await this.validatePayoutDestinationAsync(role, input.destination);
 
     const request = await (this.prisma as any).payoutRequest.create({
       data: {

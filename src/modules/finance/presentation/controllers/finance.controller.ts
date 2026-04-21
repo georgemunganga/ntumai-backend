@@ -26,6 +26,7 @@ import {
   FinanceRoleQueryDto,
   FinanceSummaryResponseDto,
   FinanceTransactionListResponseDto,
+  FinancePayoutSettingsResponseDto,
   LoyaltyResponseDto,
   CustomerSubscriptionsResponseDto,
   TipHistoryItemDto,
@@ -38,6 +39,7 @@ import {
   PauseCustomerSubscriptionDto,
   RedeemLoyaltyRewardDto,
   SelectVendorSubscriptionPlanDto,
+  UpdateFinancePayoutRulesDto,
   UpdatePayoutRequestStatusDto,
   VendorSubscriptionResponseDto,
 } from '../../application/dtos/finance.dto';
@@ -95,6 +97,31 @@ export class FinanceController {
     @Body() dto: CreatePayoutRequestInputDto,
   ) {
     return this.financeService.createPayoutRequest(req.user.userId, dto);
+  }
+
+  @Get('admin/payout-settings')
+  @ApiOperation({ summary: 'Admin: get global payout rules' })
+  @ApiResponse({ status: 200, type: FinancePayoutSettingsResponseDto })
+  async getAdminPayoutSettings(@Req() req: any) {
+    if (String(req.user.activeRole || '').toLowerCase() !== 'admin') {
+      throw new ForbiddenException('Admin role required');
+    }
+
+    return this.financeService.getAdminPayoutRules();
+  }
+
+  @Patch('admin/payout-settings')
+  @ApiOperation({ summary: 'Admin: update global payout rules' })
+  @ApiResponse({ status: 200, type: FinancePayoutSettingsResponseDto })
+  async updateAdminPayoutSettings(
+    @Req() req: any,
+    @Body() dto: Record<'tasker' | 'vendor', UpdateFinancePayoutRulesDto>,
+  ) {
+    if (String(req.user.activeRole || '').toLowerCase() !== 'admin') {
+      throw new ForbiddenException('Admin role required');
+    }
+
+    return this.financeService.updateAdminPayoutRules(req.user.userId, dto);
   }
 
   @Get('vendor-subscription')

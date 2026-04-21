@@ -419,6 +419,15 @@ model UserPreference {
   @@map("user_preferences")
 }
 
+model AppSetting {
+  key       String   @id
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
 model Order {
   id                 String               @id
   trackingId         String               @unique
