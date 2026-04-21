@@ -193,10 +193,24 @@ export class VendorService {
   async getStoreAdmin(userId: string, storeId: string) {
     const store = await this.verifyStoreOwnership(userId, storeId);
 
-    const [productCount, orderCount] = await Promise.all([
+    const [productCount, orderCount, awaitingFulfillmentCount] = await Promise.all([
       this.prisma.product.count({ where: { storeId } }),
       this.prisma.order.count({
         where: {
+          OrderItem: {
+            some: {
+              Product: {
+                storeId,
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          status: {
+            in: ['PENDING', 'ACCEPTED', 'PREPARING', 'PACKING'],
+          },
           OrderItem: {
             some: {
               Product: {
@@ -217,6 +231,7 @@ export class VendorService {
       averageRating: store.averageRating,
       productCount,
       orderCount,
+      awaitingFulfillmentCount,
       createdAt: store.createdAt,
     };
   }
