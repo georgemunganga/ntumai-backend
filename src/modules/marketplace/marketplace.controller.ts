@@ -12,6 +12,7 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -30,6 +31,7 @@ import { OrderService } from './orders/application/services/order.service';
 import { VendorService } from './vendor/application/services/vendor.service';
 import { PromotionService } from './promotions/application/services/promotion.service';
 import { ReviewService } from './reviews/application/services/review.service';
+import type { Response } from 'express';
 
 @ApiTags('Marketplace')
 @Controller('api/v1/marketplace')
@@ -579,6 +581,37 @@ export class MarketplaceController {
       endDate,
     );
     return { success: true, data: { reports } };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Roles('VENDOR')
+  @Get('vendor/stores/:storeId/reports/export')
+  @ApiOperation({ summary: 'Export vendor store sales report PDF' })
+  @ApiBearerAuth()
+  @ApiQuery({ name: 'period', required: false, enum: ['week', 'month', 'custom'] })
+  @ApiQuery({ name: 'startDate', required: false })
+  @ApiQuery({ name: 'endDate', required: false })
+  async exportStoreReports(
+    @Request() req,
+    @Param('storeId') storeId: string,
+    @Query('period') period: 'week' | 'month' | 'custom' = 'week',
+    @Query('startDate') startDate: string | undefined,
+    @Query('endDate') endDate: string | undefined,
+    @Res() res: Response,
+  ) {
+    const pdf = await this.vendorService.exportStoreReportsPdf(
+      req.user.userId,
+      storeId,
+      period,
+      startDate,
+      endDate,
+    );
+
+    const filename = `ntumai-sales-report-${storeId}-${period}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdf.length.toString());
+    res.send(pdf);
   }
 
   @UseGuards(JwtAuthGuard)

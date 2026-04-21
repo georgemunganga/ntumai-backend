@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
+import PDFDocument from 'pdfkit';
 import { PrismaService } from '../../../../../shared/infrastructure/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
 import { ChatService } from '../../../../chat/application/services/chat.service';
@@ -410,6 +411,92 @@ export class VendorService {
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 5),
     };
+  }
+
+  async exportStoreReportsPdf(
+    userId: string,
+    storeId: string,
+    period: 'week' | 'month' | 'custom' = 'week',
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const store = await this.verifyStoreOwnership(userId, storeId);
+    const reports = await this.getStoreReports(
+      userId,
+      storeId,
+      period,
+      startDate,
+      endDate,
+    );
+
+    return new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 40, size: 'A4' });
+      const buffers: Buffer[] = [];
+
+      doc.on('data', (chunk) => buffers.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', reject);
+
+      const money = (value: number) => `K${Number(value || 0).toFixed(2)}`;
+
+      doc.fontSize(22).text('Ntumai Sales Report', { align: 'left' });
+      doc.moveDown(0.3);
+      doc.fontSize(12).fillColor('#4B5563').text(store.name);
+      doc.text(
+        `${reports.range.startDate.slice(0, 10)} to ${reports.range.endDate.slice(0, 10)}`,
+      );
+      doc.text(`Period: ${reports.period}`);
+      doc.moveDown();
+
+      doc.fillColor('#111827').fontSize(16).text('Summary');
+      doc.moveDown(0.4);
+      [
+        ['Orders', String(reports.summary.orderCount)],
+        ['Completed Orders', String(reports.summary.completedOrderCount)],
+        ['Revenue', money(reports.summary.grossRevenue)],
+        ['Average Order Value', money(reports.summary.averageOrderValue)],
+        ['Products', String(reports.summary.productCount)],
+        ['Customers', String(reports.summary.customerCount)],
+        ['Repeat Customers', String(reports.summary.repeatCustomerCount)],
+      ].forEach(([label, value]) => {
+        doc.fontSize(11).text(`${label}: ${value}`);
+      });
+
+      doc.moveDown();
+      doc.fontSize(16).text('Revenue Trend');
+      doc.moveDown(0.4);
+      reports.revenueTrend.forEach((point) => {
+        doc
+          .fontSize(11)
+          .text(
+            `${point.label}: ${money(point.revenue)} across ${point.orderCount} completed orders`,
+          );
+      });
+
+      doc.moveDown();
+      doc.fontSize(16).text('Top Products');
+      doc.moveDown(0.4);
+      if (reports.topProducts.length === 0) {
+        doc.fontSize(11).text('No completed product sales in this period.');
+      } else {
+        reports.topProducts.forEach((product, index) => {
+          doc
+            .fontSize(11)
+            .text(
+              `${index + 1}. ${product.name} - ${product.quantitySold} sold, ${product.orderCount} orders, ${money(product.revenue)}`,
+            );
+        });
+      }
+
+      doc.moveDown();
+      doc.fontSize(16).text('Order Status Breakdown');
+      doc.moveDown(0.4);
+      reports.orderStatusCounts.forEach((item) => {
+        doc.fontSize(11).text(`${item.status}: ${item.count}`);
+      });
+
+      doc.end();
+    });
   }
 
   async getMyStoreBusinessHours(userId: string) {
