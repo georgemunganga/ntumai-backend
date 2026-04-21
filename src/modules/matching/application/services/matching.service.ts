@@ -38,6 +38,19 @@ export class MatchingService {
     private readonly prisma: PrismaService,
   ) {}
 
+  private toCandidateSnapshot(candidate: RiderInfoDto) {
+    const location = this.matchingGateway.getRiderLocation(candidate.user_id);
+    return {
+      riderId: candidate.user_id,
+      name: candidate.name,
+      vehicle: candidate.vehicle,
+      phone: candidate.phone,
+      rating: candidate.rating,
+      etaMin: candidate.eta_min,
+      ...(location ? { location } : {}),
+    };
+  }
+
   async createBooking(
     dto: CreateBookingDto,
   ): Promise<CreateBookingResponseDto> {
@@ -638,6 +651,14 @@ export class MatchingService {
     booking.startSearching();
     await this.bookingRepository.save(booking);
     this.matchingGateway.emitMatchingInProgress(dto.customer_user_id, bookingId);
+    this.matchingGateway.emitMatchingSnapshot({
+      bookingId,
+      customerId: dto.customer_user_id,
+      stage: 'searching',
+      candidateCount: 0,
+      candidates: [],
+      message: 'Looking for nearby taskers now.',
+    });
 
     // Find candidates using matching engine
     const candidates = await this.matchingEngine.findCandidates({
@@ -656,6 +677,15 @@ export class MatchingService {
       );
       return;
     }
+
+    this.matchingGateway.emitMatchingSnapshot({
+      bookingId,
+      customerId: dto.customer_user_id,
+      stage: 'candidates_found',
+      candidateCount: candidates.length,
+      candidates: candidates.map((candidate) => this.toCandidateSnapshot(candidate)),
+      message: `Found ${candidates.length} nearby tasker${candidates.length === 1 ? '' : 's'}.`,
+    });
 
     // Offer to first candidate
     const firstCandidate = candidates[0];
@@ -695,6 +725,16 @@ export class MatchingService {
       customer_name: dto.customer_name,
       customer_phone: dto.customer_phone,
       metadata: dto.metadata || {},
+    });
+
+    this.matchingGateway.emitMatchingSnapshot({
+      bookingId,
+      customerId: dto.customer_user_id,
+      stage: 'offer_sent',
+      candidateCount: candidates.length,
+      activeRiderId: firstCandidate.user_id,
+      candidates: candidates.map((candidate) => this.toCandidateSnapshot(candidate)),
+      message: `${firstCandidate.name} is reviewing the request.`,
     });
 
     // Emit booking.offered event
@@ -757,6 +797,16 @@ export class MatchingService {
         customer_name: bookingData.customer_name,
         customer_phone: bookingData.customer_phone,
         metadata: bookingData.metadata || {},
+      });
+
+      this.matchingGateway.emitMatchingSnapshot({
+        bookingId,
+        customerId: bookingData.customer_user_id,
+        stage: 'reoffered',
+        candidateCount: newCandidates.length,
+        activeRiderId: newCandidates[0].user_id,
+        candidates: newCandidates.map((candidate) => this.toCandidateSnapshot(candidate)),
+        message: `${newCandidates[0].name} is reviewing the request now.`,
       });
     }
   }

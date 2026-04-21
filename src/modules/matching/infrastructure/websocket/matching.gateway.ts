@@ -10,6 +10,33 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 
+type RiderLocationSnapshot = {
+  lat: number;
+  lng: number;
+  updatedAt: string;
+};
+
+type MatchingCandidateSnapshot = {
+  riderId: string;
+  name: string;
+  vehicle: string;
+  phone?: string;
+  rating?: number;
+  etaMin?: number;
+  location?: RiderLocationSnapshot;
+};
+
+type MatchingSnapshotPayload = {
+  bookingId: string;
+  customerId: string;
+  stage: 'searching' | 'candidates_found' | 'offer_sent' | 'reoffered';
+  candidateCount: number;
+  activeRiderId?: string;
+  candidates: MatchingCandidateSnapshot[];
+  message?: string;
+  timestamp: string;
+};
+
 @WebSocketGateway({
   namespace: '/matching',
   cors: {
@@ -25,6 +52,8 @@ export class MatchingGateway
   private readonly logger = new Logger(MatchingGateway.name);
   private riderSockets: Map<string, string> = new Map(); // riderId -> socketId
   private customerSockets: Map<string, string> = new Map(); // customerId -> socketId
+  private riderLocations: Map<string, RiderLocationSnapshot> = new Map();
+  private bookingSnapshots: Map<string, MatchingSnapshotPayload> = new Map();
 
   handleConnection(client: Socket) {
     this.logger.log(`Client connected to matching: ${client.id}`);
@@ -37,6 +66,7 @@ export class MatchingGateway
     for (const [riderId, socketId] of this.riderSockets.entries()) {
       if (socketId === client.id) {
         this.riderSockets.delete(riderId);
+        this.riderLocations.delete(riderId);
         this.logger.log(`Rider ${riderId} went offline`);
       }
     }
@@ -58,6 +88,13 @@ export class MatchingGateway
 
     this.riderSockets.set(riderId, client.id);
     client.join(`rider:${riderId}`);
+    if (location?.lat != null && location?.lng != null) {
+      this.riderLocations.set(riderId, {
+        lat: Number(location.lat),
+        lng: Number(location.lng),
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     this.logger.log(`Rider ${riderId} is now online`);
 
@@ -76,6 +113,7 @@ export class MatchingGateway
     const { riderId } = data;
 
     this.riderSockets.delete(riderId);
+    this.riderLocations.delete(riderId);
     client.leave(`rider:${riderId}`);
 
     this.logger.log(`Rider ${riderId} is now offline`);
@@ -114,6 +152,14 @@ export class MatchingGateway
     @ConnectedSocket() client: Socket,
   ) {
     const { riderId, location } = data;
+    if (location?.lat != null && location?.lng != null) {
+      this.riderLocations.set(riderId, {
+        lat: Number(location.lat),
+        lng: Number(location.lng),
+        updatedAt: new Date().toISOString(),
+      });
+      this.refreshSnapshotsForRider(riderId);
+    }
 
     // Broadcast to matching service for nearby delivery matching
     this.server.emit('rider:location:update', {
@@ -145,6 +191,9 @@ export class MatchingGateway
 
   // Emit booking accepted to customer
   emitBookingAccepted(customerId: string, bookingData: any) {
+    if (bookingData?.bookingId) {
+      this.bookingSnapshots.delete(String(bookingData.bookingId));
+    }
     this.server.to(`customer:${customerId}`).emit('booking:accepted', {
       ...bookingData,
       timestamp: new Date().toISOString(),
@@ -180,6 +229,9 @@ export class MatchingGateway
   }
 
   emitBookingCompleted(customerId: string, payload: any) {
+    if (payload?.bookingId) {
+      this.bookingSnapshots.delete(String(payload.bookingId));
+    }
     this.server.to(`customer:${customerId}`).emit('booking:completed', {
       ...payload,
       timestamp: new Date().toISOString(),
@@ -191,6 +243,7 @@ export class MatchingGateway
   }
 
   emitBookingCancelled(customerId: string, bookingId: string, reason?: string) {
+    this.bookingSnapshots.delete(String(bookingId));
     const payload = {
       bookingId,
       reason,
@@ -213,8 +266,20 @@ export class MatchingGateway
     );
   }
 
+  emitMatchingSnapshot(payload: Omit<MatchingSnapshotPayload, 'timestamp'>) {
+    const event: MatchingSnapshotPayload = {
+      ...payload,
+      timestamp: new Date().toISOString(),
+    };
+
+    this.bookingSnapshots.set(String(payload.bookingId), event);
+    this.server.to(`customer:${payload.customerId}`).emit('matching:snapshot', event);
+    this.server.to(`booking:${payload.bookingId}`).emit('matching:snapshot', event);
+  }
+
   // Emit matching failed
   emitMatchingFailed(customerId: string, bookingId: string, reason: string) {
+    this.bookingSnapshots.delete(String(bookingId));
     this.server.to(`customer:${customerId}`).emit('matching:failed', {
       bookingId,
       reason,
@@ -250,5 +315,40 @@ export class MatchingGateway
   // Get all online rider IDs
   getOnlineRiderIds(): string[] {
     return Array.from(this.riderSockets.keys());
+  }
+
+  getRiderLocation(riderId: string): RiderLocationSnapshot | null {
+    return this.riderLocations.get(riderId) || null;
+  }
+
+  private refreshSnapshotsForRider(riderId: string) {
+    for (const [bookingId, snapshot] of this.bookingSnapshots.entries()) {
+      const candidateIndex = snapshot.candidates.findIndex(
+        (candidate) => candidate.riderId === riderId,
+      );
+      if (candidateIndex < 0) {
+        continue;
+      }
+
+      const latestLocation = this.getRiderLocation(riderId);
+      const nextCandidates = snapshot.candidates.map((candidate, index) =>
+        index === candidateIndex
+          ? {
+              ...candidate,
+              ...(latestLocation ? { location: latestLocation } : {}),
+            }
+          : candidate,
+      );
+
+      const nextSnapshot: MatchingSnapshotPayload = {
+        ...snapshot,
+        candidates: nextCandidates,
+        timestamp: new Date().toISOString(),
+      };
+
+      this.bookingSnapshots.set(bookingId, nextSnapshot);
+      this.server.to(`booking:${bookingId}`).emit('matching:snapshot', nextSnapshot);
+      this.server.to(`customer:${snapshot.customerId}`).emit('matching:snapshot', nextSnapshot);
+    }
   }
 }
