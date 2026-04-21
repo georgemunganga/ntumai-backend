@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import axios from 'axios';
 import { PrismaService } from '../../../../shared/infrastructure/prisma.service';
 import { PricingService } from '../../../pricing/application/services/pricing.service';
 
@@ -45,6 +46,13 @@ export class DispatchService {
   private readonly maxCandidatePool = Number(
     process.env.MATCHING_MAX_CANDIDATE_POOL || 25,
   );
+  private readonly etaRefinementPool = Number(
+    process.env.MATCHING_ROUTE_ETA_POOL || 3,
+  );
+  private readonly googleMapsApiKey =
+    process.env.GOOGLE_MAPS_API_KEY ||
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
+    '';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -165,7 +173,7 @@ export class DispatchService {
       }
     }
 
-    return parsedShifts
+    const ranked = parsedShifts
       .map((shift) => {
         const user = userById.get(shift.rider_user_id);
         if (!user || !shift.current_location) {
@@ -237,6 +245,8 @@ export class DispatchService {
       .filter((entry): entry is RankedTaskerCandidate => entry !== null)
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
+
+    return this.refineCandidatesWithRouteEta(job, ranked);
   }
 
   async incrementTaskerDispatchStat(
@@ -363,5 +373,88 @@ export class DispatchService {
       return true;
     }
     return requested === activeShiftVehicle;
+  }
+
+  private async refineCandidatesWithRouteEta(
+    job: DispatchJob,
+    ranked: RankedTaskerCandidate[],
+  ): Promise<RankedTaskerCandidate[]> {
+    if (!this.googleMapsApiKey || ranked.length <= 1) {
+      return ranked;
+    }
+
+    const refineCount = Math.min(
+      Math.max(1, this.etaRefinementPool),
+      ranked.length,
+    );
+    const candidatesToRefine = ranked.slice(0, refineCount);
+
+    const refined = await Promise.all(
+      candidatesToRefine.map(async (candidate) => {
+        const routeEta = await this.fetchRouteEtaMinutes(candidate.user_id, job.pickup);
+        if (routeEta == null) {
+          return candidate;
+        }
+
+        const previousEtaScore = Math.max(0, 1 - candidate.eta_min / 25);
+        const etaScore = Math.max(0, 1 - routeEta / 25);
+        const nonEtaScore = candidate.score - previousEtaScore * 0.45;
+
+        return {
+          ...candidate,
+          eta_min: routeEta,
+          score: Number((nonEtaScore + etaScore * 0.45).toFixed(4)),
+        };
+      }),
+    );
+
+    return [...refined, ...ranked.slice(refineCount)].sort(
+      (a, b) => b.score - a.score,
+    );
+  }
+
+  private async fetchRouteEtaMinutes(
+    riderUserId: string,
+    destination: { lat: number; lng: number },
+  ): Promise<number | null> {
+    const shift = await this.prisma.shift.findFirst({
+      where: {
+        rider_user_id: riderUserId,
+        status: 'active',
+      },
+      select: {
+        current_location: true,
+      },
+      orderBy: { last_location_update: 'desc' },
+    });
+
+    const origin = this.parseLocation(shift?.current_location);
+    if (!origin) {
+      return null;
+    }
+
+    try {
+      const response = await axios.get(
+        'https://maps.googleapis.com/maps/api/directions/json',
+        {
+          params: {
+            origin: `${origin.lat},${origin.lng}`,
+            destination: `${destination.lat},${destination.lng}`,
+            key: this.googleMapsApiKey,
+          },
+          timeout: 3000,
+        },
+      );
+
+      const durationValue =
+        response.data?.routes?.[0]?.legs?.[0]?.duration?.value ?? null;
+      if (!durationValue || !Number.isFinite(Number(durationValue))) {
+        return null;
+      }
+
+      return Math.max(2, Math.round(Number(durationValue) / 60));
+    } catch {
+      return null;
+    }
   }
 }
