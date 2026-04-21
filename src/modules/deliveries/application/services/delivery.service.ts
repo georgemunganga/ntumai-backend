@@ -33,7 +33,7 @@ import { DeliveriesGateway } from '../../infrastructure/websocket/deliveries.gat
 import type { DispatchStatusDto } from '../../../dispatch/application/dtos/dispatch-status.dto';
 
 type DeliveryDispatchState = {
-  stage?: 'searching' | 'offered' | 'assigned' | 'failed';
+  stage?: 'searching' | 'offered' | 'assigned' | 'failed' | 'completed';
   offeredTo?: string[];
   activeRiderId?: string | null;
   offerExpiresAt?: string | null;
@@ -540,6 +540,15 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException('Not assigned to this delivery');
     }
 
+    const pickupStop = delivery.stops.find((stop) => stop.type === StopType.PICKUP);
+    if (pickupStop && !pickupStop.isCompleted()) {
+      pickupStop.markCompleted();
+      this.deliveriesGateway.emitPickupCompleted(
+        deliveryId,
+        pickupStop.geo || pickupStop.address || null,
+      );
+    }
+
     delivery.markAsDelivery();
     const updated = await this.deliveryRepository.update(deliveryId, delivery);
 
@@ -558,6 +567,98 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
 
     this.deliveriesGateway.emitInTransit(deliveryId, 1, delivery.stops.length);
     this.deliveriesGateway.emitDeliveryStatusUpdate(deliveryId, 'in_transit', {
+      riderId,
+      customerId: delivery.created_by_user_id,
+    });
+
+    return updated;
+  }
+
+  async completeDelivery(
+    deliveryId: string,
+    riderId: string,
+  ): Promise<DeliveryOrder> {
+    const delivery = await this.deliveryRepository.findById(deliveryId);
+    if (!delivery) {
+      throw new NotFoundException('Delivery not found');
+    }
+
+    if (delivery.rider_id !== riderId) {
+      throw new ForbiddenException('Not assigned to this delivery');
+    }
+
+    if (this.isDeliveryCancelled(delivery)) {
+      throw new BadRequestException('Cancelled deliveries cannot be completed');
+    }
+
+    const pickupStop = delivery.stops.find((stop) => stop.type === StopType.PICKUP);
+    if (pickupStop && !pickupStop.isCompleted()) {
+      pickupStop.markCompleted();
+      this.deliveriesGateway.emitPickupCompleted(
+        deliveryId,
+        pickupStop.geo || pickupStop.address || null,
+      );
+    }
+
+    const dropoffStops = delivery.stops.filter(
+      (stop) => stop.type === StopType.DROPOFF,
+    );
+
+    dropoffStops.forEach((stop, index) => {
+      if (!stop.isCompleted()) {
+        stop.markCompleted();
+        this.deliveriesGateway.emitDropoffCompleted(deliveryId, index + 1);
+      }
+    });
+
+    this.updateDeliveryMetadata(delivery, (metadata) => ({
+      ...metadata,
+      completed_at: new Date().toISOString(),
+      sourceStatus: 'completed',
+      statusLabel: 'Completed',
+      dispatch: {
+        ...this.getDispatchStateFromMetadata(metadata),
+        stage: 'completed',
+        activeRiderId: riderId,
+        offerExpiresAt: null,
+      },
+    }));
+
+    const updated = await this.deliveryRepository.update(deliveryId, delivery);
+
+    await Promise.all([
+      this.notificationsService.createNotification({
+        userId: delivery.created_by_user_id,
+        title: 'Delivery completed',
+        message: `Delivery ${deliveryId} has been completed.`,
+        type: 'DELIVERY_UPDATE',
+        metadata: {
+          entityType: 'delivery',
+          entityId: deliveryId,
+          sourceStatus: 'completed',
+          statusLabel: 'Completed',
+        },
+      }),
+      this.notificationsService.createNotification({
+        userId: riderId,
+        title: 'Delivery completed',
+        message: `You completed delivery ${deliveryId}.`,
+        type: 'DELIVERY_UPDATE',
+        metadata: {
+          entityType: 'delivery',
+          entityId: deliveryId,
+          sourceStatus: 'completed',
+          statusLabel: 'Completed',
+        },
+      }),
+    ]);
+
+    this.deliveriesGateway.emitDeliveryCompleted(deliveryId, {
+      riderId,
+      customerId: delivery.created_by_user_id,
+      completedAt: this.parseDeliveryMetadata(updated).completed_at,
+    });
+    this.deliveriesGateway.emitDeliveryStatusUpdate(deliveryId, 'completed', {
       riderId,
       customerId: delivery.created_by_user_id,
     });
@@ -680,8 +781,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException('Not assigned to this delivery');
     }
 
-    const status = String(delivery.order_status || '').toLowerCase();
-    if (!['delivered', 'completed'].includes(status)) {
+    if (!this.isDeliveryCompleted(delivery)) {
       throw new ConflictException(
         'Can only rate customers for completed deliveries',
       );
@@ -1401,6 +1501,9 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     delivery: DeliveryOrder,
     dispatchState: DeliveryDispatchState,
   ): DispatchStatusDto['stage'] {
+    if (this.isDeliveryCompleted(delivery)) {
+      return 'completed';
+    }
     if (this.isDeliveryCancelled(delivery)) {
       return 'cancelled';
     }
@@ -1418,6 +1521,8 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
         return 'assigned';
       case 'failed':
         return 'failed';
+      case 'completed':
+        return 'completed';
       default:
         return delivery.rider_id ? 'assigned' : 'searching';
     }
@@ -1440,6 +1545,8 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
         return 'Delivery is in transit.';
       case 'failed':
         return 'No rider is currently available.';
+      case 'completed':
+        return 'Delivery completed.';
       case 'cancelled':
         return 'This delivery was cancelled.';
       default:
@@ -1454,6 +1561,18 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     } catch {
       return false;
     }
+  }
+
+  private isDeliveryCompleted(delivery: DeliveryOrder): boolean {
+    const metadata = this.parseDeliveryMetadata(delivery);
+    const dropoffs = delivery.stops.filter((stop) => stop.type === StopType.DROPOFF);
+    return Boolean(
+      metadata?.completed_at ||
+        ['completed', 'delivered'].includes(
+          String(metadata?.sourceStatus || '').toLowerCase(),
+        ) ||
+        (dropoffs.length > 0 && dropoffs.every((stop) => stop.isCompleted())),
+    );
   }
 
   private toRiderHistoryItem(delivery: DeliveryOrder, riderId: string) {
@@ -1498,16 +1617,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
   ): 'completed' | 'cancelled' | 'released' | 'in_transit' | 'accepted' {
     const metadata = this.parseDeliveryMetadata(delivery);
     const dropoffs = delivery.stops.filter((stop) => stop.type === StopType.DROPOFF);
-    const allDropoffsCompleted =
-      dropoffs.length > 0 && dropoffs.every((stop) => stop.isCompleted());
-
-    if (
-      allDropoffsCompleted ||
-      ['completed', 'delivered'].includes(
-        String(metadata?.sourceStatus || '').toLowerCase(),
-      ) ||
-      metadata?.completed_at
-    ) {
+    if (this.isDeliveryCompleted(delivery)) {
       return 'completed';
     }
 

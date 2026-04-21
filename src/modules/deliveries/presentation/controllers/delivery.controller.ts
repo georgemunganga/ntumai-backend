@@ -420,6 +420,25 @@ export class RiderDeliveryController {
     return this.deliveryService.markAsDelivery(id, req.user.userId);
   }
 
+  @Post(':id/complete')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Complete delivery',
+    description: 'Mark delivery as fully completed by the assigned rider',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Delivery completed',
+  })
+  async completeDelivery(
+    @Param('id') id: string,
+    @Request() req: any,
+  ): Promise<any> {
+    return this.deliveryService.completeDelivery(id, req.user.userId);
+  }
+
   @Post(':id/release')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
